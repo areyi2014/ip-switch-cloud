@@ -30,7 +30,7 @@ input[type="checkbox"]{-webkit-appearance:checkbox;appearance:auto;width:auto;he
 <form autocomplete="off"><div class="field-group">
 <div class="field"><label>配置名称 <span class="required">*</span></label><input id="f-name" placeholder="oci-tokyo"></div>
 <div class="field"><label>区域 <span class="required">*</span></label>
-<select id="f-region">
+<select id="f-region" onchange="toggleRegion()">
 <option value="">选择区域</option>
 <option value="us-ord-1">us-ord-1 (Chicago)</option>
 <option value="us-phx-1">us-phx-1 (Phoenix)</option>
@@ -39,7 +39,10 @@ input[type="checkbox"]{-webkit-appearance:checkbox;appearance:auto;width:auto;he
 <option value="ap-seoul-1">ap-seoul-1 (Seoul)</option>
 <option value="ap-mumbai-1">ap-mumbai-1 (Mumbai)</option>
 <option value="eu-frankfurt-1">eu-frankfurt-1 (Frankfurt)</option>
-</select></div>
+<option value="__custom__">其他区域 (手动输入)</option>
+</select>
+<input id="f-region-custom" type="text" class="hidden" placeholder="输入区域代码，如 ap-hyderabad-1" style="margin-top:4px;">
+</div>
 <div class="credentials-section"><div class="credentials-title">凭据</div><div class="field-group">
 <div class="field"><label>Tenancy OCID <span class="required">*</span></label><input id="cred-tenancy" class="mono" placeholder="ocid1.tenancy..."></div>
 <div class="field"><label>User OCID <span class="required">*</span></label><input id="cred-user" class="mono" placeholder="ocid1.user..."></div>
@@ -59,10 +62,11 @@ input[type="checkbox"]{-webkit-appearance:checkbox;appearance:auto;width:auto;he
 </form>
 </div>
 <script>
+function toggleRegion(){var s=document.getElementById('f-region');var c=document.getElementById('f-region-custom');c.classList.toggle('hidden',s.value!=='__custom__');if(s.value==='__custom__')c.focus()}
 function toggleCF(){document.getElementById('cf-fields').classList.toggle('hidden',!document.getElementById('f-proxied').checked)}
 function showMsg(t,c){var m=document.getElementById('f-msg');m.className='msg '+c;m.textContent=t}
 function submit(){
-var c={name:document.getElementById('f-name').value.trim(),provider:'oci',region:document.getElementById('f-region').value,
+var c={name:document.getElementById('f-name').value.trim(),provider:'oci',region:document.getElementById('f-region').value==='__custom__'?document.getElementById('f-region-custom').value.trim():document.getElementById('f-region').value,
 credentials:{},instanceId:document.getElementById('f-instance').value.trim(),subdomain:document.getElementById('f-subdomain').value.trim(),
 proxied:document.getElementById('f-proxied').checked};
 ['tenancy','user','fingerprint','privateKey'].forEach(function(k){var v=document.getElementById('cred-'+k).value.trim();if(v)c.credentials[k]=v});

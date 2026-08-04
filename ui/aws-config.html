@@ -30,7 +30,7 @@ input[type="checkbox"]{-webkit-appearance:checkbox;appearance:auto;width:auto;he
 <form autocomplete="off"><div class="field-group">
 <div class="field"><label>配置名称 <span class="required">*</span></label><input id="f-name" placeholder="aws-tokyo"></div>
 <div class="field"><label>区域 <span class="required">*</span></label>
-<select id="f-region">
+<select id="f-region" onchange="toggleRegion()">
 <option value="">选择区域</option>
 <option value="ap-southeast-1">ap-southeast-1 (Singapore)</option>
 <option value="ap-northeast-1">ap-northeast-1 (Tokyo)</option>
@@ -40,7 +40,10 @@ input[type="checkbox"]{-webkit-appearance:checkbox;appearance:auto;width:auto;he
 <option value="us-east-1">us-east-1 (N. Virginia)</option>
 <option value="us-west-2">us-west-2 (Oregon)</option>
 <option value="eu-west-1">eu-west-1 (Ireland)</option>
-</select></div>
+<option value="__custom__">其他区域 (手动输入)</option>
+</select>
+<input id="f-region-custom" type="text" class="hidden" placeholder="输入区域代码，如 ap-south-1" style="margin-top:4px;">
+</div>
 <div class="credentials-section"><div class="credentials-title">凭据</div><div class="field-group">
 <div class="field"><label>Access Key ID <span class="required">*</span></label><input id="cred-accessKeyId" class="mono" placeholder="AKIA..."></div>
 <div class="field"><label>Secret Access Key <span class="required">*</span></label><input id="cred-secretAccessKey" class="mono" type="password"></div>
@@ -59,10 +62,11 @@ input[type="checkbox"]{-webkit-appearance:checkbox;appearance:auto;width:auto;he
 </form>
 </div>
 <script>
+function toggleRegion(){var s=document.getElementById('f-region');var c=document.getElementById('f-region-custom');c.classList.toggle('hidden',s.value!=='__custom__');if(s.value==='__custom__')c.focus()}
 function toggleCF(){document.getElementById('cf-fields').classList.toggle('hidden',!document.getElementById('f-proxied').checked)}
 function showMsg(t,c){var m=document.getElementById('f-msg');m.className='msg '+c;m.textContent=t}
 function submit(){
-var c={name:document.getElementById('f-name').value.trim(),provider:'aws',region:document.getElementById('f-region').value,
+var c={name:document.getElementById('f-name').value.trim(),provider:'aws',region:document.getElementById('f-region').value==='__custom__'?document.getElementById('f-region-custom').value.trim():document.getElementById('f-region').value,
 credentials:{},instanceId:document.getElementById('f-instance').value.trim(),subdomain:document.getElementById('f-subdomain').value.trim(),
 proxied:document.getElementById('f-proxied').checked};
 ['accessKeyId','secretAccessKey'].forEach(function(k){var v=document.getElementById('cred-'+k).value.trim();if(v)c.credentials[k]=v});

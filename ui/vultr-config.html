@@ -30,7 +30,7 @@ input[type="checkbox"]{-webkit-appearance:checkbox;appearance:auto;width:auto;he
 <form autocomplete="off"><div class="field-group">
 <div class="field"><label>配置名称 <span class="required">*</span></label><input id="f-name" placeholder="vultr-sg"></div>
 <div class="field"><label>区域 <span class="required">*</span></label>
-<select id="f-region">
+<select id="f-region" onchange="toggleRegion()">
 <option value="">选择区域</option>
 <option value="ewr">ewr (New Jersey)</option>
 <option value="lax">lax (Los Angeles)</option>
@@ -39,7 +39,10 @@ input[type="checkbox"]{-webkit-appearance:checkbox;appearance:auto;width:auto;he
 <option value="sin">sin (Singapore)</option>
 <option value="tokyo">tokyo (Tokyo)</option>
 <option value="ams">ams (Amsterdam)</option>
-</select></div>
+<option value="__custom__">其他区域 (手动输入)</option>
+</select>
+<input id="f-region-custom" type="text" class="hidden" placeholder="输入区域代码，如 del" style="margin-top:4px;">
+</div>
 <div class="credentials-section"><div class="credentials-title">凭据</div><div class="field-group">
 <div class="field"><label>API Key <span class="required">*</span></label><input id="cred-apiKey" class="mono" type="password" placeholder="Vultr API Key"></div>
 </div></div>
@@ -56,10 +59,11 @@ input[type="checkbox"]{-webkit-appearance:checkbox;appearance:auto;width:auto;he
 </form>
 </div>
 <script>
+function toggleRegion(){var s=document.getElementById('f-region');var c=document.getElementById('f-region-custom');c.classList.toggle('hidden',s.value!=='__custom__');if(s.value==='__custom__')c.focus()}
 function toggleCF(){document.getElementById('cf-fields').classList.toggle('hidden',!document.getElementById('f-proxied').checked)}
 function showMsg(t,c){var m=document.getElementById('f-msg');m.className='msg '+c;m.textContent=t}
 function submit(){
-var c={name:document.getElementById('f-name').value.trim(),provider:'vultr',region:document.getElementById('f-region').value,
+var c={name:document.getElementById('f-name').value.trim(),provider:'vultr',region:document.getElementById('f-region').value==='__custom__'?document.getElementById('f-region-custom').value.trim():document.getElementById('f-region').value,
 credentials:{},instanceId:document.getElementById('f-instance').value.trim(),subdomain:document.getElementById('f-subdomain').value.trim(),
 proxied:document.getElementById('f-proxied').checked};
 var ak=document.getElementById('cred-apiKey').value.trim();if(ak)c.credentials.apiKey=ak;
