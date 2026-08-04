@@ -148,8 +148,6 @@ export interface ConfigProfile {
 
 /** Full application config persisted to disk */
 export interface AppConfig {
-  /** Cloudflare API config (shared across all profiles) */
-  cloudflare: CloudflareConfig | null;
   /** Saved cloud provider profiles, keyed by name */
   profiles: Record<string, ConfigProfile>;
 }

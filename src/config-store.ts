@@ -1,14 +1,13 @@
 /**
  * Config Store — Persistent JSON configuration storage
  *
- * Stores cloud provider credentials, subdomain bindings, and Cloudflare API config
+ * Stores cloud provider profiles (with per-profile Cloudflare credentials)
  * in a JSON file at ~/.cloud-ip-rotator/config.json
  *
  * File format:
  * {
- *   "cloudflare": { "apiToken": "...", "zoneId": "..." },
  *   "profiles": {
- *     "aws-sg": { "provider": "aws", "region": "...", ... },
+ *     "aws-sg": { "provider": "aws", "region": "...", "cloudflare": { ... }, ... },
  *     ...
  *   }
  * }
@@ -17,13 +16,12 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, dirname } from 'node:path';
-import type { AppConfig, CloudflareConfig, ConfigProfile } from './types.js';
+import type { AppConfig, ConfigProfile } from './types.js';
 
 const CONFIG_DIR = join(homedir(), '.cloud-ip-rotator');
 const CONFIG_FILE = join(CONFIG_DIR, 'config.json');
 
 const EMPTY_CONFIG: AppConfig = {
-  cloudflare: null,
   profiles: {},
 };
 
@@ -36,7 +34,6 @@ export function loadConfig(): AppConfig {
     const raw = readFileSync(CONFIG_FILE, 'utf-8');
     const data = JSON.parse(raw) as Partial<AppConfig>;
     return {
-      cloudflare: data.cloudflare ?? null,
       profiles: data.profiles ?? {},
     };
   } catch (err) {
@@ -76,19 +73,6 @@ export function getProfile(name: string): ConfigProfile | undefined {
 /** List all saved profiles. */
 export function listProfiles(): ConfigProfile[] {
   return Object.values(loadConfig().profiles);
-}
-
-/** Save Cloudflare API config. */
-export function saveCloudflareConfig(cf: CloudflareConfig): AppConfig {
-  const config = loadConfig();
-  config.cloudflare = cf;
-  saveConfig(config);
-  return config;
-}
-
-/** Get Cloudflare API config. Returns null if not configured. */
-export function getCloudflareConfig(): CloudflareConfig | null {
-  return loadConfig().cloudflare;
 }
 
 /** Get the config file path (for logging/debugging). */

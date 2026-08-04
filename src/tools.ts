@@ -12,8 +12,6 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { getAdapter } from './router.js';
 import { CloudAdapterError, type ConfigProfile } from './types.js';
 import {
-  saveCloudflareConfig,
-  getCloudflareConfig,
   saveProfile,
   deleteProfile,
   listProfiles,
@@ -233,35 +231,7 @@ export function registerTools(server: McpServer): void {
     }
   );
 
-  // ─── 9. save_cloudflare_config ───────────────────────
-
-  server.tool(
-    'save_cloudflare_config',
-    'Save Cloudflare API token and Zone ID for DNS updates. ' +
-    'This is a global config shared by all profiles. ' +
-    'Get the API token from Cloudflare dashboard > My Profile > API Tokens. ' +
-    'Get the Zone ID from any domain overview page.',
-    {
-      apiToken: z.string().describe('Cloudflare API token'),
-      zoneId: z.string().describe('Cloudflare Zone ID for the domain'),
-    },
-    async ({ apiToken, zoneId }) => {
-      try {
-        saveCloudflareConfig({ apiToken, zoneId });
-        return {
-          content: [{ type: 'text' as const, text: JSON.stringify({
-            success: true,
-            message: 'Cloudflare config saved',
-            configPath: getConfigPath(),
-          }, null, 2) }],
-        };
-      } catch (err) {
-        return formatError(err);
-      }
-    }
-  );
-
-  // ─── 10. save_profile ────────────────────────────────
+  // ─── 9. save_profile ────────────────────────────────
 
   server.tool(
     'save_profile',
@@ -301,19 +271,17 @@ export function registerTools(server: McpServer): void {
     }
   );
 
-  // ─── 11. list_profiles ───────────────────────────────
+  // ─── 10. list_profiles ───────────────────────────────
 
   server.tool(
     'list_profiles',
     'List all saved cloud provider profiles with their subdomain bindings. ' +
-    'Also shows whether Cloudflare DNS config is set.',
+    'Also shows whether each profile has Cloudflare DNS config attached.',
     {},
     async () => {
       const profiles = listProfiles();
-      const cf = getCloudflareConfig();
       return {
         content: [{ type: 'text' as const, text: JSON.stringify({
-          cloudflareConfigured: cf !== null,
           profileCount: profiles.length,
           profiles: profiles.map(p => ({
             name: p.name,
@@ -322,13 +290,14 @@ export function registerTools(server: McpServer): void {
             instanceId: p.instanceId,
             subdomain: p.subdomain,
             proxied: p.proxied,
+            cloudflareConfigured: !!p.cloudflare,
           })),
         }, null, 2) }],
       };
     }
   );
 
-  // ─── 12. delete_profile ──────────────────────────────
+  // ─── 11. delete_profile ──────────────────────────────
 
   server.tool(
     'delete_profile',
@@ -347,37 +316,22 @@ export function registerTools(server: McpServer): void {
     }
   );
 
-  // ─── 13. update_dns ──────────────────────────────────
+  // ─── 12. update_dns ──────────────────────────────────
 
   server.tool(
     'update_dns',
     'Update a Cloudflare DNS A record to point a subdomain to a new IP. ' +
-    'Cloudflare credentials can be passed directly, or the global saved config will be used as fallback.',
+    'Requires Cloudflare API token and Zone ID to be passed directly.',
     {
       subdomain: z.string().describe('Subdomain to update (e.g. ty.example.com)'),
       ip: z.string().describe('New IP address'),
       proxied: z.boolean().default(false).describe('Enable Cloudflare proxy'),
-      cfApiToken: z.string().optional().describe('Cloudflare API token (overrides saved config)'),
-      cfZoneId: z.string().optional().describe('Cloudflare Zone ID (overrides saved config)'),
+      cfApiToken: z.string().describe('Cloudflare API token'),
+      cfZoneId: z.string().describe('Cloudflare Zone ID'),
     },
     async ({ subdomain, ip, proxied, cfApiToken, cfZoneId }) => {
       try {
-        let cf: { apiToken: string; zoneId: string };
-        if (cfApiToken && cfZoneId) {
-          cf = { apiToken: cfApiToken, zoneId: cfZoneId };
-        } else {
-          const saved = getCloudflareConfig();
-          if (!saved) {
-            return {
-              content: [{ type: 'text' as const, text: JSON.stringify({
-                success: false,
-                error: 'Cloudflare config not provided and not saved. Pass cfApiToken/cfZoneId or use save_cloudflare_config first.',
-              }) }],
-              isError: true,
-            };
-          }
-          cf = saved;
-        }
+        const cf = { apiToken: cfApiToken, zoneId: cfZoneId };
         const result = await updateDns(cf, subdomain, ip, proxied);
         return {
           content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
@@ -388,14 +342,13 @@ export function registerTools(server: McpServer): void {
     }
   );
 
-  // ─── 14. rotate_ip_and_update_dns ────────────────────
+  // ─── 13. rotate_ip_and_update_dns ────────────────────
 
   server.tool(
     'rotate_ip_and_update_dns',
     'One-click: rotate a saved profile instance IP and update its bound subdomain DNS. ' +
     'This combines rotate_instance_ip + update_dns into a single operation. ' +
-    'The profile must be saved first (use save_profile). ' +
-    'Cloudflare config must be saved first (use save_cloudflare_config).',
+    'The profile must be saved first (use save_profile) with Cloudflare credentials attached.',
     {
       profileName: z.string().describe('Saved profile name'),
     },
@@ -413,13 +366,13 @@ export function registerTools(server: McpServer): void {
           };
         }
 
-        // Step 2: Resolve Cloudflare config (profile-specific > global)
-        const cf = profile.cloudflare ?? getCloudflareConfig();
+        // Step 2: Check Cloudflare config (profile-level only)
+        const cf = profile.cloudflare;
         if (!cf) {
           return {
             content: [{ type: 'text' as const, text: JSON.stringify({
               success: false,
-              error: 'Cloudflare config not set. Add cloudflare to the profile or use save_cloudflare_config for a global config.',
+              error: 'Profile has no Cloudflare credentials. Re-save the profile with cfApiToken and cfZoneId.',
             }) }],
             isError: true,
           };

@@ -28,10 +28,10 @@ const MIME = {
 
 function loadConfig() {
   try {
-    if (!fs.existsSync(CONFIG_FILE)) return { cloudflare: null, profiles: {} };
+    if (!fs.existsSync(CONFIG_FILE)) return { profiles: {} };
     return JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf-8'));
   } catch {
-    return { cloudflare: null, profiles: {} };
+    return { profiles: {} };
   }
 }
 
@@ -69,11 +69,6 @@ const server = http.createServer((req, res) => {
         if (data.profile) {
           const p = data.profile;
           config.profiles[p.name] = p;
-        }
-
-        // Save global cloudflare (if provided separately)
-        if (data.cloudflare) {
-          config.cloudflare = data.cloudflare;
         }
 
         saveConfig(config);
