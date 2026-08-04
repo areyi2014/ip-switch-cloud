@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Azure 配置</title>
+<style>
+:root{--bg-primary:#fff;--bg-secondary:#f7f7f5;--text-primary:#1a1a1a;--text-secondary:#666;--text-tertiary:#999;--border:rgba(0,0,0,0.12);--border-focus:rgba(0,0,0,0.3);--radius-md:8px;--radius-lg:12px;--accent:#534AB7;--success:#1D9E75;--danger:#E24B4A;--font-sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;--font-mono:"SF Mono",Monaco,Consolas,monospace}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font-sans);font-size:13px;line-height:1.6;color:var(--text-primary);background:var(--bg-secondary);padding:16px}
+.container{background:var(--bg-primary);border-radius:var(--radius-lg);border:0.5px solid var(--border);padding:20px;max-width:540px;margin:0 auto}
+.header{margin-bottom:16px}.header h1{font-size:15px;font-weight:500;margin-bottom:2px}.header p{font-size:13px;color:var(--text-secondary)}
+.field-group{display:flex;flex-direction:column;gap:12px}.field{display:flex;flex-direction:column}
+.field label{font-size:12px;color:var(--text-secondary);margin-bottom:4px;font-weight:500}.field label .required{color:var(--danger)}
+input,select,textarea{width:100%;padding:8px 10px;border:0.5px solid var(--border);border-radius:var(--radius-md);font-family:var(--font-sans);font-size:13px;color:var(--text-primary);background:var(--bg-primary);outline:none;transition:border-color 0.15s;-webkit-appearance:none}
+input:focus,select:focus,textarea:focus{border-color:var(--border-focus)}
+input.mono,textarea.mono{font-family:var(--font-mono);font-size:12px}
+select{cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%23666' d='M0 0l5 6 5-6z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;padding-right:28px}
+input::placeholder,textarea::placeholder{color:var(--text-tertiary)}
+input[type="checkbox"]{-webkit-appearance:checkbox;appearance:auto;width:auto;height:auto;margin:0;padding:0;border:none;background:none}
+.credentials-section{border:0.5px solid var(--border);border-radius:var(--radius-md);padding:12px;margin-top:4px}.credentials-section .field-group{gap:8px}
+.credentials-title{font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px}
+.msg{margin-top:8px;font-size:12px;min-height:16px}.msg.success{color:var(--success)}.msg.error{color:var(--danger)}
+.buttons{display:flex;gap:8px;margin-top:12px}button{flex:1;padding:8px 14px;border:0.5px solid var(--border);border-radius:var(--radius-md);background:transparent;color:var(--text-primary);font-family:var(--font-sans);font-size:13px;font-weight:500;cursor:pointer}button:hover{background:var(--bg-secondary);border-color:var(--border-focus)}button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}button.primary:hover{opacity:0.9}.hidden{display:none!important}
+</style>
+</head>
+<body>
+<div class="container">
+<div class="header"><h1>Azure 云服务器配置</h1><p>填写 Azure VM 实例信息</p></div>
+<form autocomplete="off"><div class="field-group">
+<div class="field"><label>配置名称 <span class="required">*</span></label><input id="f-name" placeholder="azure-hk"></div>
+<div class="field"><label>区域 <span class="required">*</span></label>
+<select id="f-region">
+<option value="">选择区域</option>
+<option value="eastus">eastus (East US)</option>
+<option value="westus2">westus2 (West US 2)</option>
+<option value="westeurope">westeurope (West Europe)</option>
+<option value="southeastasia">southeastasia (Southeast Asia)</option>
+<option value="eastasia">eastasia (East Asia)</option>
+<option value="japaneast">japaneast (Japan East)</option>
+</select></div>
+<div class="credentials-section"><div class="credentials-title">凭据</div><div class="field-group">
+<div class="field"><label>Subscription ID <span class="required">*</span></label><input id="cred-subscriptionId" class="mono"></div>
+<div class="field"><label>Client ID (App ID) <span class="required">*</span></label><input id="cred-clientId" class="mono"></div>
+<div class="field"><label>Client Secret <span class="required">*</span></label><input id="cred-clientSecret" class="mono" type="password"></div>
+<div class="field"><label>Tenant ID <span class="required">*</span></label><input id="cred-tenantId" class="mono"></div>
+<div class="field"><label>Resource Group Name <span style="color:var(--text-tertiary);font-weight:400">(可选)</span></label><input id="cred-resourceGroupName" placeholder="(optional)"></div>
+</div></div>
+<div class="field"><label>实例 ID <span class="required">*</span></label><input id="f-instance" class="mono" placeholder="my-resource-group/my-vm-name"></div>
+<div class="field"><label>二级域名 <span class="required">*</span></label><input id="f-subdomain" placeholder="azure.example.com"></div>
+<div class="field"><label><input id="f-proxied" type="checkbox" onchange="toggleCF()"> 启用 Cloudflare 域名解析</label></div>
+<div id="cf-fields" class="credentials-section hidden"><div class="credentials-title">Cloudflare 凭据</div><div class="field-group">
+<div class="field"><label>API Token <span class="required">*</span></label><input id="f-cf-token" type="password" class="mono" placeholder="Cloudflare API Token"></div>
+<div class="field"><label>Zone ID <span class="required">*</span></label><input id="f-cf-zone" class="mono" placeholder="如 41bf01bf4504866c02b1b6728bd4c203"></div>
+</div></div>
+</div>
+<div class="msg" id="f-msg"></div>
+<div class="buttons"><button type="button" class="primary" onclick="submit()">保存配置</button></div>
+</form>
+</div>
+<script>
+function toggleCF(){document.getElementById('cf-fields').classList.toggle('hidden',!document.getElementById('f-proxied').checked)}
+function showMsg(t,c){var m=document.getElementById('f-msg');m.className='msg '+c;m.textContent=t}
+function submit(){
+var c={name:document.getElementById('f-name').value.trim(),provider:'azure',region:document.getElementById('f-region').value,
+credentials:{},instanceId:document.getElementById('f-instance').value.trim(),subdomain:document.getElementById('f-subdomain').value.trim(),
+proxied:document.getElementById('f-proxied').checked};
+['subscriptionId','clientId','clientSecret','tenantId'].forEach(function(k){var v=document.getElementById('cred-'+k).value.trim();if(v)c.credentials[k]=v});
+var rg=document.getElementById('cred-resourceGroupName').value.trim();if(rg)c.credentials.resourceGroupName=rg;
+if(!c.name)return showMsg('请填写配置名称','error');if(!c.region)return showMsg('请选择区域','error');
+if(!c.credentials.subscriptionId)return showMsg('请填写 Subscription ID','error');
+if(!c.credentials.clientId)return showMsg('请填写 Client ID','error');
+if(!c.credentials.clientSecret)return showMsg('请填写 Client Secret','error');
+if(!c.credentials.tenantId)return showMsg('请填写 Tenant ID','error');
+if(!c.instanceId)return showMsg('请填写实例 ID','error');if(!c.subdomain)return showMsg('请填写二级域名','error');
+if(c.proxied){c.cloudflare={apiToken:document.getElementById('f-cf-token').value.trim(),zoneId:document.getElementById('f-cf-zone').value.trim()};
+if(!c.cloudflare.apiToken)return showMsg('请填写 Cloudflare API Token','error');
+if(!c.cloudflare.zoneId)return showMsg('请填写 Cloudflare Zone ID','error')}
+var lines=['Please save the following cloud config:','Profile name: '+c.name,'Provider: azure','Region: '+c.region];
+var cp=[];for(var k in c.credentials)cp.push(k+': '+c.credentials[k]);lines.push('Credentials: '+cp.join(', '));
+lines.push('Instance ID: '+c.instanceId);lines.push('Subdomain: '+c.subdomain);lines.push('Proxied: '+c.proxied);
+if(c.cloudflare){lines.push('Cloudflare API Token: '+c.cloudflare.apiToken);lines.push('Cloudflare Zone ID: '+c.cloudflare.zoneId)}
+if(typeof sendPrompt==='function'){sendPrompt(lines.join('\n'));showMsg('已提交','success')}
+else{navigator.clipboard.writeText(lines.join('\n'));showMsg('已复制到剪贴板','success')}
+}
+</script>
+</body>
+</html>
