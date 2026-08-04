@@ -79,8 +79,10 @@ var lines=['Please save the following cloud config:','Profile name: '+c.name,'Pr
 var cp=[];for(var k in c.credentials)cp.push(k+': '+c.credentials[k]);lines.push('Credentials: '+cp.join(', '));
 lines.push('Instance ID: '+c.instanceId);lines.push('Subdomain: '+c.subdomain);lines.push('Proxied: '+c.proxied);
 if(c.cloudflare){lines.push('Cloudflare API Token: '+c.cloudflare.apiToken);lines.push('Cloudflare Zone ID: '+c.cloudflare.zoneId)}
-if(typeof sendPrompt==='function'){sendPrompt(lines.join('\n'));showMsg('已提交','success')}
-else{navigator.clipboard.writeText(lines.join('\n'));showMsg('已复制到剪贴板','success')}
+var txt=lines.join('\n');
+if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(txt).catch(function(){})}
+var sent=false;if(typeof sendPrompt==='function'){try{sendPrompt(txt);sent=true}catch(e){}}
+showMsg(sent?'已提交！文本也已复制到剪贴板。如未自动发送请粘贴到对话框':'已复制到剪贴板，请粘贴到对话框发送','success')
 }
 </script>
 </body>

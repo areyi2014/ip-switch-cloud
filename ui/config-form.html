@@ -543,21 +543,24 @@ function submitConfig() {
 
   var text = formatText(c);
   var json = formatJSON(c);
-  showMsg('Submitting...', 'success');
+
+  // Always show the text preview so data is never lost
+  showPreview(text);
+
+  // Always copy to clipboard as a safety net
+  copyToClipboard(text, function() {});
 
   // 1. Custom handler (highest priority)
   if (typeof window.CIR_FORM_SUBMIT === 'function') {
     window.CIR_FORM_SUBMIT(text, json, c);
-    showMsg('Submitted via custom handler', 'success');
-    showPreview(text);
+    showMsg('Submitted via custom handler (also copied to clipboard)', 'success');
     return;
   }
 
-  // 2. WorkBuddy sendPrompt
+  // 2. WorkBuddy sendPrompt — try it, but don't rely on it alone
+  var sentViaPrompt = false;
   if (typeof sendPrompt === 'function') {
-    sendPrompt(text);
-    showMsg('Submitted to agent', 'success');
-    return;
+    try { sendPrompt(text); sentViaPrompt = true; } catch(e) {}
   }
 
   // 3. iframe postMessage (for Dify / embedded platforms)
@@ -568,16 +571,13 @@ function submitConfig() {
       json: json,
       config: c,
     }, '*');
-    showMsg('Submitted via postMessage', 'success');
-    showPreview(text);
-    return;
   }
 
-  // 4. Fallback: clipboard copy
-  copyToClipboard(text, function() {
-    showMsg('Copied to clipboard. Please paste into chat.', 'success');
-    showPreview(text);
-  });
+  if (sentViaPrompt) {
+    showMsg('已提交！文本也已复制到剪贴板。如果没有自动发送，请粘贴到对话框。', 'success');
+  } else {
+    showMsg('已复制到剪贴板，请粘贴到对话框发送。', 'success');
+  }
 }
 
 function copyConfig() {
