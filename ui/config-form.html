@@ -547,23 +547,50 @@ function submitConfig() {
   // Always show the text preview so data is never lost
   showPreview(text);
 
-  // Always copy to clipboard as a safety net
-  copyToClipboard(text, function() {});
+  // 1. Try local server first — directly saves to config.json
+  if (typeof fetch === 'function') {
+    showMsg('正在保存...', 'info');
+    fetch('http://localhost:8787/api/save-config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ profile: c }),
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.success) {
+        showMsg('配置已保存到 ' + data.path + '（共 ' + data.profileCount + ' 个配置）', 'success');
+      } else {
+        showMsg('保存失败: ' + (data.error || '未知错误'), 'error');
+      }
+    })
+    .catch(function(err) {
+      // Server not running — fall back to clipboard + sendPrompt
+      copyToClipboard(text, function() {});
+      fallbackSubmit(text, json, c);
+    });
+    return;
+  }
 
-  // 1. Custom handler (highest priority)
+  // 2. No fetch available — use clipboard + sendPrompt
+  copyToClipboard(text, function() {});
+  fallbackSubmit(text, json, c);
+}
+
+function fallbackSubmit(text, json, c) {
+  // Custom handler
   if (typeof window.CIR_FORM_SUBMIT === 'function') {
     window.CIR_FORM_SUBMIT(text, json, c);
     showMsg('Submitted via custom handler (also copied to clipboard)', 'success');
     return;
   }
 
-  // 2. WorkBuddy sendPrompt — try it, but don't rely on it alone
+  // WorkBuddy sendPrompt
   var sentViaPrompt = false;
   if (typeof sendPrompt === 'function') {
     try { sendPrompt(text); sentViaPrompt = true; } catch(e) {}
   }
 
-  // 3. iframe postMessage (for Dify / embedded platforms)
+  // iframe postMessage
   if (window.parent !== window) {
     window.parent.postMessage({
       type: 'cloud-ip-rotator-config',
@@ -576,7 +603,7 @@ function submitConfig() {
   if (sentViaPrompt) {
     showMsg('已提交！文本也已复制到剪贴板。如果没有自动发送，请粘贴到对话框。', 'success');
   } else {
-    showMsg('已复制到剪贴板，请粘贴到对话框发送。', 'success');
+    showMsg('沙箱限制无法直接保存，已复制到剪贴板，请粘贴到对话框发送。', 'success');
   }
 }
 
