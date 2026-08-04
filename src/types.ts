@@ -101,3 +101,49 @@ export class CloudAdapterError extends Error {
     this.name = 'CloudAdapterError';
   }
 }
+
+// ─── Cloudflare DNS ──────────────────────────────────────
+
+/** Cloudflare API configuration (global, one account) */
+export interface CloudflareConfig {
+  apiToken: string;
+  zoneId: string;
+}
+
+/** Result of a DNS record update */
+export interface DnsUpdateResult {
+  success: boolean;
+  subdomain: string;
+  oldIp?: string;
+  newIp: string;
+  recordId: string;
+  message: string;
+}
+
+// ─── Persistent Configuration ────────────────────────────
+
+/** A saved cloud provider profile with subdomain binding */
+export interface ConfigProfile {
+  /** Profile name (user-defined, e.g. "aws-sg", "azure-hk") */
+  name: string;
+  /** Cloud provider */
+  provider: CloudProvider;
+  /** Cloud region (e.g. ap-southeast-1, eastus) */
+  region: string;
+  /** Instance identifier */
+  instanceId: string;
+  /** Provider-specific credentials */
+  credentials: Credentials;
+  /** Bound subdomain for DNS update (e.g. ty.example.com) */
+  subdomain: string;
+  /** Whether Cloudflare proxy is enabled for this subdomain */
+  proxied: boolean;
+}
+
+/** Full application config persisted to disk */
+export interface AppConfig {
+  /** Cloudflare API config (shared across all profiles) */
+  cloudflare: CloudflareConfig | null;
+  /** Saved cloud provider profiles, keyed by name */
+  profiles: Record<string, ConfigProfile>;
+}

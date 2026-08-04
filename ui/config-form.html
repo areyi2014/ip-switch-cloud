@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cloud IP Rotator - 配置表单</title>
+<style>
+  /* ============================================================
+   * 自包含样式 — 不依赖宿主环境，可直接用于任何浏览器/Agent 平台
+   * 如需适配暗色主题，修改 :root 中的变量即可
+   * ============================================================ */
+  :root {
+    --bg-primary: #ffffff;
+    --bg-secondary: #f7f7f5;
+    --text-primary: #1a1a1a;
+    --text-secondary: #666666;
+    --text-tertiary: #999999;
+    --border: rgba(0, 0, 0, 0.12);
+    --border-focus: rgba(0, 0, 0, 0.3);
+    --radius-md: 8px;
+    --radius-lg: 12px;
+    --accent: #534AB7;
+    --success: #1D9E75;
+    --danger: #E24B4A;
+    --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --font-mono: "SF Mono", Monaco, Consolas, "Liberation Mono", monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: var(--font-sans);
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--text-primary);
+    background: var(--bg-secondary);
+    padding: 16px;
+  }
+  .container {
+    background: var(--bg-primary);
+    border-radius: var(--radius-lg);
+    border: 0.5px solid var(--border);
+    padding: 20px;
+    max-width: 540px;
+    margin: 0 auto;
+  }
+  .header { margin-bottom: 16px; }
+  .header h1 { font-size: 15px; font-weight: 500; margin-bottom: 2px; }
+  .header p { font-size: 13px; color: var(--text-secondary); }
+
+  .field-group { display: flex; flex-direction: column; gap: 12px; }
+  .field { display: flex; flex-direction: column; }
+  .field label {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-bottom: 4px;
+    font-weight: 500;
+  }
+  .field label .required { color: var(--danger); }
+  .field label .optional { color: var(--text-tertiary); font-weight: 400; }
+
+  input, select, textarea {
+    width: 100%;
+    padding: 8px 10px;
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius-md);
+    font-family: var(--font-sans);
+    font-size: 13px;
+    color: var(--text-primary);
+    background: var(--bg-primary);
+    outline: none;
+    transition: border-color 0.15s;
+    -webkit-appearance: none;
+  }
+  input:focus, select:focus, textarea:focus { border-color: var(--border-focus); }
+  input.mono, textarea.mono { font-family: var(--font-mono); font-size: 12px; }
+  select {
+    cursor: pointer;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%23666' d='M0 0l5 6 5-6z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    padding-right: 28px;
+  }
+  input::placeholder, textarea::placeholder { color: var(--text-tertiary); }
+
+  .credentials-section {
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 12px;
+    margin-top: 4px;
+  }
+  .credentials-section .field-group { gap: 8px; }
+  .credentials-title {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .msg {
+    margin-top: 8px;
+    font-size: 12px;
+    min-height: 16px;
+    transition: opacity 0.15s;
+  }
+  .msg.success { color: var(--success); }
+  .msg.error { color: var(--danger); }
+
+  .buttons { display: flex; gap: 8px; margin-top: 12px; }
+  button {
+    flex: 1;
+    padding: 8px 14px;
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  button:hover { background: var(--bg-secondary); border-color: var(--border-focus); }
+  button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  button.primary:hover { opacity: 0.9; background: var(--accent); }
+  button.secondary { flex: 0 0 auto; }
+
+  .hidden { display: none !important; }
+
+  .provider-tabs { display: flex; gap: 4px; margin-bottom: 12px; }
+  .provider-tab {
+    flex: 1;
+    padding: 6px 8px;
+    text-align: center;
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    transition: all 0.15s;
+    user-select: none;
+  }
+  .provider-tab:hover { border-color: var(--border-focus); }
+  .provider-tab.active {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+  }
+
+  .output-preview {
+    margin-top: 12px;
+    padding: 10px;
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    white-space: pre-wrap;
+    word-break: break-all;
+    color: var(--text-secondary);
+    display: none;
+  }
+  .output-preview.visible { display: block; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>添加云服务器配置</h1>
+    <p>选择云平台，填写信息，点击保存</p>
+  </div>
+
+  <!-- Provider tabs -->
+  <div class="provider-tabs">
+    <div class="provider-tab active" data-provider="aws" onclick="selectProvider('aws')">AWS</div>
+    <div class="provider-tab" data-provider="azure" onclick="selectProvider('azure')">Azure</div>
+    <div class="provider-tab" data-provider="oci" onclick="selectProvider('oci')">OCI</div>
+    <div class="provider-tab" data-provider="vultr" onclick="selectProvider('vultr')">Vultr</div>
+  </div>
+
+  <form id="config-form" autocomplete="off">
+    <div class="field-group">
+
+      <!-- Profile name (all providers) -->
+      <div class="field">
+        <label>配置名称 <span class="required">*</span></label>
+        <input id="f-name" type="text" placeholder="aws-tokyo" />
+      </div>
+
+      <!-- Region (dynamic options per provider) -->
+      <div class="field">
+        <label>区域 <span class="required">*</span></label>
+        <select id="f-region"></select>
+        <input id="f-region-custom" type="text" placeholder="输入区域代码" class="hidden" style="margin-top:4px;" />
+      </div>
+
+      <!-- Provider-specific credentials -->
+      <div class="credentials-section">
+        <div class="credentials-title">凭据</div>
+        <div class="field-group" id="cred-fields"></div>
+      </div>
+
+      <!-- Instance ID -->
+      <div class="field">
+        <label>实例 ID <span class="required">*</span></label>
+        <input id="f-instance" type="text" class="mono" placeholder="" />
+      </div>
+
+      <!-- Subdomain -->
+      <div class="field">
+        <label>二级域名 <span class="required">*</span></label>
+        <input id="f-subdomain" type="text" placeholder="xxx.example.com" />
+      </div>
+
+      <!-- Cloudflare proxy -->
+      <div class="field">
+        <label>
+          <input id="f-proxied" type="checkbox" style="width:auto;display:inline-block;margin-right:4px;" />
+          启用 Cloudflare 代理
+        </label>
+      </div>
+    </div>
+
+    <div class="msg" id="f-msg"></div>
+
+    <div class="buttons">
+      <button type="button" class="primary" onclick="submitConfig()">保存配置</button>
+      <button type="button" class="secondary" onclick="copyConfig()">复制文本</button>
+    </div>
+
+    <div class="output-preview" id="f-preview"></div>
+  </form>
+</div>
+
+<script>
+/**
+ * ============================================================
+ * Cloud IP Rotator - Config Form
+ * ============================================================
+ *
+ * 提交方式（自动检测，按优先级）:
+ *   1. sendPrompt(text)      — WorkBuddy 内嵌环境
+ *   2. window.parent.postMessage — iframe 嵌入（Dify/自建平台）
+ *   3. navigator.clipboard    — 通用浏览器（复制到剪贴板）
+ *
+ * 自定义提交:
+ *   在调用页面设置 window.CIR_FORM_SUBMIT = function(text, json) { ... }
+ *   会优先使用此函数
+ *
+ * URL 参数:
+ *   ?provider=aws            预选云平台
+ *   ?autoprompt=1            页面加载后自动提交
+ * ============================================================
+ */
+
+// ---- Provider definitions ----
+var PROVIDERS = {
+  aws: {
+    label: 'AWS',
+    instancePlaceholder: 'i-0abc123def456',
+    regions: [
+      { value: 'ap-southeast-1', label: 'ap-southeast-1 (Singapore)' },
+      { value: 'ap-northeast-1', label: 'ap-northeast-1 (Tokyo)' },
+      { value: 'ap-northeast-2', label: 'ap-northeast-2 (Seoul)' },
+      { value: 'ap-east-1',      label: 'ap-east-1 (Hong Kong)' },
+      { value: 'ap-southeast-2', label: 'ap-southeast-2 (Sydney)' },
+      { value: 'us-east-1',       label: 'us-east-1 (N. Virginia)' },
+      { value: 'us-west-2',       label: 'us-west-2 (Oregon)' },
+      { value: 'eu-west-1',       label: 'eu-west-1 (Ireland)' },
+      { value: '__custom__',      label: 'Other (manual input)' },
+    ],
+    credentials: [
+      { key: 'accessKeyId',     label: 'Access Key ID',          placeholder: 'AKIA...',     required: true,  mono: true },
+      { key: 'secretAccessKey', label: 'Secret Access Key',      placeholder: '',            required: true,  mono: true, password: true },
+      { key: 'sessionToken',    label: 'Session Token',          placeholder: '(optional)',  required: false, mono: true, password: true },
+    ],
+  },
+  azure: {
+    label: 'Azure',
+    instancePlaceholder: 'my-resource-group/my-vm-name',
+    regions: [
+      { value: 'eastus',         label: 'eastus (East US)' },
+      { value: 'westus2',        label: 'westus2 (West US 2)' },
+      { value: 'westeurope',     label: 'westeurope (West Europe)' },
+      { value: 'southeastasia', label: 'southeastasia (Southeast Asia)' },
+      { value: 'eastasia',       label: 'eastasia (East Asia)' },
+      { value: 'japaneast',      label: 'japaneast (Japan East)' },
+      { value: '__custom__',     label: 'Other (manual input)' },
+    ],
+    credentials: [
+      { key: 'subscriptionId',    label: 'Subscription ID',      placeholder: '',     required: true,  mono: true },
+      { key: 'clientId',          label: 'Client ID (App ID)',    placeholder: '',     required: true,  mono: true },
+      { key: 'clientSecret',      label: 'Client Secret',         placeholder: '',     required: true,  mono: true, password: true },
+      { key: 'tenantId',          label: 'Tenant ID',             placeholder: '',     required: true,  mono: true },
+      { key: 'resourceGroupName', label: 'Resource Group Name',   placeholder: '(optional)', required: false },
+    ],
+  },
+  oci: {
+    label: 'OCI',
+    instancePlaceholder: 'ocid1.instance.oc1...',
+    regions: [
+      { value: 'us-ord-1',      label: 'us-ord-1 (Chicago)' },
+      { value: 'us-phx-1',       label: 'us-phx-1 (Phoenix)' },
+      { value: 'ap-tokyo-1',     label: 'ap-tokyo-1 (Tokyo)' },
+      { value: 'ap-singapore-1', label: 'ap-singapore-1 (Singapore)' },
+      { value: 'ap-seoul-1',     label: 'ap-seoul-1 (Seoul)' },
+      { value: 'ap-mumbai-1',   label: 'ap-mumbai-1 (Mumbai)' },
+      { value: 'eu-frankfurt-1', label: 'eu-frankfurt-1 (Frankfurt)' },
+      { value: '__custom__',     label: 'Other (manual input)' },
+    ],
+    credentials: [
+      { key: 'tenancy',     label: 'Tenancy OCID',  placeholder: 'ocid1.tenancy...',  required: true, mono: true },
+      { key: 'user',         label: 'User OCID',      placeholder: 'ocid1.user...',    required: true, mono: true },
+      { key: 'fingerprint', label: 'Fingerprint',   placeholder: 'aa:bb:cc:...',     required: true, mono: true },
+      { key: 'privateKey',   label: 'Private Key',   placeholder: '-----BEGIN RSA PRIVATE KEY-----', required: true, mono: true, textarea: true },
+    ],
+  },
+  vultr: {
+    label: 'Vultr',
+    instancePlaceholder: 'instance UUID (e.g. 7e3a...) ',
+    regions: [
+      { value: 'ewr',   label: 'ewr (New Jersey)' },
+      { value: 'lax',   label: 'lax (Los Angeles)' },
+      { value: 'ord',   label: 'ord (Chicago)' },
+      { value: 'sea',   label: 'sea (Seattle)' },
+      { value: 'sin',   label: 'sin (Singapore)' },
+      { value: 'tokyo', label: 'tokyo (Tokyo)' },
+      { value: 'ams',   label: 'ams (Amsterdam)' },
+      { value: '__custom__', label: 'Other (manual input)' },
+    ],
+    credentials: [
+      { key: 'apiKey', label: 'API Key', placeholder: '', required: true, mono: true, password: true },
+    ],
+  },
+};
+
+// ---- State ----
+var currentProvider = 'aws';
+
+// ---- Provider selection ----
+function selectProvider(p) {
+  currentProvider = p;
+  var tabs = document.querySelectorAll('.provider-tab');
+  for (var i = 0; i < tabs.length; i++) {
+    tabs[i].classList.toggle('active', tabs[i].getAttribute('data-provider') === p);
+  }
+  renderRegions();
+  renderCredentials();
+  updateInstancePlaceholder();
+}
+
+function renderRegions() {
+  var def = PROVIDERS[currentProvider];
+  var sel = document.getElementById('f-region');
+  sel.innerHTML = '<option value="">Select region...</option>';
+  for (var i = 0; i < def.regions.length; i++) {
+    var r = def.regions[i];
+    var opt = document.createElement('option');
+    opt.value = r.value;
+    opt.textContent = r.label;
+    sel.appendChild(opt);
+  }
+}
+
+function renderCredentials() {
+  var def = PROVIDERS[currentProvider];
+  var container = document.getElementById('cred-fields');
+  container.innerHTML = '';
+  for (var i = 0; i < def.credentials.length; i++) {
+    var c = def.credentials[i];
+    var div = document.createElement('div');
+    div.className = 'field';
+
+    var label = document.createElement('label');
+    var reqSpan = c.required
+      ? '<span class="required">*</span>'
+      : '<span class="optional">(optional)</span>';
+    label.innerHTML = c.label + ' ' + reqSpan;
+    div.appendChild(label);
+
+    var input;
+    if (c.textarea) {
+      input = document.createElement('textarea');
+      input.rows = 4;
+    } else {
+      input = document.createElement('input');
+      input.type = c.password ? 'password' : 'text';
+    }
+    input.id = 'cred-' + c.key;
+    input.setAttribute('data-cred-key', c.key);
+    input.placeholder = c.placeholder || '';
+    if (c.mono) input.className = 'mono';
+    input.style.width = '100%';
+    div.appendChild(input);
+
+    container.appendChild(div);
+  }
+}
+
+function updateInstancePlaceholder() {
+  var def = PROVIDERS[currentProvider];
+  document.getElementById('f-instance').placeholder = def.instancePlaceholder;
+}
+
+// ---- Region custom input toggle ----
+document.getElementById('f-region').addEventListener('change', function() {
+  var custom = document.getElementById('f-region-custom');
+  custom.classList.toggle('hidden', this.value !== '__custom__');
+  if (this.value === '__custom__') custom.focus();
+});
+
+function getRegion() {
+  var sel = document.getElementById('f-region');
+  if (sel.value === '__custom__') {
+    return document.getElementById('f-region-custom').value.trim();
+  }
+  return sel.value;
+}
+
+function getCredentials() {
+  var creds = {};
+  var inputs = document.querySelectorAll('[data-cred-key]');
+  for (var i = 0; i < inputs.length; i++) {
+    var key = inputs[i].getAttribute('data-cred-key');
+    var val = inputs[i].value.trim();
+    if (val) creds[key] = val;
+  }
+  return creds;
+}
+
+// ---- Gather & validate ----
+function gatherConfig() {
+  return {
+    name: document.getElementById('f-name').value.trim(),
+    provider: currentProvider,
+    region: getRegion(),
+    credentials: getCredentials(),
+    instanceId: document.getElementById('f-instance').value.trim(),
+    subdomain: document.getElementById('f-subdomain').value.trim(),
+    proxied: document.getElementById('f-proxied').checked,
+  };
+}
+
+function validate(c) {
+  if (!c.name) return 'Please enter a profile name';
+  if (!c.region) return 'Please select or enter a region';
+
+  var def = PROVIDERS[c.provider];
+  for (var i = 0; i < def.credentials.length; i++) {
+    var cred = def.credentials[i];
+    if (cred.required && !c.credentials[cred.key]) {
+      return 'Please enter ' + cred.label;
+    }
+  }
+
+  if (!c.instanceId) return 'Please enter instance ID';
+  if (!c.subdomain) return 'Please enter subdomain';
+  return null;
+}
+
+// ---- Format output ----
+function formatText(c) {
+  var lines = [];
+  lines.push('Please save the following cloud config:');
+  lines.push('Profile name: ' + c.name);
+  lines.push('Provider: ' + c.provider);
+  lines.push('Region: ' + c.region);
+
+  var credParts = [];
+  for (var key in c.credentials) {
+    credParts.push(key + ': ' + c.credentials[key]);
+  }
+  lines.push('Credentials: ' + credParts.join(', '));
+
+  lines.push('Instance ID: ' + c.instanceId);
+  lines.push('Subdomain: ' + c.subdomain);
+  lines.push('Proxied: ' + c.proxied);
+  return lines.join('\n');
+}
+
+function formatJSON(c) {
+  return JSON.stringify(c, null, 2);
+}
+
+// ---- Message display ----
+function showMsg(text, type) {
+  var msg = document.getElementById('f-msg');
+  msg.className = 'msg ' + (type || '');
+  msg.textContent = text;
+}
+
+function showPreview(text) {
+  var preview = document.getElementById('f-preview');
+  preview.textContent = text;
+  preview.classList.add('visible');
+}
+
+// ---- Submit ----
+function submitConfig() {
+  var c = gatherConfig();
+  var err = validate(c);
+  if (err) { showMsg(err, 'error'); return; }
+
+  var text = formatText(c);
+  var json = formatJSON(c);
+  showMsg('Submitting...', 'success');
+
+  // 1. Custom handler (highest priority)
+  if (typeof window.CIR_FORM_SUBMIT === 'function') {
+    window.CIR_FORM_SUBMIT(text, json, c);
+    showMsg('Submitted via custom handler', 'success');
+    showPreview(text);
+    return;
+  }
+
+  // 2. WorkBuddy sendPrompt
+  if (typeof sendPrompt === 'function') {
+    sendPrompt(text);
+    showMsg('Submitted to agent', 'success');
+    return;
+  }
+
+  // 3. iframe postMessage (for Dify / embedded platforms)
+  if (window.parent !== window) {
+    window.parent.postMessage({
+      type: 'cloud-ip-rotator-config',
+      text: text,
+      json: json,
+      config: c,
+    }, '*');
+    showMsg('Submitted via postMessage', 'success');
+    showPreview(text);
+    return;
+  }
+
+  // 4. Fallback: clipboard copy
+  copyToClipboard(text, function() {
+    showMsg('Copied to clipboard. Please paste into chat.', 'success');
+    showPreview(text);
+  });
+}
+
+function copyConfig() {
+  var c = gatherConfig();
+  var err = validate(c);
+  if (err) { showMsg(err, 'error'); return; }
+  var text = formatText(c);
+  copyToClipboard(text, function() {
+    showMsg('Copied to clipboard', 'success');
+    showPreview(text);
+  });
+}
+
+function copyToClipboard(text, onSuccess) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(onSuccess).catch(function() {
+      fallbackCopy(text);
+      onSuccess();
+    });
+  } else {
+    fallbackCopy(text);
+    onSuccess();
+  }
+}
+
+function fallbackCopy(text) {
+  var ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand('copy'); } catch (e) {}
+  document.body.removeChild(ta);
+}
+
+// ---- URL params ----
+function parseURLParams() {
+  var params = new URLSearchParams(window.location.search);
+  var p = params.get('provider');
+  if (p && PROVIDERS[p]) {
+    selectProvider(p);
+  }
+}
+
+// ---- Init ----
+renderRegions();
+renderCredentials();
+updateInstancePlaceholder();
+parseURLParams();
+</script>
+</body>
+</html>

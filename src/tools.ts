@@ -2,7 +2,7 @@
  * MCP Tool Definitions — 定义所有暴露给 AI Agent 的工具
  *
  * 设计原则：
- *   1. 凭据通过 credentials 参数传入，MCP 进程不持久化
+ *   1. 凭据可通过 credentials 参数即时传入，也可持久化到配置文件
  *   2. 所有工具都是幂等的（重试安全）
  *   3. 统一错误格式，包含 provider 上下文
  */
@@ -11,6 +11,16 @@ import { z } from 'zod';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { getAdapter } from './router.js';
 import { CloudAdapterError } from './types.js';
+import {
+  saveCloudflareConfig,
+  getCloudflareConfig,
+  saveProfile,
+  deleteProfile,
+  listProfiles,
+  getProfile,
+  getConfigPath,
+} from './config-store.js';
+import { updateDns, CloudflareError } from './adapters/cloudflare.js';
 
 /** 公共 schema 片段 */
 const providerSchema = z.enum(['aws', 'azure', 'oci', 'vultr'])
@@ -222,6 +232,230 @@ export function registerTools(server: McpServer): void {
       }
     }
   );
+
+  // ─── 9. save_cloudflare_config ───────────────────────
+
+  server.tool(
+    'save_cloudflare_config',
+    'Save Cloudflare API token and Zone ID for DNS updates. ' +
+    'This is a global config shared by all profiles. ' +
+    'Get the API token from Cloudflare dashboard > My Profile > API Tokens. ' +
+    'Get the Zone ID from any domain overview page.',
+    {
+      apiToken: z.string().describe('Cloudflare API token'),
+      zoneId: z.string().describe('Cloudflare Zone ID for the domain'),
+    },
+    async ({ apiToken, zoneId }) => {
+      try {
+        saveCloudflareConfig({ apiToken, zoneId });
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify({
+            success: true,
+            message: 'Cloudflare config saved',
+            configPath: getConfigPath(),
+          }, null, 2) }],
+        };
+      } catch (err) {
+        return formatError(err);
+      }
+    }
+  );
+
+  // ─── 10. save_profile ────────────────────────────────
+
+  server.tool(
+    'save_profile',
+    'Save a cloud provider profile with credentials, region, instance ID, and a bound subdomain. ' +
+    'The subdomain will be updated via Cloudflare DNS when the instance IP changes. ' +
+    'Use this to persist configuration so you do not need to pass credentials every time.',
+    {
+      name: z.string().describe('Profile name (e.g. "aws-sg", "azure-hk")'),
+      provider: providerSchema,
+      region: regionSchema,
+      instanceId: z.string().describe('Instance identifier'),
+      credentials: credentialsSchema,
+      subdomain: z.string().describe('Subdomain to bind (e.g. ty.example.com)'),
+      proxied: z.boolean().default(false).describe('Enable Cloudflare proxy for this subdomain'),
+    },
+    async ({ name, provider, region, instanceId, credentials, subdomain, proxied }) => {
+      try {
+        const profile = { name, provider, region, instanceId, credentials, subdomain, proxied };
+        saveProfile(profile);
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify({
+            success: true,
+            message: `Profile "${name}" saved (${provider} ${instanceId} in ${region}, DNS: ${subdomain})`,
+            configPath: getConfigPath(),
+          }, null, 2) }],
+        };
+      } catch (err) {
+        return formatError(err);
+      }
+    }
+  );
+
+  // ─── 11. list_profiles ───────────────────────────────
+
+  server.tool(
+    'list_profiles',
+    'List all saved cloud provider profiles with their subdomain bindings. ' +
+    'Also shows whether Cloudflare DNS config is set.',
+    {},
+    async () => {
+      const profiles = listProfiles();
+      const cf = getCloudflareConfig();
+      return {
+        content: [{ type: 'text' as const, text: JSON.stringify({
+          cloudflareConfigured: cf !== null,
+          profileCount: profiles.length,
+          profiles: profiles.map(p => ({
+            name: p.name,
+            provider: p.provider,
+            region: p.region,
+            instanceId: p.instanceId,
+            subdomain: p.subdomain,
+            proxied: p.proxied,
+          })),
+        }, null, 2) }],
+      };
+    }
+  );
+
+  // ─── 12. delete_profile ──────────────────────────────
+
+  server.tool(
+    'delete_profile',
+    'Delete a saved cloud provider profile by name.',
+    {
+      name: z.string().describe('Profile name to delete'),
+    },
+    async ({ name }) => {
+      const deleted = deleteProfile(name);
+      return {
+        content: [{ type: 'text' as const, text: JSON.stringify({
+          success: deleted,
+          message: deleted ? `Profile "${name}" deleted` : `Profile "${name}" not found`,
+        }, null, 2) }],
+      };
+    }
+  );
+
+  // ─── 13. update_dns ──────────────────────────────────
+
+  server.tool(
+    'update_dns',
+    'Update a Cloudflare DNS A record to point a subdomain to a new IP. ' +
+    'Requires Cloudflare config to be saved first (use save_cloudflare_config).',
+    {
+      subdomain: z.string().describe('Subdomain to update (e.g. ty.example.com)'),
+      ip: z.string().describe('New IP address'),
+      proxied: z.boolean().default(false).describe('Enable Cloudflare proxy'),
+    },
+    async ({ subdomain, ip, proxied }) => {
+      try {
+        const cf = getCloudflareConfig();
+        if (!cf) {
+          return {
+            content: [{ type: 'text' as const, text: JSON.stringify({
+              success: false,
+              error: 'Cloudflare config not set. Use save_cloudflare_config first.',
+            }) }],
+            isError: true,
+          };
+        }
+        const result = await updateDns(cf, subdomain, ip, proxied);
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
+        };
+      } catch (err) {
+        return formatError(err);
+      }
+    }
+  );
+
+  // ─── 14. rotate_ip_and_update_dns ────────────────────
+
+  server.tool(
+    'rotate_ip_and_update_dns',
+    'One-click: rotate a saved profile instance IP and update its bound subdomain DNS. ' +
+    'This combines rotate_instance_ip + update_dns into a single operation. ' +
+    'The profile must be saved first (use save_profile). ' +
+    'Cloudflare config must be saved first (use save_cloudflare_config).',
+    {
+      profileName: z.string().describe('Saved profile name'),
+    },
+    async ({ profileName }) => {
+      try {
+        // Step 1: Load profile
+        const profile = getProfile(profileName);
+        if (!profile) {
+          return {
+            content: [{ type: 'text' as const, text: JSON.stringify({
+              success: false,
+              error: `Profile "${profileName}" not found. Use list_profiles to see saved profiles.`,
+            }) }],
+            isError: true,
+          };
+        }
+
+        // Step 2: Check Cloudflare config
+        const cf = getCloudflareConfig();
+        if (!cf) {
+          return {
+            content: [{ type: 'text' as const, text: JSON.stringify({
+              success: false,
+              error: 'Cloudflare config not set. Use save_cloudflare_config first.',
+            }) }],
+            isError: true,
+          };
+        }
+
+        // Step 3: Rotate IP
+        const adapter = getAdapter(profile.provider);
+        const rotateResult = await adapter.rotateIp(
+          profile.instanceId,
+          profile.region,
+          profile.credentials
+        );
+
+        if (!rotateResult.success || !rotateResult.newIp) {
+          return {
+            content: [{ type: 'text' as const, text: JSON.stringify({
+              success: false,
+              error: 'IP rotation succeeded but no new IP was obtained',
+              rotateResult,
+            }) }],
+            isError: true,
+          };
+        }
+
+        // Step 4: Update DNS
+        const dnsResult = await updateDns(
+          cf,
+          profile.subdomain,
+          rotateResult.newIp,
+          profile.proxied
+        );
+
+        // Step 5: Return combined result
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify({
+            success: true,
+            profile: profileName,
+            provider: profile.provider,
+            instanceId: profile.instanceId,
+            oldIp: rotateResult.oldIp,
+            newIp: rotateResult.newIp,
+            subdomain: profile.subdomain,
+            dnsUpdated: dnsResult.success,
+            message: `IP rotated ${rotateResult.oldIp ?? 'N/A'} -> ${rotateResult.newIp}, DNS ${profile.subdomain} updated`,
+          }, null, 2) }],
+        };
+      } catch (err) {
+        return formatError(err);
+      }
+    }
+  );
 }
 
 /** 统一错误格式化 */
@@ -229,6 +463,12 @@ function formatError(err: unknown) {
   if (err instanceof CloudAdapterError) {
     return {
       content: [{ type: 'text' as const, text: JSON.stringify({ success: false, error: err.message, provider: err.provider }) }],
+      isError: true,
+    };
+  }
+  if (err instanceof CloudflareError) {
+    return {
+      content: [{ type: 'text' as const, text: JSON.stringify({ success: false, error: err.message, statusCode: err.statusCode }) }],
       isError: true,
     };
   }
