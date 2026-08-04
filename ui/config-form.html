@@ -80,6 +80,16 @@
     padding-right: 28px;
   }
   input::placeholder, textarea::placeholder { color: var(--text-tertiary); }
+  input[type="checkbox"] {
+    -webkit-appearance: checkbox;
+    appearance: auto;
+    width: auto;
+    height: auto;
+    margin: 0;
+    padding: 0;
+    border: none;
+    background: none;
+  }
 
   .credentials-section {
     border: 0.5px solid var(--border);
@@ -215,9 +225,24 @@
       <!-- Cloudflare proxy -->
       <div class="field">
         <label>
-          <input id="f-proxied" type="checkbox" style="width:auto;display:inline-block;margin-right:4px;" />
-          启用 Cloudflare 代理
+          <input id="f-proxied" type="checkbox" onchange="toggleCloudflareFields()" style="width:auto;display:inline-block;margin-right:4px;" />
+          启用 Cloudflare 域名解析
         </label>
+      </div>
+
+      <!-- Cloudflare credentials (shown when proxy is enabled) -->
+      <div id="cf-fields" class="credentials-section hidden">
+        <div class="credentials-title">Cloudflare 凭据</div>
+        <div class="field-group">
+          <div class="field">
+            <label>API Token <span class="required">*</span></label>
+            <input id="f-cf-token" type="password" class="mono" placeholder="Cloudflare API Token" />
+          </div>
+          <div class="field">
+            <label>Zone ID <span class="required">*</span></label>
+            <input id="f-cf-zone" type="text" class="mono" placeholder="例如 41bf01bf4504866c02b1b6728bd4c203" />
+          </div>
+        </div>
       </div>
     </div>
 
@@ -430,7 +455,7 @@ function getCredentials() {
 
 // ---- Gather & validate ----
 function gatherConfig() {
-  return {
+  var cfg = {
     name: document.getElementById('f-name').value.trim(),
     provider: currentProvider,
     region: getRegion(),
@@ -439,6 +464,13 @@ function gatherConfig() {
     subdomain: document.getElementById('f-subdomain').value.trim(),
     proxied: document.getElementById('f-proxied').checked,
   };
+  if (cfg.proxied) {
+    cfg.cloudflare = {
+      apiToken: document.getElementById('f-cf-token').value.trim(),
+      zoneId: document.getElementById('f-cf-zone').value.trim(),
+    };
+  }
+  return cfg;
 }
 
 function validate(c) {
@@ -455,6 +487,10 @@ function validate(c) {
 
   if (!c.instanceId) return 'Please enter instance ID';
   if (!c.subdomain) return 'Please enter subdomain';
+  if (c.proxied) {
+    if (!c.cloudflare || !c.cloudflare.apiToken) return 'Please enter Cloudflare API Token';
+    if (!c.cloudflare || !c.cloudflare.zoneId) return 'Please enter Cloudflare Zone ID';
+  }
   return null;
 }
 
@@ -475,6 +511,10 @@ function formatText(c) {
   lines.push('Instance ID: ' + c.instanceId);
   lines.push('Subdomain: ' + c.subdomain);
   lines.push('Proxied: ' + c.proxied);
+  if (c.cloudflare) {
+    lines.push('Cloudflare API Token: ' + c.cloudflare.apiToken);
+    lines.push('Cloudflare Zone ID: ' + c.cloudflare.zoneId);
+  }
   return lines.join('\n');
 }
 
@@ -572,6 +612,12 @@ function fallbackCopy(text) {
   ta.select();
   try { document.execCommand('copy'); } catch (e) {}
   document.body.removeChild(ta);
+}
+
+// ---- Cloudflare fields toggle ----
+function toggleCloudflareFields() {
+  var checked = document.getElementById('f-proxied').checked;
+  document.getElementById('cf-fields').classList.toggle('hidden', !checked);
 }
 
 // ---- URL params ----

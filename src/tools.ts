@@ -10,7 +10,7 @@
 import { z } from 'zod';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { getAdapter } from './router.js';
-import { CloudAdapterError } from './types.js';
+import { CloudAdapterError, type ConfigProfile } from './types.js';
 import {
   saveCloudflareConfig,
   getCloudflareConfig,
@@ -267,7 +267,9 @@ export function registerTools(server: McpServer): void {
     'save_profile',
     'Save a cloud provider profile with credentials, region, instance ID, and a bound subdomain. ' +
     'The subdomain will be updated via Cloudflare DNS when the instance IP changes. ' +
-    'Use this to persist configuration so you do not need to pass credentials every time.',
+    'Use this to persist configuration so you do not need to pass credentials every time. ' +
+    'Optionally save Cloudflare API token and Zone ID per profile so different subdomains ' +
+    'in different Cloudflare accounts/zones can be managed independently.',
     {
       name: z.string().describe('Profile name (e.g. "aws-sg", "azure-hk")'),
       provider: providerSchema,
@@ -276,10 +278,15 @@ export function registerTools(server: McpServer): void {
       credentials: credentialsSchema,
       subdomain: z.string().describe('Subdomain to bind (e.g. ty.example.com)'),
       proxied: z.boolean().default(false).describe('Enable Cloudflare proxy for this subdomain'),
+      cfApiToken: z.string().optional().describe('Profile-specific Cloudflare API token (overrides global)'),
+      cfZoneId: z.string().optional().describe('Profile-specific Cloudflare Zone ID (overrides global)'),
     },
-    async ({ name, provider, region, instanceId, credentials, subdomain, proxied }) => {
+    async ({ name, provider, region, instanceId, credentials, subdomain, proxied, cfApiToken, cfZoneId }) => {
       try {
-        const profile = { name, provider, region, instanceId, credentials, subdomain, proxied };
+        const profile: ConfigProfile = { name, provider, region, instanceId, credentials, subdomain, proxied };
+        if (cfApiToken && cfZoneId) {
+          profile.cloudflare = { apiToken: cfApiToken, zoneId: cfZoneId };
+        }
         saveProfile(profile);
         return {
           content: [{ type: 'text' as const, text: JSON.stringify({
@@ -345,23 +352,31 @@ export function registerTools(server: McpServer): void {
   server.tool(
     'update_dns',
     'Update a Cloudflare DNS A record to point a subdomain to a new IP. ' +
-    'Requires Cloudflare config to be saved first (use save_cloudflare_config).',
+    'Cloudflare credentials can be passed directly, or the global saved config will be used as fallback.',
     {
       subdomain: z.string().describe('Subdomain to update (e.g. ty.example.com)'),
       ip: z.string().describe('New IP address'),
       proxied: z.boolean().default(false).describe('Enable Cloudflare proxy'),
+      cfApiToken: z.string().optional().describe('Cloudflare API token (overrides saved config)'),
+      cfZoneId: z.string().optional().describe('Cloudflare Zone ID (overrides saved config)'),
     },
-    async ({ subdomain, ip, proxied }) => {
+    async ({ subdomain, ip, proxied, cfApiToken, cfZoneId }) => {
       try {
-        const cf = getCloudflareConfig();
-        if (!cf) {
-          return {
-            content: [{ type: 'text' as const, text: JSON.stringify({
-              success: false,
-              error: 'Cloudflare config not set. Use save_cloudflare_config first.',
-            }) }],
-            isError: true,
-          };
+        let cf: { apiToken: string; zoneId: string };
+        if (cfApiToken && cfZoneId) {
+          cf = { apiToken: cfApiToken, zoneId: cfZoneId };
+        } else {
+          const saved = getCloudflareConfig();
+          if (!saved) {
+            return {
+              content: [{ type: 'text' as const, text: JSON.stringify({
+                success: false,
+                error: 'Cloudflare config not provided and not saved. Pass cfApiToken/cfZoneId or use save_cloudflare_config first.',
+              }) }],
+              isError: true,
+            };
+          }
+          cf = saved;
         }
         const result = await updateDns(cf, subdomain, ip, proxied);
         return {
@@ -398,13 +413,13 @@ export function registerTools(server: McpServer): void {
           };
         }
 
-        // Step 2: Check Cloudflare config
-        const cf = getCloudflareConfig();
+        // Step 2: Resolve Cloudflare config (profile-specific > global)
+        const cf = profile.cloudflare ?? getCloudflareConfig();
         if (!cf) {
           return {
             content: [{ type: 'text' as const, text: JSON.stringify({
               success: false,
-              error: 'Cloudflare config not set. Use save_cloudflare_config first.',
+              error: 'Cloudflare config not set. Add cloudflare to the profile or use save_cloudflare_config for a global config.',
             }) }],
             isError: true,
           };

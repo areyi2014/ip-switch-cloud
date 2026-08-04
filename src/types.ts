@@ -138,6 +138,12 @@ export interface ConfigProfile {
   subdomain: string;
   /** Whether Cloudflare proxy is enabled for this subdomain */
   proxied: boolean;
+  /**
+   * Profile-specific Cloudflare credentials.
+   * When set, these override the global Cloudflare config for DNS updates
+   * on this profile's subdomain.
+   */
+  cloudflare?: CloudflareConfig;
 }
 
 /** Full application config persisted to disk */
