@@ -1,4 +1,4 @@
-#===============================================================================
+﻿#===============================================================================
 # cloud-ip-rotator-mcp 自动部署脚本 (Windows PowerShell)
 #===============================================================================
 # 用途: 一键克隆、安装依赖、编译、生成 MCP 配置
@@ -6,11 +6,11 @@
 # 前提: git 已安装, Node.js >= 18 已安装
 #===============================================================================
 param(
-    [string]$RepoUrl   = "https://gitee.com/areyi2014/cloud-ip-rotator-mcp.git",
-    [string]$Branch    = "main",
+    [string]$RepoUrl    = "https://gitee.com/areyi2014/cloud-ip-rotator-mcp.git",
+    [string]$Branch     = "main",
     [string]$InstallDir = "$env:USERPROFILE\cloud-ip-rotator-mcp",
-    [switch]$SkipBuild = $false,
-    [switch]$Help      = $false
+    [switch]$SkipBuild  = $false,
+    [switch]$Help       = $false
 )
 
 if ($Help) {
@@ -36,10 +36,10 @@ $ErrorActionPreference = "Stop"
 $NodeMinVersion = 18
 $ProjectName = "cloud-ip-rotator-mcp"
 
-# ── 辅助函数 ─────────────────────────────────────────────────────────────────
+# -- 辅助函数 ---------------------------------------------------------------
 function Write-Step($msg) {
     Write-Host ""
-    Write-Host "═══ $msg ═══" -ForegroundColor Cyan
+    Write-Host "=== $msg ===" -ForegroundColor Cyan
 }
 
 function Write-Info($msg)  { Write-Host "[INFO]  $msg" -ForegroundColor Blue }
@@ -47,7 +47,7 @@ function Write-OK($msg)    { Write-Host "[ OK ]  $msg" -ForegroundColor Green }
 function Write-Warn($msg)  { Write-Host "[WARN]  $msg" -ForegroundColor Yellow }
 function Write-Err($msg)   { Write-Host "[ERROR] $msg" -ForegroundColor Red }
 
-# ── 检查 Node.js ─────────────────────────────────────────────────────────────
+# -- 检查 Node.js ------------------------------------------------------------
 function Check-Node {
     Write-Step "检查 Node.js 环境"
 
@@ -78,7 +78,7 @@ function Check-Node {
     Write-OK "npm $(& npm --version) ($($npmCmd.Source))"
 }
 
-# ── 检查 git ─────────────────────────────────────────────────────────────────
+# -- 检查 git -----------------------------------------------------------------
 function Check-Git {
     $gitCmd = Get-Command git -ErrorAction SilentlyContinue
     if (-not $gitCmd) {
@@ -89,7 +89,7 @@ function Check-Git {
     Write-OK "git $(& git --version) ($($gitCmd.Source))"
 }
 
-# ── 克隆仓库 ─────────────────────────────────────────────────────────────────
+# -- 克隆仓库 ----------------------------------------------------------------
 function Clone-Repo {
     Write-Step "克隆项目仓库"
 
@@ -126,7 +126,7 @@ function Clone-Repo {
     }
 }
 
-# ── 安装依赖 ─────────────────────────────────────────────────────────────────
+# -- 安装依赖 ----------------------------------------------------------------
 function Install-Deps {
     Write-Step "安装 npm 依赖"
 
@@ -152,7 +152,7 @@ function Install-Deps {
     Pop-Location
 }
 
-# ── 编译 TypeScript ──────────────────────────────────────────────────────────
+# -- 编译 TypeScript ----------------------------------------------------------
 function Build-Project {
     Write-Step "编译 TypeScript"
 
@@ -160,7 +160,7 @@ function Build-Project {
 
     # 清除 Electron 环境变量干扰（WorkBuddy 环境可能设置）
     $oldElectron = $env:ELECTRON_RUN_AS_NODE
-    $oldNodeOpts  = $env:NODE_OPTIONS
+    $oldNodeOpts = $env:NODE_OPTIONS
     $env:ELECTRON_RUN_AS_NODE = ""
     $env:NODE_OPTIONS = ""
 
@@ -191,7 +191,7 @@ function Build-Project {
     Pop-Location
 }
 
-# ── 检测 MCP 客户端平台 ─────────────────────────────────────────────────────
+# -- 检测 MCP 客户端平台 -----------------------------------------------------
 function Detect-MCPPlatform {
     Write-Step "检测 MCP 客户端平台"
 
@@ -218,7 +218,7 @@ function Detect-MCPPlatform {
     }
 }
 
-# ── 生成 MCP 配置 ────────────────────────────────────────────────────────────
+# -- 生成 MCP 配置 ------------------------------------------------------------
 function Generate-MCPConfig {
     Write-Step "生成 MCP 配置"
 
@@ -254,7 +254,7 @@ function Generate-MCPConfig {
 
     if ($script:DetectedWB) {
         Write-Host ""
-        Write-Host "── WorkBuddy 设置步骤 ──" -ForegroundColor Cyan
+        Write-Host "-- WorkBuddy 设置步骤 --" -ForegroundColor Cyan
         Write-Info "1. 将上方的 cloud-ip-rotator 配置合并到:"
         Write-Info "   $env:USERPROFILE\.workbuddy\mcp.json"
         Write-Info "2. 在 WorkBuddy 连接器管理页面点击「信任」cloud-ip-rotator"
@@ -263,7 +263,7 @@ function Generate-MCPConfig {
 
     if ($script:DetectedCodex) {
         Write-Host ""
-        Write-Host "── Codex 设置步骤 ──" -ForegroundColor Cyan
+        Write-Host "-- Codex 设置步骤 --" -ForegroundColor Cyan
         Write-Info "1. 将上方的 cloud-ip-rotator 配置合并到 Codex 的 MCP 配置文件"
         Write-Info "   常见路径: $env:USERPROFILE\.codex\mcp.json 或 Codex 设置面板"
         Write-Info "2. 重启 Codex 使配置生效"
@@ -276,7 +276,7 @@ function Generate-MCPConfig {
     }
 }
 
-# ── 安装完成后提示 ───────────────────────────────────────────────────────────
+# -- 安装完成后提示 ----------------------------------------------------------
 function Show-Success {
     if ($script:DetectedWB -and $script:DetectedCodex) {
         $mcpHint = "  # 通过 MCP 工具使用（在 WorkBuddy/Codex 中直接对话即可）"
@@ -288,13 +288,14 @@ function Show-Success {
         $mcpHint = "  # 配置 MCP 客户端后，即可通过对话使用以下指令"
     }
 
-    Write-Host @"
+    $successBanner = @"
 
-╔══════════════════════════════════════════════════════════╗
-║          cloud-ip-rotator-mcp 安装成功!                  ║
-╚══════════════════════════════════════════════════════════╝
++============================================================+
+|          cloud-ip-rotator-mcp 安装成功!                     |
++============================================================+
 
-"@ -ForegroundColor Green
+"@
+    Write-Host $successBanner -ForegroundColor Green
 
     Write-Host "项目路径:   $InstallDir"
     Write-Host "配置目录:   $env:USERPROFILE\.cloud-ip-rotator\config.json"
@@ -325,12 +326,12 @@ function Show-Success {
     Write-Host ""
 }
 
-# ── 主流程 ───────────────────────────────────────────────────────────────────
+# -- 主流程 ------------------------------------------------------------------
 function Main {
     Write-Host ""
-    Write-Host "╔══════════════════════════════════════════════════════════╗" -ForegroundColor Green
-    Write-Host "║   cloud-ip-rotator-mcp 自动部署脚本 v1.0               ║" -ForegroundColor Green
-    Write-Host "╚══════════════════════════════════════════════════════════╝" -ForegroundColor Green
+    Write-Host "+============================================================+" -ForegroundColor Green
+    Write-Host "|   cloud-ip-rotator-mcp 自动部署脚本 v1.0                    |" -ForegroundColor Green
+    Write-Host "+============================================================+" -ForegroundColor Green
     Write-Host ""
 
     Check-Node
@@ -348,3 +349,4 @@ function Main {
 }
 
 Main
+
