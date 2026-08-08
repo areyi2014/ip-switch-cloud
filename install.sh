@@ -17,7 +17,7 @@ CYAN='\033[0;36m'
 NC='\033[0m'
 
 # ── 默认值 ───────────────────────────────────────────────────────────────────
-REPO_URL="${REPO_URL:-https://gitee.com/areyi2014/cloud-ip-rotator-mcp.git}"
+REPO_URL="${REPO_URL:-https://github.com/areyi2014/cloud-ip-rotator-mcp.git}"
 BRANCH="${BRANCH:-main}"
 INSTALL_DIR="${INSTALL_DIR:-$HOME/cloud-ip-rotator-mcp}"
 NODE_MIN_VERSION=18
