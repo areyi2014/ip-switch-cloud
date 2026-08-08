@@ -240,14 +240,18 @@ function Generate-MCPConfig {
 }
 "@
 
-    # 始终写入通用配置文件
+    # 写入通用配置文件（如已存在则跳过）
     $configDir  = "$env:USERPROFILE\.cloud-ip-rotator"
     $configPath = "$configDir\mcp-config.json"
-    if (-not (Test-Path $configDir)) {
-        New-Item -ItemType Directory -Path $configDir -Force | Out-Null
+    if (Test-Path $configPath) {
+        Write-Info "MCP 配置文件已存在，跳过生成: $configPath"
+    } else {
+        if (-not (Test-Path $configDir)) {
+            New-Item -ItemType Directory -Path $configDir -Force | Out-Null
+        }
+        Set-Content -Path $configPath -Value $configJson -Encoding UTF8
+        Write-OK "MCP 配置已生成: $configPath"
     }
-    Set-Content -Path $configPath -Value $configJson -Encoding UTF8
-    Write-OK "MCP 配置已生成: $configPath"
 
     # 根据实际检测到的平台，给出针对性指引
     $shown = $false
