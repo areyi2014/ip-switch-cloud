@@ -6,7 +6,7 @@
 # 前提: git 已安装, Node.js >= 18 已安装
 #===============================================================================
 param(
-    [string]$RepoUrl    = "https://gitee.com/areyi2014/cloud-ip-rotator-mcp.git",
+    [string]$RepoUrl    = "https://github.com/areyi2014/cloud-ip-rotator-mcp.git",
     [string]$Branch     = "main",
     [string]$InstallDir = "$env:USERPROFILE\cloud-ip-rotator-mcp",
     [switch]$SkipBuild  = $false,
