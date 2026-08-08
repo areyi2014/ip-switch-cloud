@@ -226,13 +226,17 @@ generate_mcp_config() {
 EOF
 )
 
-    # 始终写入通用配置文件
+    # 写入通用配置文件（如已存在则跳过）
     local mcp_config_path="$HOME/.cloud-ip-rotator/mcp-config.json"
-    mkdir -p "$HOME/.cloud-ip-rotator"
-    cat > "$mcp_config_path" <<MCPEOF
+    if [ -f "$mcp_config_path" ]; then
+        log_info "MCP 配置文件已存在，跳过生成: ${mcp_config_path}"
+    else
+        mkdir -p "$HOME/.cloud-ip-rotator"
+        cat > "$mcp_config_path" <<MCPEOF
 $config_json
 MCPEOF
-    log_ok "MCP 配置已生成: ${mcp_config_path}"
+        log_ok "MCP 配置已生成: ${mcp_config_path}"
+    fi
 
     # 根据实际检测到的平台，给出针对性指引
     local shown=false
