@@ -42,7 +42,7 @@
 
 ```bash
 # 下载安装脚本
-curl -fsSL https://gitee.com/areyi2014/cloud-ip-rotator-mcp/raw/main/install.sh -o install-cloud-ip-rotator.sh
+curl -fsSL https://github.com/areyi2014/cloud-ip-rotator-mcp/raw/main/install.sh -o install-cloud-ip-rotator.sh
 
 # 运行（需要网络连接）
 bash install-cloud-ip-rotator.sh
@@ -81,7 +81,7 @@ bash install-cloud-ip-rotator.sh --skip-build
 Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
 
 # 下载安装脚本
-Invoke-WebRequest -Uri "https://gitee.com/areyi2014/cloud-ip-rotator-mcp/raw/main/install.ps1" -OutFile "$env:TEMP\install-cloud-ip-rotator.ps1"
+Invoke-WebRequest -Uri "https://github.com/areyi2014/cloud-ip-rotator-mcp/raw/main/install.ps1" -OutFile "$env:TEMP\install-cloud-ip-rotator.ps1"
 
 # 运行
 & "$env:TEMP\install-cloud-ip-rotator.ps1"
@@ -114,7 +114,7 @@ npm -v    # 应输出 9.x.x 或更高
 ### 2. 克隆仓库
 
 ```bash
-git clone --depth 1 https://gitee.com/areyi2014/cloud-ip-rotator-mcp.git
+git clone --depth 1 https://github.com/areyi2014/cloud-ip-rotator-mcp.git
 cd cloud-ip-rotator-mcp
 ```
 
@@ -323,7 +323,7 @@ $env:ELECTRON_RUN_AS_NODE = ""; npm run build
 **解决**:
 - 确认网络正常，能访问 gitee.com
 - 如为私有仓库，先配置 SSH Key: `ssh-keygen -t ed25519 && cat ~/.ssh/id_ed25519.pub`
-- 手动克隆: `git clone https://gitee.com/areyi2014/cloud-ip-rotator-mcp.git`
+- 手动克隆: `git clone https://github.com/areyi2014/cloud-ip-rotator-mcp.git`
 
 ### 3. MCP 配置后工具未出现
 
