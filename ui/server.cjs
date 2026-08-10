@@ -12,7 +12,7 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 
-const PORT = 8787;
+const PORT = 0; // 0 = 由系统自动分配空闲端口
 const UI_DIR = __dirname;
 const CONFIG_DIR = path.join(os.homedir(), '.cloud-ip-rotator');
 const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json');
@@ -150,6 +150,18 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(PORT, '127.0.0.1', () => {
-  console.log(`Config server running at http://localhost:${PORT}`);
-  console.log(`Config file: ${CONFIG_FILE}`);
+  const actualPort = server.address().port;
+  // 写入端口文件，供脚本/用户读取实际端口
+  const PORT_FILE = path.join(CONFIG_DIR, 'server-port.txt');
+  try {
+    fs.mkdirSync(CONFIG_DIR, { recursive: true });
+    fs.writeFileSync(PORT_FILE, String(actualPort));
+  } catch (e) { /* ignore */ }
+
+  console.log('');
+  console.log('  ============================');
+  console.log(`  配置服务器已启动:`);
+  console.log(`  http://127.0.0.1:${actualPort}`);
+  console.log('  ============================');
+  console.log('');
 });

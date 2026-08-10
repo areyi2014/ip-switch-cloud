@@ -251,7 +251,7 @@ echo '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | node dist/index.js
 node ui/server.cjs
 ```
 
-然后浏览器打开 `http://localhost:8787`，即可在可视化界面中填写和保存配置。
+然后浏览器打开 `http://127.0.0.1:<端口>`（端口在终端启动时打印），即可在可视化界面中填写和保存配置。
 
 > **约定**: 配置表单**永远用浏览器打开**，不要使用 WorkBuddy 内嵌窗口（沙箱限制）。
 

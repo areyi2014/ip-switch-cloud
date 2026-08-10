@@ -111,14 +111,53 @@ clone_repo() {
         return
     fi
 
-    # 尝试 HTTPS 克隆
-    log_info "正在克隆: ${REPO_URL} (分支: ${BRANCH})"
-    local clone_output
-    clone_output=$(git clone --branch "$BRANCH" --depth 1 "$REPO_URL" "$INSTALL_DIR" 2>&1) && {
-        log_ok "克隆成功: $INSTALL_DIR"
-    } || {
-        log_error "克隆失败，错误信息:"
-        echo -e "${RED}  ${clone_output}${NC}"
+    # 确认安装目录
+    log_info "仓库地址: ${REPO_URL}"
+    log_info "目标分支: ${BRANCH}"
+    log_info "安装目录: ${INSTALL_DIR}"
+    echo ""
+    read -r -p "确认安装到此目录? 按 Enter 确认，或输入新目录路径: " user_dir
+    if [ -n "$user_dir" ]; then
+        INSTALL_DIR="$user_dir"
+        log_info "已更新安装目录: ${INSTALL_DIR}"
+    fi
+
+    # DNS 预热
+    local repo_host
+    repo_host=$(echo "$REPO_URL" | sed -E 's|^https?://||;s|^git@||;s|:.*||;s|/.*||')
+    log_info "预热 DNS: ping ${repo_host} ..."
+    if ! ping -c 1 -W 3 "$repo_host" >/dev/null 2>&1; then
+        log_error "无法解析仓库域名: ${repo_host}"
+        log_info  "请检查网络连接和 DNS 设置"
+        exit 1
+    fi
+    log_ok "域名连通: ${repo_host}"
+
+    # 最多重试 3 次克隆
+    local max_retries=3
+    local clone_ok=false
+
+    for attempt in $(seq 1 $max_retries); do
+        if [ "$attempt" -gt 1 ]; then
+            rm -rf "$INSTALL_DIR" 2>/dev/null
+            log_info "第 ${attempt} / ${max_retries} 次重试克隆..."
+            sleep 3
+        else
+            log_info "正在克隆: ${REPO_URL} (分支: ${BRANCH})"
+        fi
+
+        # git 的进度条（Receiving objects 等）输出到 stderr，2>&1 让它直接显示在终端
+        git clone --branch "$BRANCH" --depth 1 "$REPO_URL" "$INSTALL_DIR" 2>&1 && {
+            clone_ok=true
+            break
+        }
+
+        log_warn "克隆失败 (第 ${attempt} / ${max_retries} 次)"
+    done
+
+    if ! $clone_ok; then
+        echo ""
+        log_error "克隆失败（已重试 ${max_retries} 次）"
         log_info ""
         log_info "请检查:"
         log_info "  1. 仓库地址是否正确: ${REPO_URL}"
@@ -128,7 +167,8 @@ clone_repo() {
         log_info "手动操作:"
         log_info "  git clone ${REPO_URL} ${INSTALL_DIR}"
         exit 1
-    }
+    fi
+    log_ok "克隆成功: ${INSTALL_DIR}"
 }
 
 # ── 安装依赖 ─────────────────────────────────────────────────────────────────
@@ -273,9 +313,9 @@ MCPEOF
 print_success() {
     local browser_cmd
     if [ "$OS" = "macos" ]; then
-        browser_cmd="open http://localhost:8787"
+        browser_cmd="open [启动服务器后显示的地址]"
     else
-        browser_cmd="xdg-open http://localhost:8787"
+        browser_cmd="xdg-open [启动服务器后显示的地址]"
     fi
 
     local mcp_hint=""
@@ -298,7 +338,7 @@ ${GREEN}╔═══════════════════════
 项目路径:   ${INSTALL_DIR}
 配置目录:   ~/.cloud-ip-rotator/config.json
 UI 服务器:  node ${INSTALL_DIR}/ui/server.cjs
-UI 地址:    http://localhost:8787
+UI 地址:    启动后终端会显示实际地址
 
 ${YELLOW}使用方式:${NC}
   # 启动 UI 配置服务器（可选）
