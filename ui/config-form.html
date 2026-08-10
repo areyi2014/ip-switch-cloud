@@ -550,7 +550,7 @@ function submitConfig() {
   // 1. Try local server first — directly saves to config.json
   if (typeof fetch === 'function') {
     showMsg('正在保存...', 'info');
-    fetch('http://localhost:8787/api/save-config', {
+    fetch('/api/save-config', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ profile: c }),

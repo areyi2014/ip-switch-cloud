@@ -104,17 +104,64 @@ function Clone-Repo {
         return
     }
 
-    Write-Info "正在克隆: $RepoUrl (分支: $Branch)"
+    Write-Info "仓库地址: $RepoUrl"
+    Write-Info "目标分支: $Branch"
+    Write-Info "安装目录: $InstallDir"
+    Write-Host ""
+    $userInput = Read-Host "确认安装到此目录? 按 Enter 确认，或输入新目录路径"
+    if ($userInput) {
+        $InstallDir = $userInput
+        # 更新全局变量，后续步骤使用新路径
+        $script:InstallDir = $InstallDir
+        Write-Info "已更新安装目录: $InstallDir"
+    }
 
     $parentDir = Split-Path $InstallDir -Parent
     if (-not (Test-Path $parentDir)) {
         New-Item -ItemType Directory -Path $parentDir -Force | Out-Null
     }
 
-    $cloneError = $(git clone --branch $Branch --depth 1 $RepoUrl $InstallDir 2>&1)
+    # DNS 预热
+    $repoHost = ([uri]$RepoUrl).Host
+    Write-Info "预热 DNS: ping $repoHost ..."
+    $null = & ping -n 1 $repoHost 2>&1
     if ($LASTEXITCODE -ne 0) {
-        Write-Err "克隆失败，错误信息:"
-        Write-Host "  $cloneError" -ForegroundColor Red
+        Write-Err "无法解析仓库域名: $repoHost"
+        Write-Info "请检查网络连接和 DNS 设置"
+        exit 1
+    }
+    Write-OK "域名连通: $repoHost"
+
+    # 最多重试 3 次克隆
+    $maxRetries = 3
+    $cloneOk = $false
+
+    for ($attempt = 1; $attempt -le $maxRetries; $attempt++) {
+        if ($attempt -gt 1) {
+            # 清理上次失败残留
+            Remove-Item $InstallDir -Recurse -Force -ErrorAction SilentlyContinue
+            Write-Info "第 $attempt / $maxRetries 次重试克隆..."
+            Start-Sleep -Seconds 3
+        } else {
+            Write-Info "正在克隆: $RepoUrl (分支: $Branch)"
+        }
+
+        # 直接用 Start-Process，git 进度条会自动输出到终端
+        $proc = Start-Process -FilePath "git" `
+            -ArgumentList "clone", "--branch", $Branch, "--depth", "1", $RepoUrl, $InstallDir `
+            -NoNewWindow -Wait -PassThru
+
+        if ($proc.ExitCode -eq 0) {
+            $cloneOk = $true
+            break
+        }
+
+        Write-Warn "克隆失败 (第 $attempt / $maxRetries 次)"
+    }
+
+    if (-not $cloneOk) {
+        Write-Host ""
+        Write-Err "克隆失败（已重试 $maxRetries 次）"
         Write-Info ""
         Write-Info "请检查:"
         Write-Info "  1. 仓库地址是否正确: $RepoUrl"
@@ -306,15 +353,15 @@ function Show-Success {
     Write-Host "项目路径:   $InstallDir"
     Write-Host "配置目录:   $env:USERPROFILE\.cloud-ip-rotator\config.json"
     Write-Host "UI 服务器:  node $InstallDir\ui\server.cjs"
-    Write-Host "UI 地址:    http://localhost:8787"
+    Write-Host "UI 地址:    启动后终端会显示实际地址"
     Write-Host ""
 
     Write-Host "使用方式:" -ForegroundColor Yellow
     Write-Host "  # 启动 UI 配置服务器（可选）"
     Write-Host "  node $InstallDir\ui\server.cjs"
     Write-Host ""
-    Write-Host "  # 浏览器打开配置页面"
-    Write-Host "  start http://localhost:8787"
+    Write-Host "  # 浏览器打开配置页面（地址见服务器启动输出）"
+    Write-Host "  start http://127.0.0.1:端口号"
     Write-Host ""
     Write-Host $mcpHint
     Write-Host "  - 列出配置:   列出我的云服务器配置"

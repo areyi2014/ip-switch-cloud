@@ -79,7 +79,7 @@ lines.push('Instance ID: '+c.instanceId);lines.push('Subdomain: '+c.subdomain);l
 if(c.cloudflare){lines.push('Cloudflare API Token: '+c.cloudflare.apiToken);lines.push('Cloudflare Zone ID: '+c.cloudflare.zoneId)}
 var txt=lines.join('\n');
 showMsg('正在保存...','info');
-fetch('http://localhost:8787/api/save-config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({profile:c})})
+fetch('/api/save-config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({profile:c})})
 .then(function(r){return r.json()})
 .then(function(d){if(d.success){showMsg('已保存到 '+d.path+'（共 '+d.profileCount+' 个配置）','success')}else{showMsg('保存失败: '+(d.error||'未知错误'),'error')}})
 .catch(function(){if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(txt).catch(function(){})}var s=false;if(typeof sendPrompt==='function'){try{sendPrompt(txt);s=true}catch(e){}}showMsg(s?'已提交！文本已复制到剪贴板':'沙箱限制无法直接保存，已复制到剪贴板，请粘贴到对话框','success')})
