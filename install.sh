@@ -113,18 +113,22 @@ clone_repo() {
 
     # 尝试 HTTPS 克隆
     log_info "正在克隆: ${REPO_URL} (分支: ${BRANCH})"
-    if git clone --branch "$BRANCH" --depth 1 "$REPO_URL" "$INSTALL_DIR" 2>/dev/null; then
+    local clone_output
+    clone_output=$(git clone --branch "$BRANCH" --depth 1 "$REPO_URL" "$INSTALL_DIR" 2>&1) && {
         log_ok "克隆成功: $INSTALL_DIR"
-    else
-        log_error "克隆失败，请检查:"
-        log_info  "  1. 仓库地址是否正确: ${REPO_URL}"
-        log_info  "  2. 网络是否正常"
-        log_info  "  3. 如为私有仓库，请先配置 SSH Key"
-        log_info  ""
-        log_info  "手动操作:"
-        log_info  "  git clone ${REPO_URL} ${INSTALL_DIR}"
+    } || {
+        log_error "克隆失败，错误信息:"
+        echo -e "${RED}  ${clone_output}${NC}"
+        log_info ""
+        log_info "请检查:"
+        log_info "  1. 仓库地址是否正确: ${REPO_URL}"
+        log_info "  2. 网络是否正常"
+        log_info "  3. 如为私有仓库，请先配置 SSH Key"
+        log_info ""
+        log_info "手动操作:"
+        log_info "  git clone ${REPO_URL} ${INSTALL_DIR}"
         exit 1
-    fi
+    }
 }
 
 # ── 安装依赖 ─────────────────────────────────────────────────────────────────

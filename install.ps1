@@ -111,11 +111,12 @@ function Clone-Repo {
         New-Item -ItemType Directory -Path $parentDir -Force | Out-Null
     }
 
-    try {
-        git clone --branch $Branch --depth 1 $RepoUrl $InstallDir 2>&1 | Out-Null
-        Write-OK "克隆成功: $InstallDir"
-    } catch {
-        Write-Err "克隆失败，请检查:"
+    $cloneError = $(git clone --branch $Branch --depth 1 $RepoUrl $InstallDir 2>&1)
+    if ($LASTEXITCODE -ne 0) {
+        Write-Err "克隆失败，错误信息:"
+        Write-Host "  $cloneError" -ForegroundColor Red
+        Write-Info ""
+        Write-Info "请检查:"
         Write-Info "  1. 仓库地址是否正确: $RepoUrl"
         Write-Info "  2. 网络是否正常"
         Write-Info "  3. 如为私有仓库，请先配置 SSH Key"
@@ -124,6 +125,7 @@ function Clone-Repo {
         Write-Info "  git clone $RepoUrl $InstallDir"
         exit 1
     }
+    Write-OK "克隆成功: $InstallDir"
 }
 
 # -- 安装依赖 ----------------------------------------------------------------
