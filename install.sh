@@ -87,14 +87,88 @@ check_node() {
 
 # ── 检查 git ─────────────────────────────────────────────────────────────────
 check_git() {
-    if ! command -v git &>/dev/null; then
-        log_error "未检测到 git，请先安装 git"
-        log_info  "安装方式:"
-        log_info  "  macOS:  xcode-select --install"
+    log_step "检查 Git 环境"
+
+    # 方案 1：已在 PATH 中
+    if command -v git &>/dev/null; then
+        log_ok "git $(git --version | awk '{print $3}') ($(command -v git))"
+        return
+    fi
+
+    log_warn "未检测到 git，正在自动安装..."
+
+    # ── CPU 架构 ────────────────────────────────────────────────────
+    local arch
+    arch=$(uname -m)
+    log_info "检测到 CPU 架构: ${arch}"
+
+    # ── 方案 2：已安装但不在 PATH ──────────────────────────────────
+    local known_paths=(
+        "/usr/local/bin/git"
+        "/opt/homebrew/bin/git"
+        "/usr/local/git/bin/git"
+        "/opt/git/bin/git"
+    )
+    for kp in "${known_paths[@]}"; do
+        if [ -x "$kp" ]; then
+            local found_dir
+            found_dir=$(dirname "$kp")
+            log_info "检测到已有 Git: ${found_dir}，修复 PATH..."
+            export PATH="${found_dir}:${PATH}"
+            log_ok "git $(git --version | awk '{print $3}') (${kp})"
+            return
+        fi
+    done
+
+    # ── 方案 3：通过包管理器安装 ────────────────────────────────────
+    case "$OS" in
+        ubuntu|debian)
+            log_info "通过 apt 安装 git..."
+            # 尝试换阿里云镜像加速
+            if [ -f /etc/apt/sources.list ] && ! grep -q "mirrors.aliyun.com" /etc/apt/sources.list 2>/dev/null; then
+                log_info "建议切换至国内镜像源以加速: sudo sed -i 's|archive.ubuntu.com|mirrors.aliyun.com|g' /etc/apt/sources.list"
+            fi
+            if command -v sudo &>/dev/null; then
+                sudo apt-get update -qq && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq git
+            else
+                apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq git
+            fi
+            ;;
+        macos)
+            if command -v brew &>/dev/null; then
+                log_info "通过 Homebrew 安装 git..."
+                brew install git --quiet
+            elif command -v xcode-select &>/dev/null; then
+                log_info "通过 xcode-select 安装 Command Line Tools（包含 git）..."
+                xcode-select --install 2>/dev/null || true
+                log_warn "xcode-select 弹出安装窗口，请手动完成安装后重新运行脚本"
+                exit 1
+            else
+                log_error "未找到包管理器，请手动安装 git"
+                log_info  "  macOS:  xcode-select --install"
+                exit 1
+            fi
+            ;;
+        *)
+            log_error "未检测到 git，请手动安装"
+            log_info  "  https://git-scm.com/downloads"
+            exit 1
+            ;;
+    esac
+
+    # ── 安装后验证 ──────────────────────────────────────────────────
+    if command -v git &>/dev/null; then
+        log_ok "git 安装完成: $(git --version)"
+    else
+        log_error "git 安装失败，请手动安装"
+        log_info  "  macOS:  xcode-select --install 或 brew install git"
         log_info  "  Ubuntu: sudo apt-get install -y git"
+        log_info  "  https://git-scm.com/downloads"
         exit 1
     fi
-    log_ok "git $(git --version | awk '{print $3}') ($(command -v git))"
+}
+        exit 1
+    fi
 }
 
 # ── 克隆仓库 ─────────────────────────────────────────────────────────────────
