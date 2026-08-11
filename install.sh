@@ -321,65 +321,102 @@ detect_mcp_platform() {
     fi
 }
 
+# ── 写入 MCP 配置（合并到已有配置）─────────────────────────────────────
+write_mcp_config_file() {
+    local target_dir="$1"
+    local node_exe="$2"
+    local dist_js="$3"
+    local target_path="${target_dir}/mcp.json"
+
+    mkdir -p "$target_dir"
+
+    if [ -f "$target_path" ]; then
+        # 已有 mcp.json，尝试解析并合并（无需 jq，用 Python）
+        log_info "检测到已有 mcp.json，合并配置..."
+        if command -v python3 &>/dev/null; then
+            python3 -c "
+import json, sys
+try:
+    with open('$target_path', 'r', encoding='utf-8') as f:
+        config = json.load(f)
+except:
+    config = {}
+config.setdefault('mcpServers', {})
+config['mcpServers']['cloud-ip-rotator'] = {
+    'command': '$node_exe',
+    'args': ['$dist_js']
+}
+with open('$target_path', 'w', encoding='utf-8') as f:
+    json.dump(config, f, indent=2, ensure_ascii=False)
+" 2>/dev/null && return 0
+            log_warn "Python 合并失败，覆盖写入"
+        fi
+    fi
+
+    # 新建或覆盖
+    cat > "$target_path" <<MCPEOF
+{
+  "mcpServers": {
+    "cloud-ip-rotator": {
+      "command": "${node_exe}",
+      "args": ["${dist_js}"]
+    }
+  }
+}
+MCPEOF
+}
+
 # ── 生成 MCP 配置 ────────────────────────────────────────────────────────────
 generate_mcp_config() {
     log_step "生成 MCP 配置"
 
-    # 转义路径中的特殊字符
-    local node_json
-    node_json=$(printf '%s' "$NODE_PATH" | sed 's/\\/\\\\/g' | sed 's/"/\\"/g')
-    local dist_json
-    dist_json=$(printf '%s' "$INSTALL_DIR/dist/index.js" | sed 's/\\/\\\\/g' | sed 's/"/\\"/g')
+    local node_exe
+    node_exe=$(command -v node)
 
-    local config_json
-    config_json=$(cat <<EOF
-{
-  "mcpServers": {
-    "cloud-ip-rotator": {
-      "command": "${node_json}",
-      "args": ["${dist_json}"]
-    }
-  }
-}
-EOF
-)
-
-    # 写入通用配置文件（如已存在则跳过）
-    local mcp_config_path="$HOME/.cloud-ip-rotator/mcp-config.json"
-    if [ -f "$mcp_config_path" ]; then
-        log_info "MCP 配置文件已存在，跳过生成: ${mcp_config_path}"
-    else
-        mkdir -p "$HOME/.cloud-ip-rotator"
-        cat > "$mcp_config_path" <<MCPEOF
-$config_json
-MCPEOF
-        log_ok "MCP 配置已生成: ${mcp_config_path}"
+    if [ -z "$node_exe" ]; then
+        # 尝试常见路径
+        for p in /usr/local/bin/node /opt/homebrew/bin/node /usr/bin/node; do
+            if [ -x "$p" ]; then node_exe="$p"; break; fi
+        done
     fi
 
-    # 根据实际检测到的平台，给出针对性指引
-    local shown=false
+    local dist_js="${INSTALL_DIR}/dist/index.js"
+    local written=false
 
+    # 直接写入对应平台的 mcp.json
     if $DETECTED_WB; then
-        echo ""
-        echo "${CYAN}── WorkBuddy 设置步骤 ──${NC}"
-        log_info  "1. 将上方的 cloud-ip-rotator 配置合并到:"
-        log_info  "   ~/.workbuddy/mcp.json"
-        log_info  "2. 在 WorkBuddy 连接器管理页面点击「信任」cloud-ip-rotator"
-        shown=true
+        write_mcp_config_file "$HOME/.workbuddy" "$node_exe" "$dist_js"
+        log_ok "已写入 MCP 配置: ~/.workbuddy/mcp.json"
+        log_info "WorkBuddy 连接器管理页面点击「信任」cloud-ip-rotator 即可使用"
+        written=true
     fi
 
     if $DETECTED_CODEX; then
-        echo ""
-        echo "${CYAN}── Codex 设置步骤 ──${NC}"
-        log_info  "1. 将上方的 cloud-ip-rotator 配置合并到 Codex 的 MCP 配置文件"
-        log_info  "   常见路径: ~/.codex/mcp.json 或 Codex 设置面板"
-        log_info  "2. 重启 Codex 使配置生效"
-        shown=true
+        write_mcp_config_file "$HOME/.codex" "$node_exe" "$dist_js"
+        log_ok "已写入 MCP 配置: ~/.codex/mcp.json"
+        log_info "重启 Codex 使配置生效"
+        written=true
     fi
 
-    if ! $shown; then
+    if ! $written; then
+        local json_content
+        json_content=$(cat <<EOF_CONFIG
+{
+  "mcpServers": {
+    "cloud-ip-rotator": {
+      "command": "${node_exe}",
+      "args": ["${dist_js}"]
+    }
+  }
+}
+EOF_CONFIG
+)
+        log_warn "未检测到 WorkBuddy 或 Codex 平台目录"
         echo ""
-        log_info  "未检测到兼容的 MCP 客户端。配置已保存，可手动导入到你的 MCP 客户端。"
+        echo "${CYAN}MCP 配置内容:${NC}"
+        echo "$json_content"
+        echo ""
+        log_info  "请将以上配置手动添加到对应客户端的 mcp.json 文件中"
     fi
 }
 
@@ -410,7 +447,6 @@ ${GREEN}╔═══════════════════════
 ╚══════════════════════════════════════════════════════════╝${NC}
 
 项目路径:   ${INSTALL_DIR}
-配置目录:   ~/.cloud-ip-rotator/config.json
 UI 服务器:  node ${INSTALL_DIR}/ui/server.cjs
 UI 地址:    启动后终端会显示实际地址
 
