@@ -80,13 +80,186 @@ function Check-Node {
 
 # -- 检查 git -----------------------------------------------------------------
 function Check-Git {
+    Write-Step "检查 Git 环境"
+
     $gitCmd = Get-Command git -ErrorAction SilentlyContinue
-    if (-not $gitCmd) {
-        Write-Err "未检测到 git"
-        write-info "访问 https://git-scm.com/download/win 进行下载安装/卸载重装"
+    if ($gitCmd) {
+        Write-OK "git $(& git --version) ($($gitCmd.Source))"
+        return
+    }
+
+    Write-Warn "未检测到 git，正在自动安装..."
+
+    # ── 获取 CPU 架构 ──────────────────────────────────────────────
+    $arch = $env:PROCESSOR_ARCHITECTURE.ToLower()
+    if ($arch -eq 'amd64') { $arch = 'x64' }
+    Write-Info "检测到 CPU 架构: $arch"
+
+    # ── 方案 1：已有 Git 但不在 PATH ──────────────────────────────
+    $gitDir = "$env:LOCALAPPDATA\Git"
+    $gitExe = "$gitDir\cmd\git.exe"
+    $gitBin = "$gitDir\bin\git.exe"
+
+    # 先检查常见 Git 安装位置
+    $knownPaths = @(
+        "$gitDir\cmd\git.exe",
+        "$gitDir\bin\git.exe",
+        "$env:ProgramFiles\Git\cmd\git.exe",
+        "${env:ProgramFiles(x86)}\Git\cmd\git.exe"
+    )
+    foreach ($kp in $knownPaths) {
+        if (Test-Path $kp) {
+            $foundDir = Split-Path $kp -Parent
+            Write-Info "检测到已有 Git: $foundDir，修复 PATH..."
+            $env:Path = "$foundDir;$env:Path"
+            Write-OK "git $(& git --version) ($kp)"
+            return
+        }
+    }
+
+    # ── 方案 2：下载并静默安装 ────────────────────────────────────
+    $installerPath = Download-GitInstaller -Arch $arch
+    if (-not $installerPath) {
+        Write-Err "Git 下载失败，请手动安装: https://git-scm.com/download/win"
         exit 1
     }
-    Write-OK "git $(& git --version) ($($gitCmd.Source))"
+
+    Write-Info "静默安装 Git 到 $gitDir ..."
+    $proc = Start-Process -FilePath $installerPath `
+        -ArgumentList "/VERYSILENT", "/NORESTART", "/CURRENTUSER", "/DIR=$gitDir", "/NOICONS" `
+        -NoNewWindow -Wait -PassThru
+    Remove-Item $installerPath -Force -ErrorAction SilentlyContinue
+
+    if ($proc.ExitCode -ne 0) {
+        Write-Err "Git 安装失败 (exit code: $($proc.ExitCode))"
+        Write-Info "请手动安装: https://git-scm.com/download/win"
+        exit 1
+    }
+
+    # 加入 PATH
+    Add-GitToPath $gitDir
+    $env:Path = "$gitDir\cmd;$env:Path"
+    if (Test-Path "$gitDir\bin\git.exe") {
+        $env:Path = "$gitDir\bin;$env:Path"
+    }
+    Write-OK "git 安装完成: $(& $gitExe --version)"
+}
+
+# ── 下载 Git 安装包（Invoke-WebRequest，纯 PowerShell 无 .NET 依赖）──
+function Download-GitInstaller {
+    param([string]$Arch)
+
+    $urls = Get-GitDownloadUrls -Arch $Arch
+    if (-not $urls -or $urls.Count -eq 0) {
+        return $null
+    }
+
+    $installerPath = "$env:TEMP\git-installer-$Arch.exe"
+    Remove-Item $installerPath -Force -ErrorAction SilentlyContinue
+
+    foreach ($url in $urls) {
+        $shortUrl = if ($url.Length -gt 80) { $url.Substring(0, 80) + "..." } else { $url }
+        Write-Info "尝试下载: $shortUrl"
+
+        try {
+            # Invoke-WebRequest 是 PowerShell 原生 cmdlet，不依赖外部 .NET
+            # -UserAgent 必须设置，部分镜像站（如 TUNA）拒绝默认 UA
+            Invoke-WebRequest -Uri $url -OutFile $installerPath `
+                -UseBasicParsing -TimeoutSec 600 -UserAgent "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+
+            if (-not (Test-Path $installerPath)) {
+                Write-Warn "  下载后文件不存在，尝试下一个源..."
+                continue
+            }
+
+            $fileSize = (Get-Item $installerPath).Length
+            if ($fileSize -lt 50MB) {
+                Write-Warn "  文件过小 ($([math]::Round($fileSize/1MB, 1)) MB)，可能不完整，尝试下一个源..."
+                Remove-Item $installerPath -Force
+                continue
+            }
+
+            Write-Info "  下载完成: $([math]::Round($fileSize / 1MB, 1)) MB"
+            return $installerPath
+
+        } catch {
+            Write-Warn "  下载失败: $_"
+            Remove-Item $installerPath -Force -ErrorAction SilentlyContinue
+            continue
+        }
+    }
+
+    return $null
+}
+
+# 将 Git 目录加入用户 PATH（无弹窗）
+function Add-GitToPath {
+    param([string]$GitDir)
+    $pathsToAdd = @()
+    foreach ($sub in @("cmd", "bin")) {
+        $p = "$GitDir\$sub"
+        if (Test-Path "$p\git.exe") { $pathsToAdd += $p }
+    }
+
+    if ($pathsToAdd.Count -eq 0) { return }
+
+    $userPath = [System.Environment]::GetEnvironmentVariable("Path", "User")
+    $changed = $false
+    foreach ($p in $pathsToAdd) {
+        if ($userPath -notlike "*$p*") {
+            $userPath += ";$p"
+            $changed = $true
+        }
+    }
+    if ($changed) {
+        [System.Environment]::SetEnvironmentVariable("Path", $userPath, "User")
+    }
+}
+
+# 从 GitHub API 获取官方最新版本号，构建下载 URL 列表
+# 接口: https://api.github.com/repos/git-for-windows/git/releases/latest
+# 官方文件名格式: Git-{version}-64-bit.exe / Git-{version}-arm64.exe
+function Get-GitDownloadUrls {
+    param([string]$Arch)
+
+    # ── 通过 GitHub API 获取最新版本号 ────────────────────────────
+    $apiUrl = "https://api.github.com/repos/git-for-windows/git/releases/latest"
+    $tag = $null
+    Write-Info "查询 Git for Windows 最新版本..."
+
+    try {
+        $release = Invoke-RestMethod -Uri $apiUrl -TimeoutSec 15 -ErrorAction Stop
+        $tag = $release.tag_name
+        Write-Info "  官方最新版本: $tag"
+    } catch {
+        Write-Warn "  无法获取最新版本信息，使用内置版本"
+        $tag = "v2.55.0.windows.3"
+    }
+
+    # 版本号格式: tag=v2.55.0.windows.3 → 文件名用 2.55.0.3（去掉 .windows.）
+    $ver = $tag -replace '^v', ''                          # "2.55.0.windows.3"
+    $fileVer = $ver -replace '\.windows\.', '.'             # "2.55.0.3"
+
+    # 架构后缀: Git-2.55.0.3-64-bit.exe / Git-2.55.0.3-arm64.exe
+    $suffix = if ($Arch -eq 'arm64') { "arm64" } else { "64-bit" }
+    $filename = "Git-$fileVer-$suffix.exe"                  # 正确的文件名
+
+    Write-Info "  安装包文件名: $filename"
+
+    # 下载源（优先级从高到低，国内镜像优先）
+    return @(
+        # 源 1：NPMMirror CDN（国内最快，直接走 CDN 不做重定向）
+        "https://cdn.npmmirror.com/binaries/git-for-windows/$tag/$filename",
+
+        # 源 2：NPMMirror Registry（自动重定向到 CDN）
+        "https://registry.npmmirror.com/-/binary/git-for-windows/$tag/$filename",
+
+        # 源 3：清华大学 TUNA 镜像
+        "https://mirrors.tuna.tsinghua.edu.cn/github-release/git-for-windows/git/LatestRelease/$filename",
+
+        # 源 4：GitHub 官方（兜底）
+        "https://github.com/git-for-windows/git/releases/download/$tag/$filename"
+    )
 }
 
 # -- 克隆仓库 ----------------------------------------------------------------
