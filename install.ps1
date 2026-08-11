@@ -440,6 +440,45 @@ function Detect-MCPPlatform {
     }
 }
 
+# -- 写入 MCP 配置（合并到已有配置）------------------------------------------------------------
+function Write-MCPConfig {
+    param([string]$PlatformDir, [string]$ConfigJson, [string]$NodeExe, [string]$DistJs)
+
+    $targetPath = "$PlatformDir\mcp.json"
+    $serverEntry = @{
+        command = $NodeExe
+        args    = @($DistJs)
+    }
+
+    $merged = $null
+    if (Test-Path $targetPath) {
+        try {
+            $existing = Get-Content $targetPath -Raw -Encoding UTF8 | ConvertFrom-Json -ErrorAction Stop
+            # 确保 mcpServers 属性存在
+            if (-not $existing.PSObject.Properties['mcpServers']) {
+                $existing | Add-Member -NotePropertyName 'mcpServers' -NotePropertyValue @{} -Force
+            }
+            $existing.mcpServers | Add-Member -NotePropertyName 'cloud-ip-rotator' -NotePropertyValue $serverEntry -Force
+            $merged = $existing
+        } catch {
+            Write-Warn "解析已有 mcp.json 失败，将覆盖: $targetPath"
+        }
+    }
+
+    if (-not $merged) {
+        $merged = [PSCustomObject]@{
+            mcpServers = @{
+                'cloud-ip-rotator' = $serverEntry
+            }
+        }
+    }
+
+    $json = $merged | ConvertTo-Json -Depth 4
+    # 转义反斜杠（Windows 路径）
+    $json = $json -replace '\\\\', '\\'
+    Set-Content -Path $targetPath -Value $json -Encoding UTF8 -Force
+}
+
 # -- 生成 MCP 配置 ------------------------------------------------------------
 function Generate-MCPConfig {
     Write-Step "生成 MCP 配置"
@@ -447,7 +486,7 @@ function Generate-MCPConfig {
     $nodeExe = (Get-Command node).Source
     $distJs  = "$InstallDir\dist\index.js"
 
-    # Windows 路径中使用双反斜杠转义
+    # Windows 路径中使用双反斜杠转义（JSON 中需要）
     $nodeExeEscaped = $nodeExe -replace '\\', '\\'
     $distJsEscaped  = $distJs -replace '\\', '\\'
 
@@ -462,43 +501,38 @@ function Generate-MCPConfig {
 }
 "@
 
-    # 写入通用配置文件（如已存在则跳过）
-    $configDir  = "$env:USERPROFILE\.cloud-ip-rotator"
-    $configPath = "$configDir\mcp-config.json"
-    if (Test-Path $configPath) {
-        Write-Info "MCP 配置文件已存在，跳过生成: $configPath"
-    } else {
-        if (-not (Test-Path $configDir)) {
-            New-Item -ItemType Directory -Path $configDir -Force | Out-Null
-        }
-        Set-Content -Path $configPath -Value $configJson -Encoding UTF8
-        Write-OK "MCP 配置已生成: $configPath"
-    }
+    $written = $false
 
-    # 根据实际检测到的平台，给出针对性指引
-    $shown = $false
-
+    # 直接写入对应平台的 mcp.json
     if ($script:DetectedWB) {
-        Write-Host ""
-        Write-Host "-- WorkBuddy 设置步骤 --" -ForegroundColor Cyan
-        Write-Info "1. 将上方的 cloud-ip-rotator 配置合并到:"
-        Write-Info "   $env:USERPROFILE\.workbuddy\mcp.json"
-        Write-Info "2. 在 WorkBuddy 连接器管理页面点击「信任」cloud-ip-rotator"
-        $shown = $true
+        $wbDir = "$env:USERPROFILE\.workbuddy"
+        if (-not (Test-Path $wbDir)) {
+            New-Item -ItemType Directory -Path $wbDir -Force | Out-Null
+        }
+        Write-MCPConfig -PlatformDir $wbDir -ConfigJson $configJson -NodeExe $nodeExe -DistJs $distJs
+        Write-OK "已写入 MCP 配置: $wbDir\mcp.json"
+        Write-Info "WorkBuddy 连接器管理页面点击「信任」cloud-ip-rotator 即可使用"
+        $written = $true
     }
 
     if ($script:DetectedCodex) {
-        Write-Host ""
-        Write-Host "-- Codex 设置步骤 --" -ForegroundColor Cyan
-        Write-Info "1. 将上方的 cloud-ip-rotator 配置合并到 Codex 的 MCP 配置文件"
-        Write-Info "   常见路径: $env:USERPROFILE\.codex\mcp.json 或 Codex 设置面板"
-        Write-Info "2. 重启 Codex 使配置生效"
-        $shown = $true
+        $codexDir = "$env:USERPROFILE\.codex"
+        if (-not (Test-Path $codexDir)) {
+            New-Item -ItemType Directory -Path $codexDir -Force | Out-Null
+        }
+        Write-MCPConfig -PlatformDir $codexDir -ConfigJson $configJson -NodeExe $nodeExe -DistJs $distJs
+        Write-OK "已写入 MCP 配置: $codexDir\mcp.json"
+        Write-Info "重启 Codex 使配置生效"
+        $written = $true
     }
 
-    if (-not $shown) {
+    if (-not $written) {
+        Write-Warn "未检测到 WorkBuddy 或 Codex 平台目录"
         Write-Host ""
-        Write-Info "未检测到兼容的 MCP 客户端。配置已保存，可手动导入到你的 MCP 客户端。"
+        Write-Host "MCP 配置内容:" -ForegroundColor Cyan
+        Write-Host $configJson
+        Write-Host ""
+        Write-Info "请将以上配置手动添加到对应客户端的 mcp.json 文件中"
     }
 }
 
@@ -524,7 +558,6 @@ function Show-Success {
     Write-Host $successBanner -ForegroundColor Green
 
     Write-Host "项目路径:   $InstallDir"
-    Write-Host "配置目录:   $env:USERPROFILE\.cloud-ip-rotator\config.json"
     Write-Host "UI 服务器:  node $InstallDir\ui\server.cjs"
     Write-Host "UI 地址:    启动后终端会显示实际地址"
     Write-Host ""
