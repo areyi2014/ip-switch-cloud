@@ -54,7 +54,7 @@ function Check-Node {
     $nodeCmd = Get-Command node -ErrorAction SilentlyContinue
     if (-not $nodeCmd) {
         Write-Err "未检测到 Node.js，请先安装 Node.js >= $NodeMinVersion"
-        Write-Info "访问 https://nodejs.org 下载安装/卸载重装"
+        Write-Info "访问 https://nodejs.org 进行下载安装/卸载重装"
         Write-Info "推荐安装 Node.js 22 LTS 版本"
         exit 1
     }
@@ -83,7 +83,7 @@ function Check-Git {
     $gitCmd = Get-Command git -ErrorAction SilentlyContinue
     if (-not $gitCmd) {
         Write-Err "未检测到 git"
-        write-info "访问 https://git-scm.com/download/win 下载安装/卸载重装"
+        write-info "访问 https://git-scm.com/download/win 进行下载安装/卸载重装"
         exit 1
     }
     Write-OK "git $(& git --version) ($($gitCmd.Source))"
