@@ -440,43 +440,39 @@ function Detect-MCPPlatform {
     }
 }
 
-# -- 写入 MCP 配置（合并到已有配置）------------------------------------------------------------
+# -- 写入 MCP 配置（合并到已有配置，由 node 序列化为标准 JSON）------------------------------------------------------------
 function Write-MCPConfig {
-    param([string]$PlatformDir, [string]$ConfigJson, [string]$NodeExe, [string]$DistJs)
+    param([string]$PlatformDir, [string]$NodeExe, [string]$DistJs)
 
     $targetPath = "$PlatformDir\mcp.json"
-    $serverEntry = @{
-        command = $NodeExe
-        args    = @($DistJs)
-    }
 
-    $merged = $null
-    if (Test-Path $targetPath) {
-        try {
-            $existing = Get-Content $targetPath -Raw -Encoding UTF8 | ConvertFrom-Json -ErrorAction Stop
-            # 确保 mcpServers 属性存在
-            if (-not $existing.PSObject.Properties['mcpServers']) {
-                $existing | Add-Member -NotePropertyName 'mcpServers' -NotePropertyValue @{} -Force
-            }
-            $existing.mcpServers | Add-Member -NotePropertyName 'cloud-ip-rotator' -NotePropertyValue $serverEntry -Force
-            $merged = $existing
-        } catch {
-            Write-Warn "解析已有 mcp.json 失败，将覆盖: $targetPath"
-        }
-    }
+    # 合并 + 序列化全部交给 node：保证输出标准 JSON（2 空格缩进、路径正确转义），
+    # 不依赖 PowerShell 5.1 ConvertTo-Json 的错位缩进格式
+    $nodeScript = @'
+const fs = require('fs');
+const target = process.argv[1];
+const entry = {
+  command: process.argv[2],
+  args: [process.argv[3]]
+};
+let config = {};
+try {
+  if (fs.existsSync(target)) {
+    config = JSON.parse(fs.readFileSync(target, 'utf8'));
+  }
+} catch (e) {
+  config = {};
+}
+config.mcpServers = config.mcpServers || {};
+config.mcpServers['cloud-ip-rotator'] = entry;
+fs.writeFileSync(target, JSON.stringify(config, null, 2) + '\n', 'utf8');
+'@
 
-    if (-not $merged) {
-        $merged = [PSCustomObject]@{
-            mcpServers = @{
-                'cloud-ip-rotator' = $serverEntry
-            }
-        }
+    & $NodeExe -e $nodeScript $targetPath $NodeExe $DistJs
+    if ($LASTEXITCODE -ne 0) {
+        Write-Err "写入 MCP 配置失败: $targetPath"
+        exit 1
     }
-
-    $json = $merged | ConvertTo-Json -Depth 4
-    # 转义反斜杠（Windows 路径）
-    $json = $json -replace '\\\\', '\\'
-    Set-Content -Path $targetPath -Value $json -Encoding UTF8 -Force
 }
 
 # -- 生成 MCP 配置 ------------------------------------------------------------
@@ -486,9 +482,9 @@ function Generate-MCPConfig {
     $nodeExe = (Get-Command node).Source
     $distJs  = "$InstallDir\dist\index.js"
 
-    # Windows 路径中使用双反斜杠转义（JSON 中需要）
-    $nodeExeEscaped = $nodeExe -replace '\\', '\\'
-    $distJsEscaped  = $distJs -replace '\\', '\\'
+    # Windows 路径在 JSON 中需将反斜杠转义为 \\（仅用于终端提示展示）
+    $nodeExeEscaped = $nodeExe.Replace('\', '\\')
+    $distJsEscaped  = $distJs.Replace('\', '\\')
 
     $configJson = @"
 {
@@ -509,7 +505,7 @@ function Generate-MCPConfig {
         if (-not (Test-Path $wbDir)) {
             New-Item -ItemType Directory -Path $wbDir -Force | Out-Null
         }
-        Write-MCPConfig -PlatformDir $wbDir -ConfigJson $configJson -NodeExe $nodeExe -DistJs $distJs
+        Write-MCPConfig -PlatformDir $wbDir -NodeExe $nodeExe -DistJs $distJs
         Write-OK "已写入 MCP 配置: $wbDir\mcp.json"
         Write-Info "WorkBuddy 连接器管理页面点击「信任」cloud-ip-rotator 即可使用"
         $written = $true
@@ -520,7 +516,7 @@ function Generate-MCPConfig {
         if (-not (Test-Path $codexDir)) {
             New-Item -ItemType Directory -Path $codexDir -Force | Out-Null
         }
-        Write-MCPConfig -PlatformDir $codexDir -ConfigJson $configJson -NodeExe $nodeExe -DistJs $distJs
+        Write-MCPConfig -PlatformDir $codexDir -NodeExe $nodeExe -DistJs $distJs
         Write-OK "已写入 MCP 配置: $codexDir\mcp.json"
         Write-Info "重启 Codex 使配置生效"
         $written = $true

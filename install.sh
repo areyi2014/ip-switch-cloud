@@ -321,7 +321,7 @@ detect_mcp_platform() {
     fi
 }
 
-# ── 写入 MCP 配置（合并到已有配置）─────────────────────────────────────
+# ── 写入 MCP 配置（合并到已有配置，node 序列化为标准 JSON）─────────────
 write_mcp_config_file() {
     local target_dir="$1"
     local node_exe="$2"
@@ -330,40 +330,29 @@ write_mcp_config_file() {
 
     mkdir -p "$target_dir"
 
-    if [ -f "$target_path" ]; then
-        # 已有 mcp.json，尝试解析并合并（无需 jq，用 Python）
-        log_info "检测到已有 mcp.json，合并配置..."
-        if command -v python3 &>/dev/null; then
-            python3 -c "
-import json, sys
-try:
-    with open('$target_path', 'r', encoding='utf-8') as f:
-        config = json.load(f)
-except:
-    config = {}
-config.setdefault('mcpServers', {})
-config['mcpServers']['cloud-ip-rotator'] = {
-    'command': '$node_exe',
-    'args': ['$dist_js']
-}
-with open('$target_path', 'w', encoding='utf-8') as f:
-    json.dump(config, f, indent=2, ensure_ascii=False)
-" 2>/dev/null && return 0
-            log_warn "Python 合并失败，覆盖写入"
-        fi
-    fi
-
-    # 新建或覆盖
-    cat > "$target_path" <<MCPEOF
-{
-  "mcpServers": {
-    "cloud-ip-rotator": {
-      "command": "${node_exe}",
-      "args": ["${dist_js}"]
-    }
+    # 合并 + 序列化交给 node：保证输出标准 JSON（2 空格缩进、路径正确转义）
+    "$node_exe" -e '
+const fs = require("fs");
+const target = process.argv[1];
+const entry = {
+  command: process.argv[2],
+  args: [process.argv[3]]
+};
+let config = {};
+try {
+  if (fs.existsSync(target)) {
+    config = JSON.parse(fs.readFileSync(target, "utf8"));
   }
+} catch (e) {
+  config = {};
 }
-MCPEOF
+config.mcpServers = config.mcpServers || {};
+config.mcpServers["cloud-ip-rotator"] = entry;
+fs.writeFileSync(target, JSON.stringify(config, null, 2) + "\n", "utf8");
+' "$target_path" "$node_exe" "$dist_js" || {
+        log_error "写入 MCP 配置失败: ${target_path}"
+        exit 1
+    }
 }
 
 # ── 生成 MCP 配置 ────────────────────────────────────────────────────────────
