@@ -1,6 +1,6 @@
 # ip-switch 安装指南
 
-对多个云公网IP轻松轮换的 AI Agent插件 —— 一键批量轮换 AWS / Azure / Oracle / Vultr 云服务器公网 IP，并自动更新域名解析，免除了多个网络平台登录与配置之繁琐。
+对多个云公网IP轻松轮换的 AI Agent插件 —— 一键批量轮换 AWS / Azure / Oracle / Vultr 云服务器公网 IP，并自动更新域名解析，免除了多个网络平台登录与配置的繁琐操作。
 
 ---
 
