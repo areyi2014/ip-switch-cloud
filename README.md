@@ -10,7 +10,9 @@
 
 > 需要 **Node.js >= 18**（[nodejs.org](https://nodejs.org/) 下载 LTS）。若未安装 git，脚本会自动安装。
 
-**Windows**（打开 PowerShell，逐条执行）：
+**Windows**：
+
+> **执行环境：PowerShell**
 
 ```powershell
 # 下载安装脚本
@@ -25,7 +27,9 @@ Invoke-WebRequest -Uri "https://gitee.com/areyi2014/cloud-ip-rotator-mcp/raw/mai
 > powershell -ExecutionPolicy Bypass -File "%TEMP%\install-cloud-ip-rotator.ps1"
 > ```
 
-**macOS / Ubuntu**（打开终端，逐条执行）：
+**macOS / Ubuntu**：
+
+> **执行环境：Bash Shell（终端）**
 
 ```bash
 # 下载安装脚本
@@ -79,7 +83,7 @@ bash install-cloud-ip-rotator.sh
 
 ### macOS / Ubuntu
 
-在终端中执行：
+> **执行环境：Bash Shell（终端）**
 
 ```bash
 # 下载安装脚本
@@ -90,6 +94,8 @@ bash install-cloud-ip-rotator.sh
 ```
 
 **自定义参数：**
+
+> **执行环境：Bash Shell（终端）**
 
 ```bash
 # 指定安装目录
@@ -115,7 +121,7 @@ bash install-cloud-ip-rotator.sh --skip-build
 
 ### Windows
 
-在 PowerShell 中执行（**右键「以管理员身份运行」PowerShell**）：
+> **执行环境：PowerShell**
 
 ```powershell
 # 如果遇到执行策略限制，先运行：
@@ -129,6 +135,8 @@ Invoke-WebRequest -Uri "https://gitee.com/areyi2014/cloud-ip-rotator-mcp/raw/mai
 ```
 
 **自定义参数：**
+
+> **执行环境：PowerShell**
 
 ```powershell
 & "$env:TEMP\install-cloud-ip-rotator.ps1" -InstallDir "D:\tools\cloud-ip-rotator-mcp"
@@ -147,6 +155,8 @@ Invoke-WebRequest -Uri "https://gitee.com/areyi2014/cloud-ip-rotator-mcp/raw/mai
 
 ### 1. 确保 Node.js >= 18 已安装
 
+> **执行环境：Bash Shell / PowerShell（两者均可）**
+
 ```bash
 node -v   # 应输出 v18.x.x 或更高
 npm -v    # 应输出 9.x.x 或更高
@@ -156,6 +166,8 @@ npm -v    # 应输出 9.x.x 或更高
 
 ### 2. 克隆仓库
 
+> **执行环境：Bash Shell / PowerShell（两者均可）**
+
 ```bash
 git clone --depth 1 https://gitee.com/areyi2014/cloud-ip-rotator-mcp.git
 cd cloud-ip-rotator-mcp
@@ -163,11 +175,15 @@ cd cloud-ip-rotator-mcp
 
 ### 3. 安装依赖
 
+> **执行环境：Bash Shell / PowerShell（两者均可）**
+
 ```bash
 npm install
 ```
 
 ### 4. 编译
+
+> **执行环境：Bash Shell / PowerShell（两者均可）**
 
 ```bash
 npm run build
@@ -185,6 +201,8 @@ npm run build
 ### 5. 验证
 
 编译成功后，`dist/index.js` 文件应存在：
+
+> **执行环境：Bash Shell（macOS / Ubuntu）或 PowerShell（Windows）**
 
 ```bash
 # macOS / Ubuntu
@@ -269,6 +287,8 @@ MCP 配置中可以通过 `env` 字段设置环境变量。本项目在 WorkBudd
 
 也可以直接运行 `dist/index.js` 验证 MCP 协议是否正常：
 
+> **执行环境：Bash Shell / PowerShell（两者均可）**
+
 ```bash
 echo '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | node dist/index.js
 ```
@@ -280,6 +300,8 @@ echo '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | node dist/index.js
 ## 配置云服务器（UI）
 
 提供了一个本地浏览器配置界面，用于填写云平台凭据。
+
+> **执行环境：Bash Shell / PowerShell（两者均可）**
 
 ```bash
 # 启动 UI 服务器
@@ -314,6 +336,8 @@ node ui/server.cjs
 
 重新运行安装脚本（自动 git pull + 安装依赖 + 编译 + 更新 MCP 配置），或手动：
 
+> **执行环境：Bash Shell / PowerShell（两者均可）**
+
 ```bash
 cd ~/cloud-ip-rotator-mcp
 git pull
@@ -322,6 +346,8 @@ npm run build
 ```
 
 ### 卸载
+
+> **执行环境：Bash Shell（macOS / Ubuntu）或 PowerShell（Windows）**
 
 ```bash
 # 删除项目目录
@@ -344,6 +370,8 @@ Remove-Item -Recurse -Force ~/.cloud-ip-rotator       # Windows
 **原因**: `ELECTRON_RUN_AS_NODE=1` 环境变量干扰了 `tsc` 编译器。
 
 **解决**:
+
+> **执行环境：Bash Shell（macOS / Ubuntu）或 PowerShell（Windows）**
 
 ```bash
 # macOS / Ubuntu
@@ -378,6 +406,8 @@ $env:ELECTRON_RUN_AS_NODE = ""; npm run build
 
 **解决**: 避免使用 `sudo`。如提示 EACCES 错误：
 
+> **执行环境：Bash Shell（macOS / Ubuntu）**
+
 ```bash
 # macOS / Ubuntu: 修复 npm 权限
 mkdir -p ~/.npm-global
@@ -391,6 +421,8 @@ source ~/.bashrc
 此问题已在最新代码中修复（使用 `beginCreateOrUpdateAndWait` 替代），确保使用最新的 `main` 分支即可。
 
 ### 6. Windows PowerShell 脚本无法运行
+
+> **执行环境：PowerShell**
 
 ```powershell
 Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
