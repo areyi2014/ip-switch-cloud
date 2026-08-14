@@ -1,4 +1,4 @@
-# cloud-ip-rotator-mcp
+# ip-switch
 
 对多个云公网IP轻松轮换的 AI Agent插件 —— 一键批量轮换 AWS / Azure / Oracle / Vultr 云服务器公网 IP，并同步更新域名解析。
 
@@ -16,7 +16,7 @@
 
 ```powershell
 # 下载安装脚本
-Invoke-WebRequest -Uri "https://gitee.com/areyi2014/cloud-ip-rotator-mcp/raw/main/install.ps1" -OutFile "$env:TEMP\install-cloud-ip-rotator.ps1"
+Invoke-WebRequest -Uri "https://gitee.com/areyi2014/ip-switch/raw/main/install.ps1" -OutFile "$env:TEMP\install-cloud-ip-rotator.ps1"
 
 # 运行（必须在 PowerShell 中执行；cmd 中不支持 & 语法）
 & "$env:TEMP\install-cloud-ip-rotator.ps1"
@@ -33,7 +33,7 @@ Invoke-WebRequest -Uri "https://gitee.com/areyi2014/cloud-ip-rotator-mcp/raw/mai
 
 ```bash
 # 下载安装脚本
-curl -fsSL https://gitee.com/areyi2014/cloud-ip-rotator-mcp/raw/main/install.sh -o install-cloud-ip-rotator.sh
+curl -fsSL https://gitee.com/areyi2014/ip-switch/raw/main/install.sh -o install-cloud-ip-rotator.sh
 
 # 运行
 bash install-cloud-ip-rotator.sh
@@ -43,7 +43,7 @@ bash install-cloud-ip-rotator.sh
 
 ---
 
-# cloud-ip-rotator-mcp 安装指南
+# ip-switch 安装指南
 
 对多个云公网 IP 轮换的 MCP 服务 —— 让 AI Agent 一键批量轮换 AWS / Azure / OCI / Vultr 云服务器公网 IP，并同步更新域名解析。
 
@@ -86,7 +86,7 @@ bash install-cloud-ip-rotator.sh
 
 ```bash
 # 下载安装脚本
-curl -fsSL https://gitee.com/areyi2014/cloud-ip-rotator-mcp/raw/main/install.sh -o install-cloud-ip-rotator.sh
+curl -fsSL https://gitee.com/areyi2014/ip-switch/raw/main/install.sh -o install-cloud-ip-rotator.sh
 
 # 运行（需要网络连接）
 bash install-cloud-ip-rotator.sh
@@ -98,10 +98,10 @@ bash install-cloud-ip-rotator.sh
 
 ```bash
 # 指定安装目录
-bash install-cloud-ip-rotator.sh --install-dir /opt/cloud-ip-rotator-mcp
+bash install-cloud-ip-rotator.sh --install-dir /opt/ip-switch
 
 # 使用 GitHub 镜像
-bash install-cloud-ip-rotator.sh --repo-url https://gitee.com/user/cloud-ip-rotator-mcp.git
+bash install-cloud-ip-rotator.sh --repo-url https://gitee.com/user/ip-switch.git
 
 # 指定分支
 bash install-cloud-ip-rotator.sh --branch develop
@@ -113,7 +113,7 @@ bash install-cloud-ip-rotator.sh --skip-build
 脚本会依次完成：
 1. 检查 Node.js >= 18
 2. 检查 git（未安装时通过包管理器自动安装）
-3. 克隆仓库到 `~/cloud-ip-rotator-mcp`（克隆前确认目录、预热 DNS、最多重试 3 次）
+3. 克隆仓库到 `~/ip-switch`（克隆前确认目录、预热 DNS、最多重试 3 次）
 4. 安装 npm 依赖
 5. 编译 TypeScript → `dist/`
 6. 生成 MCP 配置文件（直接写入 `~/.workbuddy/mcp.json`）
@@ -127,7 +127,7 @@ bash install-cloud-ip-rotator.sh --skip-build
 Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
 
 # 下载安装脚本
-Invoke-WebRequest -Uri "https://gitee.com/areyi2014/cloud-ip-rotator-mcp/raw/main/install.ps1" -OutFile "$env:TEMP\install-cloud-ip-rotator.ps1"
+Invoke-WebRequest -Uri "https://gitee.com/areyi2014/ip-switch/raw/main/install.ps1" -OutFile "$env:TEMP\install-cloud-ip-rotator.ps1"
 
 # 运行
 & "$env:TEMP\install-cloud-ip-rotator.ps1"
@@ -138,8 +138,8 @@ Invoke-WebRequest -Uri "https://gitee.com/areyi2014/cloud-ip-rotator-mcp/raw/mai
 > **执行环境：PowerShell**
 
 ```powershell
-& "$env:TEMP\install-cloud-ip-rotator.ps1" -InstallDir "D:\tools\cloud-ip-rotator-mcp"
-& "$env:TEMP\install-cloud-ip-rotator.ps1" -RepoUrl "https://gitee.com/user/cloud-ip-rotator-mcp.git"
+& "$env:TEMP\install-cloud-ip-rotator.ps1" -InstallDir "D:\tools\ip-switch"
+& "$env:TEMP\install-cloud-ip-rotator.ps1" -RepoUrl "https://gitee.com/user/ip-switch.git"
 ```
 
 > **注意**: 如遇 `无法加载文件，因为在此系统上禁止运行脚本` 错误，请先执行 `Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned`。
@@ -168,8 +168,8 @@ npm -v    # 应输出 9.x.x 或更高
 > **执行环境：Bash Shell / PowerShell（两者均可）**
 
 ```bash
-git clone --depth 1 https://gitee.com/areyi2014/cloud-ip-rotator-mcp.git
-cd cloud-ip-rotator-mcp
+git clone --depth 1 https://gitee.com/areyi2014/ip-switch.git
+cd ip-switch
 ```
 
 ### 3. 安装依赖
@@ -232,7 +232,7 @@ dir dist\index.js
   "mcpServers": {
     "cloud-ip-rotator": {
       "command": "/usr/local/bin/node",
-      "args": ["/Users/你的用户名/cloud-ip-rotator-mcp/dist/index.js"]
+      "args": ["/Users/你的用户名/ip-switch/dist/index.js"]
     }
   }
 }
@@ -327,7 +327,7 @@ node ui/server.cjs
 > **执行环境：Bash Shell / PowerShell（两者均可）**
 
 ```bash
-cd ~/cloud-ip-rotator-mcp
+cd ~/ip-switch
 git pull
 npm install
 npm run build
@@ -339,8 +339,8 @@ npm run build
 
 ```bash
 # 删除项目目录
-rm -rf ~/cloud-ip-rotator-mcp            # macOS / Ubuntu
-Remove-Item -Recurse -Force ~/cloud-ip-rotator-mcp   # Windows
+rm -rf ~/ip-switch            # macOS / Ubuntu
+Remove-Item -Recurse -Force ~/ip-switch   # Windows
 
 # 删除配置数据（含保存的凭据）
 rm -rf ~/.cloud-ip-rotator                # macOS / Ubuntu
@@ -377,7 +377,7 @@ $env:ELECTRON_RUN_AS_NODE = ""; npm run build
 - 确认网络正常，能访问 gitee.com
 - 脚本已内置 DNS 预热与最多 3 次自动重试
 - 如为私有仓库，先配置 SSH Key: `ssh-keygen -t ed25519 && cat ~/.ssh/id_ed25519.pub`
-- 手动克隆: `git clone https://gitee.com/areyi2014/cloud-ip-rotator-mcp.git`
+- 手动克隆: `git clone https://gitee.com/areyi2014/ip-switch.git`
 
 ### 3. MCP 配置后工具未出现
 
