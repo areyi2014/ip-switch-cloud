@@ -101,7 +101,7 @@ bash install-cloud-ip-rotator.sh
 bash install-cloud-ip-rotator.sh --install-dir /opt/ip-switch
 
 # 使用 GitHub 镜像
-bash install-cloud-ip-rotator.sh --repo-url https://gitee.com/user/ip-switch.git
+bash install-cloud-ip-rotator.sh --repo-url https://gitee.com/areyi2014/ip-switch.git
 
 # 指定分支
 bash install-cloud-ip-rotator.sh --branch develop
@@ -139,7 +139,7 @@ Invoke-WebRequest -Uri "https://gitee.com/areyi2014/ip-switch/raw/main/install.p
 
 ```powershell
 & "$env:TEMP\install-cloud-ip-rotator.ps1" -InstallDir "D:\tools\ip-switch"
-& "$env:TEMP\install-cloud-ip-rotator.ps1" -RepoUrl "https://gitee.com/user/ip-switch.git"
+& "$env:TEMP\install-cloud-ip-rotator.ps1" -RepoUrl "https://gitee.com/areyi2014/ip-switch.git"
 ```
 
 > **注意**: 如遇 `无法加载文件，因为在此系统上禁止运行脚本` 错误，请先执行 `Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned`。
@@ -215,7 +215,7 @@ dir dist\index.js
 
 ## MCP 配置
 
-一键安装完成后，脚本已自动将 `cloud-ip-rotator` 条目合并写入：
+一键安装完成后，脚本已自动将 `ip-switch` 条目合并写入：
 
 - `~/.workbuddy/mcp.json`
 
@@ -223,14 +223,14 @@ dir dist\index.js
 
 ### WorkBuddy
 
-打开 WorkBuddy **连接器管理页面**，在「自定义连接器」区域找到 `cloud-ip-rotator`，点击 **「信任」** 即可在对话中使用。
+打开 WorkBuddy **连接器管理页面**，在「自定义连接器」区域找到 `ip-switch`，点击 **「信任」** 即可在对话中使用。
 
 如未自动写入，可手动编辑 `~/.workbuddy/mcp.json`（如文件不存在则创建）：
 
 ```json
 {
   "mcpServers": {
-    "cloud-ip-rotator": {
+    "ip-switch": {
       "command": "/usr/local/bin/node",
       "args": ["/Users/你的用户名/ip-switch/dist/index.js"]
     }
@@ -343,10 +343,10 @@ rm -rf ~/ip-switch            # macOS / Ubuntu
 Remove-Item -Recurse -Force ~/ip-switch   # Windows
 
 # 删除配置数据（含保存的凭据）
-rm -rf ~/.cloud-ip-rotator                # macOS / Ubuntu
-Remove-Item -Recurse -Force ~/.cloud-ip-rotator       # Windows
+rm -rf ~/.ip-switch                # macOS / Ubuntu
+Remove-Item -Recurse -Force ~/.ip-switch       # Windows
 
-# 从 WorkBuddy 的 mcp.json 中移除 cloud-ip-rotator 条目
+# 从 WorkBuddy 的 mcp.json 中移除 ip-switch 条目
 ```
 
 ---

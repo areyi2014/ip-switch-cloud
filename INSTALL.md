@@ -169,14 +169,14 @@ dir dist\index.js
 
 ## MCP 配置
 
-一键安装完成后，脚本已自动将 `cloud-ip-rotator` 条目合并写入以下文件（node 序列化，标准 JSON，保留其他已有 server）：
+一键安装完成后，脚本已自动将 `ip-switch` 条目合并写入以下文件（node 序列化，标准 JSON，保留其他已有 server）：
 
 - `~/.workbuddy/mcp.json`
 
 ### WorkBuddy
 
 1. 打开 WorkBuddy **连接器管理页面**
-2. 在「自定义连接器」区域找到 `cloud-ip-rotator`
+2. 在「自定义连接器」区域找到 `ip-switch`
 3. 点击 **「信任」**，即可在对话中使用
 
 如未自动写入，可手动编辑 `~/.workbuddy/mcp.json`（如文件不存在则创建）：
@@ -184,7 +184,7 @@ dir dist\index.js
 ```json
 {
   "mcpServers": {
-    "cloud-ip-rotator": {
+    "ip-switch": {
       "command": "C:\\Program Files\\nodejs\\node.exe",
       "args": ["C:\\Users\\你的用户名\\ip-switch\\dist\\index.js"]
     }
@@ -289,10 +289,10 @@ rm -rf ~/ip-switch                 # macOS / Ubuntu
 Remove-Item -Recurse -Force ~/ip-switch   # Windows
 
 # 删除配置数据（含保存的凭据）
-rm -rf ~/.cloud-ip-rotator                     # macOS / Ubuntu
-Remove-Item -Recurse -Force ~/.cloud-ip-rotator       # Windows
+rm -rf ~/.ip-switch                     # macOS / Ubuntu
+Remove-Item -Recurse -Force ~/.ip-switch       # Windows
 
-# 从 ~/.workbuddy/mcp.json 中移除 cloud-ip-rotator 条目
+# 从 ~/.workbuddy/mcp.json 中移除 ip-switch 条目
 ```
 
 ---
