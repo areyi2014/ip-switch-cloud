@@ -1,6 +1,6 @@
 # cloud-ip-rotator-mcp
 
-对多个云公网IP轻松轮换的 AI Agent插件 —— 一键轮换 AWS / Azure / Oracle / Vultr 云服务器公网 IP，并同步更新域名解析。
+对多个云公网IP轻松轮换的 AI Agent插件 —— 一键批量轮换 AWS / Azure / Oracle / Vultr 云服务器公网 IP，并同步更新域名解析。
 
 支持平台：Workbuddy + AWS / Azure / Oracle OCI / Vultr + Cloudflare DNS
 
@@ -45,7 +45,7 @@ bash install-cloud-ip-rotator.sh
 
 # cloud-ip-rotator-mcp 安装指南
 
-对多个云公网 IP 轮换的 MCP 服务 —— 让 AI Agent 一键轮换 AWS / Azure / OCI / Vultr 云服务器公网 IP，并同步更新域名解析。
+对多个云公网 IP 轮换的 MCP 服务 —— 让 AI Agent 一键批量轮换 AWS / Azure / OCI / Vultr 云服务器公网 IP，并同步更新域名解析。
 
 ---
 
