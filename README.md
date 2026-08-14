@@ -16,9 +16,14 @@
 # 下载安装脚本
 Invoke-WebRequest -Uri "https://gitee.com/areyi2014/cloud-ip-rotator-mcp/raw/main/install.ps1" -OutFile "$env:TEMP\install-cloud-ip-rotator.ps1"
 
-# 运行
+# 运行（必须在 PowerShell 中执行；cmd 中不支持 & 语法）
 & "$env:TEMP\install-cloud-ip-rotator.ps1"
 ```
+
+> **提示**: 如在 cmd 或其他环境，可用以下命令（不依赖 `&`，也自动绕过执行策略限制）：
+> ```
+> powershell -ExecutionPolicy Bypass -File "%TEMP%\install-cloud-ip-rotator.ps1"
+> ```
 
 **macOS / Ubuntu**（打开终端，逐条执行）：
 
