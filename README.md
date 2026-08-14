@@ -1,6 +1,6 @@
 # cloud-ip-rotator-mcp
 
-多云公网 IP 轮换 MCP 服务 —— 让 AI Agent 一键轮换 AWS / Azure / OCI / Vultr 云服务器公网 IP，并自动更新 Cloudflare 域名解析。
+多云公网 IP 轮换 MCP 服务 —— 让 AI Agent（如 WorkBuddy / Codex） 一键轮换 AWS / Azure / OCI / Vultr 云服务器公网 IP，并自动更新 Cloudflare 域名解析。
 
 支持平台：AWS / Azure / Oracle OCI / Vultr + Cloudflare DNS
 
