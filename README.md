@@ -10,16 +10,24 @@
 
 > 需要 **Node.js >= 18**（[nodejs.org](https://nodejs.org/) 下载 LTS）。若未安装 git，脚本会自动安装。
 
-**Windows**（打开 PowerShell 执行一条命令）：
+**Windows**（打开 PowerShell，逐条执行）：
 
 ```powershell
-irm https://gitee.com/areyi2014/cloud-ip-rotator-mcp/raw/main/install.ps1 | iex
+# 下载安装脚本
+Invoke-WebRequest -Uri "https://gitee.com/areyi2014/cloud-ip-rotator-mcp/raw/main/install.ps1" -OutFile "$env:TEMP\install-cloud-ip-rotator.ps1"
+
+# 运行
+& "$env:TEMP\install-cloud-ip-rotator.ps1"
 ```
 
-**macOS / Ubuntu**（打开终端执行一条命令）：
+**macOS / Ubuntu**（打开终端，逐条执行）：
 
 ```bash
-bash <(curl -fsSL https://gitee.com/areyi2014/cloud-ip-rotator-mcp/raw/main/install.sh)
+# 下载安装脚本
+curl -fsSL https://gitee.com/areyi2014/cloud-ip-rotator-mcp/raw/main/install.sh -o install-cloud-ip-rotator.sh
+
+# 运行
+bash install-cloud-ip-rotator.sh
 ```
 
 脚本自动完成：检查环境（缺 git 自动安装）→ 克隆仓库 → 安装依赖 → 编译 → 写入 MCP 配置。详细安装说明见下文。

@@ -43,19 +43,14 @@
 在 PowerShell 中执行（如遇执行策略限制，先运行 `Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned`）：
 
 ```powershell
-# 一条命令（下载并直接运行，不落盘）
-irm https://gitee.com/areyi2014/cloud-ip-rotator-mcp/raw/main/install.ps1 | iex
-```
-
-或分步执行：
-
-```powershell
 # 下载安装脚本
 Invoke-WebRequest -Uri "https://gitee.com/areyi2014/cloud-ip-rotator-mcp/raw/main/install.ps1" -OutFile "$env:TEMP\install-cloud-ip-rotator.ps1"
 
 # 运行
 & "$env:TEMP\install-cloud-ip-rotator.ps1"
 ```
+
+> **注意**: 请勿使用 `irm ... | iex` 简写 —— `irm`/`iex` 是 PowerShell 别名，在 cmd 等环境会报「找不到 irm」，且管道直接执行多行脚本易出错。请使用上面的 `Invoke-WebRequest` 下载后运行。
 
 ### macOS / Ubuntu
 
