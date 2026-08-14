@@ -58,7 +58,6 @@ bash install-cloud-ip-rotator.sh
 - [手动安装](#手动安装)
 - [MCP 配置](#mcp-配置)
   - [WorkBuddy](#workbuddy)
-  - [Codex](#codex)
   - [环境变量说明](#环境变量说明)
 - [验证安装](#验证安装)
 - [配置云服务器（UI）](#配置云服务器ui)
@@ -117,7 +116,7 @@ bash install-cloud-ip-rotator.sh --skip-build
 3. 克隆仓库到 `~/cloud-ip-rotator-mcp`（克隆前确认目录、预热 DNS、最多重试 3 次）
 4. 安装 npm 依赖
 5. 编译 TypeScript → `dist/`
-6. 生成 MCP 配置文件（直接写入 `~/.workbuddy/mcp.json` 与 `~/.codex/mcp.json`）
+6. 生成 MCP 配置文件（直接写入 `~/.workbuddy/mcp.json`）
 
 ### Windows
 
@@ -219,7 +218,6 @@ dir dist\index.js
 一键安装完成后，脚本已自动将 `cloud-ip-rotator` 条目合并写入：
 
 - `~/.workbuddy/mcp.json`
-- `~/.codex/mcp.json`
 
 （合并写入，不会覆盖文件中已有的其他 server 配置。）
 
@@ -245,16 +243,6 @@ dir dist\index.js
 > - `args[0]`: `dist/index.js` 的完整绝对路径
 > - Windows 路径中使用双反斜杠 `\\` 转义
 
-### Codex
-
-脚本已自动将配置合并到 `~/.codex/mcp.json`。重启 Codex 即可生效。
-
-其他常见的配置位置（依 Codex 版本而定）：
-- 项目级 `.codex/mcp.json`
-- Codex 设置面板中的 MCP 配置区域
-
-配置格式与 WorkBuddy 完全一致。
-
 ### 环境变量说明
 
 MCP 配置中可以通过 `env` 字段设置环境变量。本项目在 WorkBuddy 环境下通常需要清除 Electron 干扰：
@@ -277,7 +265,7 @@ MCP 配置中可以通过 `env` 字段设置环境变量。本项目在 WorkBudd
 
 ## 验证安装
 
-在 WorkBuddy 或 Codex 对话中，尝试以下命令验证：
+在 WorkBuddy 对话中，尝试以下命令验证：
 
 ```
 列出我的云服务器配置
@@ -358,7 +346,7 @@ Remove-Item -Recurse -Force ~/cloud-ip-rotator-mcp   # Windows
 rm -rf ~/.cloud-ip-rotator                # macOS / Ubuntu
 Remove-Item -Recurse -Force ~/.cloud-ip-rotator       # Windows
 
-# 从 WorkBuddy / Codex 的 mcp.json 中移除 cloud-ip-rotator 条目
+# 从 WorkBuddy 的 mcp.json 中移除 cloud-ip-rotator 条目
 ```
 
 ---
