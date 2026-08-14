@@ -8,8 +8,10 @@
 
 - [系统要求](#系统要求)
 - [一键安装](#一键安装)
-  - [macOS / Ubuntu](#macos--ubuntu)
   - [Windows](#windows)
+  - [macOS / Ubuntu](#macos--ubuntu)
+  - [脚本自动完成的内容](#脚本自动完成的内容)
+  - [自定义参数](#自定义参数)
 - [手动安装](#手动安装)
 - [MCP 配置](#mcp-配置)
   - [WorkBuddy](#workbuddy)
@@ -29,57 +31,25 @@
 |-----------|---------|-----------------------------------|
 | Node.js   | >= 18   | 需要原生 `fetch` API（Node 18+）  |
 | npm       | >= 9    | 随 Node.js 一起安装               |
-| git       | 任意版本  | 用于克隆仓库                      |
-| 操作系统   | -       | macOS 14+, Ubuntu 20.04+, Windows 10+ |
+| git       | 可选     | 用于克隆仓库；缺失时脚本会自动安装 |
+| 操作系统   | -       | Windows 10+, macOS 14+, Ubuntu 20.04+ |
 
 ---
 
 ## 一键安装
 
-### macOS / Ubuntu
-
-在终端中执行：
-
-```bash
-# 下载安装脚本
-curl -fsSL https://gitee.com/areyi2014/cloud-ip-rotator-mcp/raw/main/install.sh -o install-cloud-ip-rotator.sh
-
-# 运行（需要网络连接）
-bash install-cloud-ip-rotator.sh
-```
-
-**自定义参数：**
-
-```bash
-# 指定安装目录
-bash install-cloud-ip-rotator.sh --install-dir /opt/cloud-ip-rotator-mcp
-
-# 使用 GitHub 镜像
-bash install-cloud-ip-rotator.sh --repo-url https://gitee.com/user/cloud-ip-rotator-mcp.git
-
-# 指定分支
-bash install-cloud-ip-rotator.sh --branch develop
-
-# 仅下载不编译
-bash install-cloud-ip-rotator.sh --skip-build
-```
-
-脚本会依次完成：
-1. 检查 Node.js >= 18
-2. 检查 git
-3. 克隆仓库到 `~/cloud-ip-rotator-mcp`
-4. 安装 npm 依赖（共 6 个运行时包 + 2 个开发包）
-5. 编译 TypeScript → `dist/`
-6. 生成 MCP 配置文件
-
 ### Windows
 
-在 PowerShell 中执行（**右键「以管理员身份运行」PowerShell**）：
+在 PowerShell 中执行（如遇执行策略限制，先运行 `Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned`）：
 
 ```powershell
-# 如果遇到执行策略限制，先运行：
-Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
+# 一条命令（下载并直接运行，不落盘）
+irm https://gitee.com/areyi2014/cloud-ip-rotator-mcp/raw/main/install.ps1 | iex
+```
 
+或分步执行：
+
+```powershell
 # 下载安装脚本
 Invoke-WebRequest -Uri "https://gitee.com/areyi2014/cloud-ip-rotator-mcp/raw/main/install.ps1" -OutFile "$env:TEMP\install-cloud-ip-rotator.ps1"
 
@@ -87,14 +57,57 @@ Invoke-WebRequest -Uri "https://gitee.com/areyi2014/cloud-ip-rotator-mcp/raw/mai
 & "$env:TEMP\install-cloud-ip-rotator.ps1"
 ```
 
-**自定义参数：**
+### macOS / Ubuntu
+
+在终端中执行：
+
+```bash
+# 一条命令
+bash <(curl -fsSL https://gitee.com/areyi2014/cloud-ip-rotator-mcp/raw/main/install.sh)
+```
+
+或分步执行：
+
+```bash
+# 下载安装脚本
+curl -fsSL https://gitee.com/areyi2014/cloud-ip-rotator-mcp/raw/main/install.sh -o install-cloud-ip-rotator.sh
+
+# 运行
+bash install-cloud-ip-rotator.sh
+```
+
+### 脚本自动完成的内容
+
+1. **检查 Node.js** —— 版本必须 >= 18，否则给出提示并退出
+2. **检查 git** —— 未安装时自动处理：
+   - Windows：按 CPU 架构（x64 / arm64）从国内镜像（NPMMirror / 清华 TUNA，GitHub 兜底）下载官方安装包，静默安装到用户目录 `%LOCALAPPDATA%\Git`，并自动加入 PATH，全程不弹窗
+   - macOS / Ubuntu：通过包管理器（apt / brew / xcode-select）自动安装
+3. **检测 MCP 客户端平台** —— 自动识别 `~/.workbuddy` 与 `~/.codex`
+4. **克隆仓库** —— 克隆前会显示仓库/分支/目录并让您确认（回车或输入新路径）；先 ping 预热 DNS 缓存，最多自动重试 3 次
+5. **安装依赖** —— `npm install`
+6. **编译** —— TypeScript 编译到 `dist/`（自动清除 `ELECTRON_RUN_AS_NODE` 环境变量干扰）
+7. **写入 MCP 配置** —— 直接用 node 序列化为标准 JSON，合并写入 `~/.workbuddy/mcp.json` 与 `~/.codex/mcp.json`（保留文件中已有的其他 server，不覆盖）
+
+### 自定义参数
+
+Windows PowerShell：
 
 ```powershell
 & "$env:TEMP\install-cloud-ip-rotator.ps1" -InstallDir "D:\tools\cloud-ip-rotator-mcp"
 & "$env:TEMP\install-cloud-ip-rotator.ps1" -RepoUrl "https://gitee.com/user/cloud-ip-rotator-mcp.git"
+& "$env:TEMP\install-cloud-ip-rotator.ps1" -Branch develop
+& "$env:TEMP\install-cloud-ip-rotator.ps1" -SkipBuild
+& "$env:TEMP\install-cloud-ip-rotator.ps1" -Help
 ```
 
-> **注意**: 如遇 `无法加载文件，因为在此系统上禁止运行脚本` 错误，请先执行 `Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned`。
+macOS / Ubuntu：
+
+```bash
+bash install-cloud-ip-rotator.sh --install-dir /opt/cloud-ip-rotator-mcp
+bash install-cloud-ip-rotator.sh --repo-url https://gitee.com/user/cloud-ip-rotator-mcp.git
+bash install-cloud-ip-rotator.sh --branch develop
+bash install-cloud-ip-rotator.sh --skip-build
+```
 
 ---
 
@@ -155,48 +168,40 @@ dir dist\index.js
 
 ## MCP 配置
 
-安装完成后，需要配置 MCP 客户端以加载本服务。
+一键安装完成后，脚本已自动将 `cloud-ip-rotator` 条目合并写入以下文件（node 序列化，标准 JSON，保留其他已有 server）：
+
+- `~/.workbuddy/mcp.json`
+- `~/.codex/mcp.json`
 
 ### WorkBuddy
 
-**方法一：自动合并（推荐）**
+1. 打开 WorkBuddy **连接器管理页面**
+2. 在「自定义连接器」区域找到 `cloud-ip-rotator`
+3. 点击 **「信任」**，即可在对话中使用
 
-安装脚本已自动生成配置到 `~/.cloud-ip-rotator/mcp-config.json`。
-
-编辑 `~/.workbuddy/mcp.json`（如文件不存在则创建），将 `cloud-ip-rotator` 条目合并进去。
-
-**方法二：手动添加**
-
-编辑 `~/.workbuddy/mcp.json`，添加如下内容：
+如未自动写入，可手动编辑 `~/.workbuddy/mcp.json`（如文件不存在则创建）：
 
 ```json
 {
   "mcpServers": {
     "cloud-ip-rotator": {
-      "command": "/usr/local/bin/node",
-      "args": ["/Users/你的用户名/cloud-ip-rotator-mcp/dist/index.js"]
+      "command": "C:\\Program Files\\nodejs\\node.exe",
+      "args": ["C:\\Users\\你的用户名\\cloud-ip-rotator-mcp\\dist\\index.js"]
     }
   }
 }
 ```
 
 > **路径说明**:
-> - `command`: Node.js 可执行文件的完整路径（通过 `which node` 获取）
+> - `command`: Node.js 可执行文件的完整路径（Windows 用 `Get-Command node`，macOS/Linux 用 `which node` 获取）
 > - `args[0]`: `dist/index.js` 的完整绝对路径
-> - Windows 路径中使用双反斜杠 `\\` 转义
-
-**生效**:
-
-1. 保存 `mcp.json`
-2. 打开 WorkBuddy 连接器管理页面
-3. 在「自定义连接器」区域找到 `cloud-ip-rotator`，点击 **「信任」**
-4. 服务即可在对话中使用
+> - Windows 路径中反斜杠必须写为 `\\`（JSON 转义）
 
 ### Codex
 
-将上述 MCP 配置合并到 Codex 的 MCP 配置文件中。具体路径依 Codex 版本而定，常见的包括：
+脚本已自动将配置合并到 `~/.codex/mcp.json`，**重启 Codex** 即可生效。
 
-- `~/.codex/mcp.json`
+其他常见的配置位置（依 Codex 版本而定）：
 - 项目级 `.codex/mcp.json`
 - Codex 设置面板中的 MCP 配置区域
 
@@ -247,13 +252,13 @@ echo '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | node dist/index.js
 提供了一个本地浏览器配置界面，用于填写云平台凭据。
 
 ```bash
-# 启动 UI 服务器
+# 启动 UI 服务器（端口由系统自动分配，避免冲突）
 node ui/server.cjs
 ```
 
-然后浏览器打开 `http://127.0.0.1:<端口>`（端口在终端启动时打印），即可在可视化界面中填写和保存配置。
+启动后终端会打印实际地址 `http://127.0.0.1:<端口>`，用浏览器打开即可在可视化界面中填写和保存配置。
 
-> **约定**: 配置表单**永远用浏览器打开**，不要使用 WorkBuddy 内嵌窗口（沙箱限制）。
+> **约定**: 配置表单**永远用浏览器打开**，不要使用 WorkBuddy 内嵌窗口（沙箱限制会拦截保存请求）。
 
 ---
 
@@ -277,6 +282,8 @@ node ui/server.cjs
 
 ### 更新
 
+重新运行安装脚本即可（检测到已克隆仓库时自动 `git pull` + 安装依赖 + 编译 + 更新 MCP 配置），或手动：
+
 ```bash
 cd ~/cloud-ip-rotator-mcp
 git pull
@@ -288,14 +295,14 @@ npm run build
 
 ```bash
 # 删除项目目录
-rm -rf ~/cloud-ip-rotator-mcp            # macOS / Ubuntu
+rm -rf ~/cloud-ip-rotator-mcp                 # macOS / Ubuntu
 Remove-Item -Recurse -Force ~/cloud-ip-rotator-mcp   # Windows
 
 # 删除配置数据（含保存的凭据）
-rm -rf ~/.cloud-ip-rotator                # macOS / Ubuntu
+rm -rf ~/.cloud-ip-rotator                     # macOS / Ubuntu
 Remove-Item -Recurse -Force ~/.cloud-ip-rotator       # Windows
 
-# 从 WorkBuddy mcp.json 中移除 cloud-ip-rotator 条目
+# 从 ~/.workbuddy/mcp.json 与 ~/.codex/mcp.json 中移除 cloud-ip-rotator 条目
 ```
 
 ---
@@ -322,18 +329,20 @@ $env:ELECTRON_RUN_AS_NODE = ""; npm run build
 
 **解决**:
 - 确认网络正常，能访问 gitee.com
+- 脚本已内置 DNS 预热（先 ping 仓库域名）与最多 3 次自动重试
 - 如为私有仓库，先配置 SSH Key: `ssh-keygen -t ed25519 && cat ~/.ssh/id_ed25519.pub`
 - 手动克隆: `git clone https://gitee.com/areyi2014/cloud-ip-rotator-mcp.git`
 
 ### 3. MCP 配置后工具未出现
 
-**原因**: MCP 进程启动失败或配置路径错误。
+**原因**: MCP 进程启动失败、配置路径错误或 mcp.json 格式不被识别。
 
 **排查**:
 1. 确认 `dist/index.js` 存在
-2. 确认 `command` 中的 node 路径正确: `which node`（全路径）
-3. 手动测试: `echo '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | node dist/index.js`
-4. 检查 WorkBuddy 连接器管理页面是否有错误信息
+2. 确认 `command` 中的 node 路径正确: `Get-Command node` / `which node`（需完整路径）
+3. 确认 mcp.json 是标准 JSON（一键脚本使用 node 序列化输出，不会出现缩进或反斜杠转义问题）
+4. 手动测试: `echo '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | node dist/index.js`
+5. 检查 WorkBuddy 连接器管理页面是否有错误信息
 
 ### 4. npm install 失败（权限错误）
 
@@ -358,3 +367,9 @@ Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
 ```
 
 或使用 `powershell -ExecutionPolicy Bypass -File install.ps1` 绕过限制。
+
+### 7. git 自动安装失败
+
+**原因**: 国内镜像或 GitHub 均不可达。
+
+**解决**: 手动前往 [git-scm.com/download](https://git-scm.com/download/win) 下载安装，装好后重新运行安装脚本（脚本会检测到已有 git 并跳过安装）。
