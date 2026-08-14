@@ -45,7 +45,7 @@ bash install-cloud-ip-rotator.sh
 
 # cloud-ip-rotator-mcp 安装指南
 
-多云公网 IP 轮换 MCP 服务 —— 让 AI Agent 一键轮换 AWS / Azure / OCI / Vultr 云服务器公网 IP，并自动更新 Cloudflare 域名解析。
+对多个云公网 IP 轮换 MCP 服务 —— 让 AI Agent 一键轮换 AWS / Azure / OCI / Vultr 云服务器公网 IP，并自动更新 Cloudflare 域名解析。
 
 ---
 
