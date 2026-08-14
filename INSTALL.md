@@ -46,11 +46,17 @@
 # 下载安装脚本
 Invoke-WebRequest -Uri "https://gitee.com/areyi2014/cloud-ip-rotator-mcp/raw/main/install.ps1" -OutFile "$env:TEMP\install-cloud-ip-rotator.ps1"
 
-# 运行
+# 运行（必须在 PowerShell 中执行；cmd 中不支持 & 语法）
 & "$env:TEMP\install-cloud-ip-rotator.ps1"
 ```
 
-> **注意**: 请勿使用 `irm ... | iex` 简写 —— `irm`/`iex` 是 PowerShell 别名，在 cmd 等环境会报「找不到 irm」，且管道直接执行多行脚本易出错。请使用上面的 `Invoke-WebRequest` 下载后运行。
+> **注意**:
+> - 请勿使用 `irm ... | iex` 简写 —— `irm`/`iex` 是 PowerShell 别名，在 cmd 等环境会报「找不到 irm」，且管道直接执行多行脚本易出错。
+> - `& "$env:TEMP\..."` 是 PowerShell 语法，必须在 PowerShell 窗口执行，不能在 cmd 中运行。
+> - 如在 cmd 或其他环境，可用以下命令（不依赖 `&`，也自动绕过执行策略限制）：
+> ```
+> powershell -ExecutionPolicy Bypass -File "%TEMP%\install-cloud-ip-rotator.ps1"
+> ```
 
 ### macOS / Ubuntu
 
