@@ -74,7 +74,7 @@ bash install-cloud-ip-rotator.sh
 | Node.js   | >= 18   | 需要原生 `fetch` API（Node 18+）  |
 | npm       | >= 9    | 随 Node.js 一起安装               |
 | git       | 任意版本  | 用于克隆仓库；缺失时脚本可自动安装 |
-| Os        | -       | macOS 14+, Ubuntu 20.04+, Windows 10+ |
+| OS        | -       | macOS 14+, Ubuntu 20.04+, Windows 10+ |
 | Software  | -       | Workbuddy 1.1.0+|
 
 ---
