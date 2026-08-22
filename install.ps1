@@ -1,14 +1,14 @@
 ﻿#===============================================================================
-# cloud-ip-rotator-mcp 自动部署脚本 (Windows PowerShell)
+# ip-switch 自动部署脚本 (Windows PowerShell)
 #===============================================================================
 # 用途: 一键克隆、安装依赖、编译、生成 MCP 配置
 # 适用: Windows 10/11 (PowerShell 5.1+)
 # 前提: git 已安装, Node.js >= 18 已安装
 #===============================================================================
 param(
-    [string]$RepoUrl    = "https://gitee.com/areyi2014/cloud-ip-rotator-mcp.git",
+    [string]$RepoUrl    = "https://gitee.com/areyi2014/ip-switch.git",
     [string]$Branch     = "main",
-    [string]$InstallDir = "$env:USERPROFILE\cloud-ip-rotator-mcp",
+    [string]$InstallDir = "$env:USERPROFILE\ip-switch",
     [switch]$SkipBuild  = $false,
     [switch]$Help       = $false
 )
@@ -20,21 +20,21 @@ if ($Help) {
 选项:
   -RepoUrl URL     指定仓库地址（默认 gitee）
   -Branch NAME     指定分支（默认 main）
-  -InstallDir DIR  指定安装目录（默认 ~\cloud-ip-rotator-mcp）
+  -InstallDir DIR  指定安装目录（默认 ~\ip-switch）
   -SkipBuild       跳过编译步骤
   -Help            显示帮助
 
 示例:
   .\install.ps1
-  .\install.ps1 -RepoUrl "https://gitee.com/user/cloud-ip-rotator-mcp.git"
-  .\install.ps1 -InstallDir "D:\my-tools\cloud-ip-rotator-mcp"
+  .\install.ps1 -RepoUrl "https://gitee.com/user/ip-switch.git"
+  .\install.ps1 -InstallDir "D:\my-tools\ip-switch"
 "@
     exit 0
 }
 
 $ErrorActionPreference = "Stop"
 $NodeMinVersion = 18
-$ProjectName = "cloud-ip-rotator-mcp"
+$ProjectName = "ip-switch"
 
 # -- 辅助函数 ---------------------------------------------------------------
 function Write-Step($msg) {
@@ -547,7 +547,7 @@ function Show-Success {
     $successBanner = @"
 
 +============================================================+
-|          cloud-ip-rotator-mcp 安装成功!                     |
+|          ip-switch 安装成功!                     |
 +============================================================+
 
 "@
@@ -577,7 +577,6 @@ function Show-Success {
 
     Write-Host "卸载:" -ForegroundColor Yellow
     Write-Host "  Remove-Item -Recurse -Force $InstallDir"
-    Write-Host "  Remove-Item -Recurse -Force $env:USERPROFILE\.cloud-ip-rotator"
     Write-Host ""
 }
 
@@ -585,7 +584,7 @@ function Show-Success {
 function Main {
     Write-Host ""
     Write-Host "+============================================================+" -ForegroundColor Green
-    Write-Host "|   cloud-ip-rotator-mcp 自动部署脚本 v1.0                    |" -ForegroundColor Green
+    Write-Host "|   ip-switch 自动部署脚本 v1.0                    |" -ForegroundColor Green
     Write-Host "+============================================================+" -ForegroundColor Green
     Write-Host ""
 

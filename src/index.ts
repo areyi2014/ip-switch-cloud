@@ -18,7 +18,7 @@
  *        "mcpServers": {
  *          "cloud-ip-rotator": {
  *            "command": "node",
- *            "args": ["/path/to/cloud-ip-rotator-mcp/dist/index.js"]
+ *            "args": ["/path/to/ip-switch/dist/index.js"]
  *          }
  *        }
  *      }

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #===============================================================================
-# cloud-ip-rotator-mcp 自动部署脚本 (macOS / Ubuntu)
+# ip-switch 自动部署脚本 (macOS / Ubuntu)
 #===============================================================================
 # 用途: 一键克隆、安装依赖、编译、生成 MCP 配置
 # 适用: macOS 14+, Ubuntu 20.04+, Debian 11+
@@ -17,11 +17,11 @@ CYAN='\033[0;36m'
 NC='\033[0m'
 
 # ── 默认值 ───────────────────────────────────────────────────────────────────
-REPO_URL="${REPO_URL:-https://gitee.com/areyi2014/cloud-ip-rotator-mcp.git}"
+REPO_URL="${REPO_URL:-https://gitee.com/areyi2014/ip-switch.git}"
 BRANCH="${BRANCH:-main}"
-INSTALL_DIR="${INSTALL_DIR:-$HOME/cloud-ip-rotator-mcp}"
+INSTALL_DIR="${INSTALL_DIR:-$HOME/ip-switch}"
 NODE_MIN_VERSION=18
-PROJECT_NAME="cloud-ip-rotator-mcp"
+PROJECT_NAME="ip-switch"
 
 # ── 辅助函数 ─────────────────────────────────────────────────────────────────
 log_info()  { echo -e "${BLUE}[INFO]${NC}  $1"; }
@@ -432,7 +432,7 @@ print_success() {
     cat <<EOF
 
 ${GREEN}╔══════════════════════════════════════════════════════════╗
-║          cloud-ip-rotator-mcp 安装成功!                  ║
+║          ip-switch 安装成功!                  ║
 ╚══════════════════════════════════════════════════════════╝${NC}
 
 项目路径:   ${INSTALL_DIR}
@@ -465,7 +465,7 @@ EOF
 main() {
     echo ""
     echo "${GREEN}╔══════════════════════════════════════════════════════════╗${NC}"
-    echo "${GREEN}║   cloud-ip-rotator-mcp 自动部署脚本 v1.0               ║${NC}"
+    echo "${GREEN}║   ip-switch 自动部署脚本 v1.0               ║${NC}"
     echo "${GREEN}╚══════════════════════════════════════════════════════════╝${NC}"
     echo ""
 
@@ -499,7 +499,7 @@ while [ $# -gt 0 ]; do
             echo "选项:"
             echo "  --repo-url URL     指定仓库地址（默认 gitee）"
             echo "  --branch NAME      指定分支（默认 main）"
-            echo "  --install-dir DIR  指定安装目录（默认 ~/cloud-ip-rotator-mcp）"
+            echo "  --install-dir DIR  指定安装目录（默认 ~/ip-switch）"
             echo "  --skip-build       跳过编译步骤"
             echo "  -h, --help         显示帮助"
             exit 0;;
