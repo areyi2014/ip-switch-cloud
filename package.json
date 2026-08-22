@@ -1,5 +1,5 @@
 {
-  "name": "cloud-ip-rotator-mcp",
+  "name": "ip-switch",
   "version": "1.0.0",
   "description": "Multi-cloud IP rotation MCP server for AI agents (AWS / Azure / Oracle OCI / Vultr)",
   "type": "module",
