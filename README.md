@@ -240,9 +240,40 @@ dir dist\index.js
 ```
 
 > **路径说明**:
-> - `command`: Node.js 可执行文件的完整路径（通过 `which node` 获取）
+> - `command`: Node.js 可执行文件的完整路径（通过 `which node` 获取；**Codex 环境优先使用 Codex 自带的 Node.js**，见下方 Codex 小节）
 > - `args[0]`: `dist/index.js` 的完整绝对路径
 > - Windows 路径中使用双反斜杠 `\\` 转义
+
+### Codex
+
+一键脚本检测到 `~/.codex` 目录时会自动写入 `~/.codex/mcp.json`。**Codex 自带 Node.js**，脚本优先将 `command` 指向它（无需单独安装 Node.js）：
+
+```
+Windows:   C:\Users\<用户名>\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe
+macOS/Linux: ~/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node
+```
+
+如未自动写入，可手动编辑 `~/.codex/mcp.json`（如文件不存在则创建）：
+
+```json
+{
+  "mcpServers": {
+    "ip-switch": {
+      "command": "C:\\Users\\你的用户名\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\node\\bin\\node.exe",
+      "args": ["C:\\Users\\你的用户名\\ip-switch\\dist\\index.js"]
+    }
+  }
+}
+```
+
+> **注意**: Codex runtime 目录可能随版本变化（如 `codex-primary-runtime` 前缀），若路径失效，可用以下命令找到实际路径：
+> ```bash
+> # Windows PowerShell
+> Get-ChildItem "$env:USERPROFILE\.cache\codex-runtimes" -Recurse -Filter node.exe | Select-Object -ExpandProperty FullName
+>
+> # macOS / Linux
+> find ~/.cache/codex-runtimes -name node -type f
+> ```
 
 ### 环境变量说明
 
