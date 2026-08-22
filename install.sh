@@ -51,17 +51,47 @@ detect_os() {
     log_ok "检测到操作系统: ${OS}"
 }
 
+# ── 查找 Codex 自带 Node.js ─────────────────────────────────────────────────
+find_codex_node() {
+    local codex_node
+    codex_node="$HOME/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node"
+    if [ -x "$codex_node" ]; then
+        echo "$codex_node"
+        return 0
+    fi
+    # 兜底：查找其他 runtime
+    for f in "$HOME"/.cache/codex-runtimes/*/dependencies/node/bin/node; do
+        if [ -x "$f" ]; then
+            echo "$f"
+            return 0
+        fi
+    done
+    return 1
+}
+
 # ── 检查 Node.js ─────────────────────────────────────────────────────────────
 check_node() {
     log_step "检查 Node.js 环境"
 
-    if ! command -v node &>/dev/null; then
-        log_error "未检测到 Node.js，请先安装 Node.js >= ${NODE_MIN_VERSION}"
-        log_info  "安装方式:"
-        log_info  "  macOS:  brew install node@22"
-        log_info  "  Ubuntu: curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash - && sudo apt-get install -y nodejs"
-        log_info  "  通用:   访问 https://nodejs.org/ 下载安装"
-        exit 1
+    # 优先使用 Codex 自带 Node.js（用户机器可能只装了 Codex，没有独立 Node）
+    local codex_node
+    codex_node=$(find_codex_node) || codex_node=""
+
+    if [ -n "$codex_node" ]; then
+        log_ok "检测到 Codex 自带 Node.js: ${codex_node}"
+        # 将 Codex node 的 bin 目录加入 PATH，使 node/npm 命令可直接使用
+        export PATH="$(dirname "$codex_node"):${PATH}"
+        CODEX_NODE_EXE="$codex_node"
+    else
+        CODEX_NODE_EXE=""
+        if ! command -v node &>/dev/null; then
+            log_error "未检测到 Node.js，请先安装 Node.js >= ${NODE_MIN_VERSION}"
+            log_info  "安装方式:"
+            log_info  "  macOS:  brew install node@22"
+            log_info  "  Ubuntu: curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash - && sudo apt-get install -y nodejs"
+            log_info  "  通用:   访问 https://nodejs.org/ 下载安装"
+            exit 1
+        fi
     fi
 
     local node_version
@@ -74,7 +104,7 @@ check_node() {
         exit 1
     fi
 
-    NODE_PATH=$(command -v node)
+    NODE_PATH="${CODEX_NODE_EXE:-$(command -v node)}"
     log_ok "Node.js v${node_version} ($NODE_PATH)"
 
     if ! command -v npm &>/dev/null; then
@@ -164,9 +194,6 @@ check_git() {
         log_info  "  macOS:  xcode-select --install 或 brew install git"
         log_info  "  Ubuntu: sudo apt-get install -y git"
         log_info  "  https://git-scm.com/downloads"
-        exit 1
-    fi
-}
         exit 1
     fi
 }
@@ -360,13 +387,17 @@ generate_mcp_config() {
     log_step "生成 MCP 配置"
 
     local node_exe
-    node_exe=$(command -v node)
-
-    if [ -z "$node_exe" ]; then
-        # 尝试常见路径
-        for p in /usr/local/bin/node /opt/homebrew/bin/node /usr/bin/node; do
-            if [ -x "$p" ]; then node_exe="$p"; break; fi
-        done
+    if [ -n "${CODEX_NODE_EXE:-}" ]; then
+        # 优先使用 Codex 自带 Node.js（MCP 配置 command 指向 Codex runtime 的 node）
+        node_exe="$CODEX_NODE_EXE"
+    else
+        node_exe=$(command -v node)
+        if [ -z "$node_exe" ]; then
+            # 尝试常见路径
+            for p in /usr/local/bin/node /opt/homebrew/bin/node /usr/bin/node; do
+                if [ -x "$p" ]; then node_exe="$p"; break; fi
+            done
+        fi
     fi
 
     local dist_js="${INSTALL_DIR}/dist/index.js"

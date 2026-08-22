@@ -47,19 +47,51 @@ function Write-OK($msg)    { Write-Host "[ OK ]  $msg" -ForegroundColor Green }
 function Write-Warn($msg)  { Write-Host "[WARN]  $msg" -ForegroundColor Yellow }
 function Write-Err($msg)   { Write-Host "[ERROR] $msg" -ForegroundColor Red }
 
+# -- 查找 Codex 自带 Node.js --------------------------------------------------
+function Get-CodexNodeExe {
+    $cacheRoot = "$env:USERPROFILE\.cache\codex-runtimes"
+    if (-not (Test-Path $cacheRoot)) { return $null }
+
+    # 优先 codex-primary-runtime，其次其他 runtime
+    $primary = "$cacheRoot\codex-primary-runtime\dependencies\node\bin\node.exe"
+    if (Test-Path $primary) { return $primary }
+
+    $others = Get-ChildItem -Path $cacheRoot -Directory -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -ne 'codex-primary-runtime' } |
+        ForEach-Object { "$($_.FullName)\dependencies\node\bin\node.exe" } |
+        Where-Object { Test-Path $_ }
+
+    if ($others.Count -gt 0) { return $others[0] }
+    return $null
+}
+
 # -- 检查 Node.js ------------------------------------------------------------
 function Check-Node {
     Write-Step "检查 Node.js 环境"
 
-    $nodeCmd = Get-Command node -ErrorAction SilentlyContinue
-    if (-not $nodeCmd) {
-        Write-Err "未检测到 Node.js，请先安装 Node.js >= $NodeMinVersion"
-        Write-Info "访问 https://nodejs.org 进行下载安装/卸载重装"
-        Write-Info "推荐安装 Node.js 22 LTS 版本"
-        exit 1
+    # 优先使用 Codex 自带 Node.js（用户机器可能只装了 Codex，没有独立 Node）
+    $codexNode = Get-CodexNodeExe
+    if ($codexNode) {
+        Write-OK "检测到 Codex 自带 Node.js: $codexNode"
+        $script:CodexNodeExe = $codexNode
+        # 将 Codex node 的 bin 目录加入 PATH，使 node/npm 命令可直接使用
+        $codexBinDir = Split-Path $codexNode -Parent
+        if ($env:PATH -notlike "*$codexBinDir*") {
+            $env:PATH = "$codexBinDir;$env:PATH"
+        }
+        $nodeVersion = & $codexNode -v
+    } else {
+        $script:CodexNodeExe = $null
+        $nodeCmd = Get-Command node -ErrorAction SilentlyContinue
+        if (-not $nodeCmd) {
+            Write-Err "未检测到 Node.js，请先安装 Node.js >= $NodeMinVersion"
+            Write-Info "访问 https://nodejs.org 进行下载安装/卸载重装"
+            Write-Info "推荐安装 Node.js 22 LTS 版本"
+            exit 1
+        }
+        $nodeVersion = node -v
     }
 
-    $nodeVersion = node -v
     $major = [int]($nodeVersion -replace 'v', '').Split('.')[0]
 
     if ($major -lt $NodeMinVersion) {
@@ -67,8 +99,11 @@ function Check-Node {
         exit 1
     }
 
-    $nodeExePath = $nodeCmd.Source
-    Write-OK "Node.js $nodeVersion ($nodeExePath)"
+    if ($script:CodexNodeExe) {
+        Write-OK "Node.js $nodeVersion ($script:CodexNodeExe)"
+    } else {
+        Write-OK "Node.js $nodeVersion ($((Get-Command node).Source))"
+    }
 
     $npmCmd = Get-Command npm -ErrorAction SilentlyContinue
     if (-not $npmCmd) {
@@ -479,7 +514,8 @@ fs.writeFileSync(target, JSON.stringify(config, null, 2) + '\n', 'utf8');
 function Generate-MCPConfig {
     Write-Step "生成 MCP 配置"
 
-    $nodeExe = (Get-Command node).Source
+    # 优先使用 Codex 自带 Node.js（MCP 配置 command 指向 Codex runtime 的 node）
+    $nodeExe = if ($script:CodexNodeExe) { $script:CodexNodeExe } else { (Get-Command node).Source }
     $distJs  = "$InstallDir\dist\index.js"
 
     # Windows 路径在 JSON 中需将反斜杠转义为 \\（仅用于终端提示展示）
