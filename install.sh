@@ -163,7 +163,7 @@ check_node() {
         esac
     done <<< "$node_list"
 
-    # 默认使用版本号最大的 Node.js（其目录加入 PATH，使 node/npm 命令可直接使用）
+    # 默认使用"版本号最大"的 Node.js
     local node_exe="${best:-$first_node}"
     export PATH="$(dirname "$node_exe"):${PATH}"
 
@@ -180,13 +180,6 @@ check_node() {
 
     NODE_PATH="$node_exe"
     log_ok "使用 Node.js v${node_version} ($NODE_PATH)"
-
-    if ! command -v npm &>/dev/null; then
-        log_error "未检测到 npm"
-        exit 1
-    fi
-    NPM_PATH=$(command -v npm)
-    log_ok "npm $($NPM_PATH --version) ($NPM_PATH)"
 }
 
 # ── 检查 git ─────────────────────────────────────────────────────────────────
@@ -358,7 +351,7 @@ install_deps() {
     fi
 
     log_info "正在安装依赖，请稍候..."
-    if $NPM_PATH install --loglevel=error; then
+    if npm install --loglevel=error; then
         log_ok "依赖安装完成"
     else
         log_error "依赖安装失败"
@@ -381,7 +374,7 @@ build_project() {
     fi
 
     log_info "正在编译..."
-    if $env_prefix $NPM_PATH run build 2>&1; then
+    if $env_prefix npm run build 2>&1; then
         log_ok "编译完成"
     else
         log_error "编译失败"
