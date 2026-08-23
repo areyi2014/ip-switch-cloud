@@ -95,40 +95,77 @@ find_codex_node() {
     return 1
 }
 
+# ── 检测系统上所有可用的 Node.js ─────────────────────────────────────────────
+# 输出格式: 来源<TAB>路径，每行一个
+collect_all_nodes() {
+    local wb codex
+
+    wb=$(find_workbuddy_node) && printf 'WorkBuddy 自带\t%s\n' "$wb"
+    codex=$(find_codex_node) && printf 'Codex 自带\t%s\n' "$codex"
+
+    if command -v node &>/dev/null; then
+        printf '系统 PATH\t%s\n' "$(command -v node)"
+    fi
+}
+
 # ── 检查 Node.js ─────────────────────────────────────────────────────────────
 check_node() {
     log_step "检查 Node.js 环境"
 
-    # 优先级：WorkBuddy 自带 Node.js > Codex 自带 Node.js > 系统 Node
-    # （用户机器可能只装了 IDE，没有独立 Node）
-    local wb_node codex_node
-    wb_node=$(find_workbuddy_node) || wb_node=""
-    codex_node=$(find_codex_node) || codex_node=""
+    # 检测系统上所有可用的 Node.js（WorkBuddy / Codex 自带 + 系统 PATH 安装的）
+    local node_list
+    node_list=$(collect_all_nodes)
 
-    local node_exe=""
-    if [ -n "$wb_node" ]; then
-        log_ok "检测到 WorkBuddy 自带 Node.js: ${wb_node}"
-        node_exe="$wb_node"
-    elif [ -n "$codex_node" ]; then
-        log_ok "检测到 Codex 自带 Node.js: ${codex_node}"
-        node_exe="$codex_node"
-    else
-        if ! command -v node &>/dev/null; then
-            log_error "未检测到 Node.js，请先安装 Node.js >= ${NODE_MIN_VERSION}"
-            log_info  "安装方式:"
-            log_info  "  macOS:  brew install node@22"
-            log_info  "  Ubuntu: curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash - && sudo apt-get install -y nodejs"
-            log_info  "  通用:   访问 https://nodejs.org/ 下载安装"
-            exit 1
+    if [ -z "$node_list" ]; then
+        log_error "未检测到任何 Node.js，请先安装 Node.js >= ${NODE_MIN_VERSION}"
+        log_info  "安装方式:"
+        log_info  "  macOS:  brew install node@22"
+        log_info  "  Ubuntu: curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash - && sudo apt-get install -y nodejs"
+        log_info  "  通用:   访问 https://nodejs.org/ 下载安装"
+        exit 1
+    fi
+
+    echo ""
+    log_info "检测到以下 Node.js 环境:"
+    local idx=0
+    local best=""
+    local best_ver="0.0.0"
+    while IFS=$'\t' read -r src path; do
+        [ -z "$src" ] && continue
+        idx=$((idx + 1))
+        local ver
+        ver=$("$path" -v 2>/dev/null | sed 's/v//')
+        if [ -n "$ver" ]; then
+            echo "  [${idx}] ${src}: v${ver}"
+            echo "      ${path}"
+            # 记录版本号最大的 Node.js
+            if [ "$(printf '%s\n%s\n' "$ver" "$best_ver" | sort -V | tail -1)" = "$ver" ]; then
+                best="$path"
+                best_ver="$ver"
+            fi
+        else
+            echo "  [${idx}] ${src}: 版本未知"
+            echo "      ${path}"
         fi
-    fi
+    done <<< "$node_list"
+    echo ""
 
-    # 将自带 node 的目录加入 PATH，使 node/npm 命令可直接使用
-    if [ -n "$node_exe" ]; then
-        export PATH="$(dirname "$node_exe"):${PATH}"
-    fi
-    WB_NODE_EXE="$wb_node"
-    CODEX_NODE_EXE="$codex_node"
+    # 记录 WorkBuddy / Codex 自带 node（供生成 MCP 配置时按平台选用）
+    local first_node=""
+    WB_NODE_EXE=""
+    CODEX_NODE_EXE=""
+    while IFS=$'\t' read -r src path; do
+        [ -z "$src" ] && continue
+        [ -z "$first_node" ] && first_node="$path"
+        case "$src" in
+            "WorkBuddy 自带") WB_NODE_EXE="$path" ;;
+            "Codex 自带")     CODEX_NODE_EXE="$path" ;;
+        esac
+    done <<< "$node_list"
+
+    # 默认使用版本号最大的 Node.js（其目录加入 PATH，使 node/npm 命令可直接使用）
+    local node_exe="${best:-$first_node}"
+    export PATH="$(dirname "$node_exe"):${PATH}"
 
     local node_version
     node_version=$(node -v | sed 's/v//')
@@ -137,11 +174,12 @@ check_node() {
 
     if [ "$major" -lt "$NODE_MIN_VERSION" ]; then
         log_error "Node.js 版本过低: v${node_version}，需要 >= v${NODE_MIN_VERSION}"
+        log_info  "可尝试改用列表中其他版本的 Node.js，或升级当前版本"
         exit 1
     fi
 
-    NODE_PATH="${node_exe:-$(command -v node)}"
-    log_ok "Node.js v${node_version} ($NODE_PATH)"
+    NODE_PATH="$node_exe"
+    log_ok "使用 Node.js v${node_version} ($NODE_PATH)"
 
     if ! command -v npm &>/dev/null; then
         log_error "未检测到 npm"
