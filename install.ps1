@@ -87,59 +87,104 @@ function Get-CodexNodeExe {
     return $null
 }
 
+# -- 检测系统上所有可用的 Node.js ---------------------------------------------
+function Get-AllNodeExes {
+    $nodes = @()
+
+    # 1. WorkBuddy 自带
+    $wb = Get-WorkBuddyNodeExe
+    if ($wb) {
+        $nodes += [pscustomobject]@{ Source = "WorkBuddy 自带"; Path = $wb }
+    }
+
+    # 2. Codex 自带
+    $codex = Get-CodexNodeExe
+    if ($codex) {
+        $nodes += [pscustomobject]@{ Source = "Codex 自带"; Path = $codex }
+    }
+
+    # 3. 系统 PATH 中的 node
+    $sys = Get-Command node -ErrorAction SilentlyContinue
+    if ($sys -and $sys.Source) {
+        $nodes += [pscustomobject]@{ Source = "系统 PATH"; Path = $sys.Source }
+    }
+
+    # 去重（同一路径可能被多种来源命中）
+    $seen = @{}
+    $result = @()
+    foreach ($n in $nodes) {
+        $key = $n.Path.ToLowerInvariant()
+        if (-not $seen.ContainsKey($key)) {
+            $seen[$key] = $true
+            $result += $n
+        }
+    }
+    return $result
+}
+
 # -- 检查 Node.js ------------------------------------------------------------
 function Check-Node {
     Write-Step "检查 Node.js 环境"
 
-    # 优先级：WorkBuddy 自带 Node.js > Codex 自带 Node.js > 系统 Node
-    # （用户机器可能只装了 IDE，没有独立 Node）
-    $script:WBNodeExe    = Get-WorkBuddyNodeExe
-    $script:CodexNodeExe = Get-CodexNodeExe
+    # 检测系统上所有可用的 Node.js（WorkBuddy / Codex 自带 + 系统 PATH 安装的）
+    $allNodes = @(Get-AllNodeExes)
 
-    $nodeExe = $null
-    $nodeSource = "系统"
-
-    if ($script:WBNodeExe) {
-        Write-OK "检测到 WorkBuddy 自带 Node.js: $($script:WBNodeExe)"
-        $nodeExe = $script:WBNodeExe
-        $nodeSource = "WorkBuddy"
-    } elseif ($script:CodexNodeExe) {
-        Write-OK "检测到 Codex 自带 Node.js: $($script:CodexNodeExe)"
-        $nodeExe = $script:CodexNodeExe
-        $nodeSource = "Codex"
-    } else {
-        $nodeCmd = Get-Command node -ErrorAction SilentlyContinue
-        if (-not $nodeCmd) {
-            Write-Err "未检测到 Node.js，请先安装 Node.js >= $NodeMinVersion"
-            Write-Info "访问 https://nodejs.org 进行下载安装/卸载重装"
-            Write-Info "推荐安装 Node.js 22 LTS 版本"
-            exit 1
-        }
+    if ($allNodes.Count -eq 0) {
+        Write-Err "未检测到任何 Node.js，请先安装 Node.js >= $NodeMinVersion"
+        Write-Info "访问 https://nodejs.org 进行下载安装/卸载重装"
+        Write-Info "推荐安装 Node.js 22 LTS 版本"
+        exit 1
     }
 
-    # 将自带 node 的目录加入 PATH，使 node/npm 命令可直接使用
-    if ($nodeExe) {
-        $nodeBinDir = Split-Path $nodeExe -Parent
-        if ($env:PATH -notlike "*$nodeBinDir*") {
-            $env:PATH = "$nodeBinDir;$env:PATH"
+    Write-Host ""
+    Write-Info "检测到以下 Node.js 环境:"
+    $nodeIndex = 0
+    $maxNode = $null
+    $maxVersion = [version]"0.0.0"
+    foreach ($n in $allNodes) {
+        $nodeIndex++
+        $ver = ""
+        try { $ver = (& $n.Path -v).Trim() } catch { $ver = "" }
+        $ver = $ver.TrimStart('v')
+        if (-not $ver) {
+            Write-Host ("  [{0}] {1,-16} 版本未知" -f $nodeIndex, $n.Source) -ForegroundColor Gray
+            Write-Host ("      {0}" -f $n.Path) -ForegroundColor DarkGray
+            continue
         }
-        $nodeVersion = & $nodeExe -v
-    } else {
-        $nodeVersion = node -v
+        Write-Host ("  [{0}] {1,-16} v{2}" -f $nodeIndex, $n.Source, $ver) -ForegroundColor Gray
+        Write-Host ("      {0}" -f $n.Path) -ForegroundColor DarkGray
+
+        try {
+            $v = [version]$ver
+            if ($v -gt $maxVersion) {
+                $maxVersion = $v
+                $maxNode = $n
+            }
+        } catch { }
+    }
+    Write-Host ""
+
+    # 记录 WorkBuddy / Codex 自带 node（供生成 MCP 配置时按平台选用）
+    $script:WBNodeExe = ($allNodes | Where-Object { $_.Source -eq "WorkBuddy 自带" } | Select-Object -First 1).Path
+    $script:CodexNodeExe = ($allNodes | Where-Object { $_.Source -eq "Codex 自带" } | Select-Object -First 1).Path
+
+    # 默认使用版本号最大的 Node.js（其目录加入 PATH，使 node/npm 命令可直接使用）
+    $nodeExe = if ($maxNode) { $maxNode.Path } else { $allNodes[0].Path }
+    $nodeBinDir = Split-Path $nodeExe -Parent
+    if ($env:PATH -notlike "*$nodeBinDir*") {
+        $env:PATH = "$nodeBinDir;$env:PATH"
     }
 
+    $nodeVersion = & $nodeExe -v
     $major = [int]($nodeVersion -replace 'v', '').Split('.')[0]
 
     if ($major -lt $NodeMinVersion) {
         Write-Err "Node.js 版本过低: $nodeVersion，需要 >= v$NodeMinVersion"
+        Write-Info "可尝试改用列表中其他版本的 Node.js，或升级当前版本"
         exit 1
     }
 
-    if ($nodeExe) {
-        Write-OK "Node.js $nodeVersion (${nodeSource}: $nodeExe)"
-    } else {
-        Write-OK "Node.js $nodeVersion ($((Get-Command node).Source))"
-    }
+    Write-OK "使用 Node.js $nodeVersion ($nodeExe)"
 
     $npmCmd = Get-Command npm -ErrorAction SilentlyContinue
     if (-not $npmCmd) {
