@@ -44,10 +44,10 @@
 
 ```powershell
 # 下载安装脚本
-Invoke-WebRequest -Uri "https://gitee.com/areyi2014/ip-switch/raw/main/install.ps1" -OutFile "$env:TEMP\install-cloud-ip-rotator.ps1"
+Invoke-WebRequest -Uri "https://gitee.com/areyi2014/ip-switch/raw/main/install.ps1" -OutFile "$env:TEMP\install-ip-switch.ps1"
 
 # 运行（必须在 PowerShell 中执行；cmd 中不支持 & 语法）
-& "$env:TEMP\install-cloud-ip-rotator.ps1"
+& "$env:TEMP\install-ip-switch.ps1"
 ```
 
 > **注意**:
@@ -55,7 +55,7 @@ Invoke-WebRequest -Uri "https://gitee.com/areyi2014/ip-switch/raw/main/install.p
 > - `& "$env:TEMP\..."` 是 PowerShell 语法，必须在 PowerShell 窗口执行，不能在 cmd 中运行。
 > - 如在 cmd 或其他环境，可用以下命令（不依赖 `&`，也自动绕过执行策略限制）：
 > ```
-> powershell -ExecutionPolicy Bypass -File "%TEMP%\install-cloud-ip-rotator.ps1"
+> powershell -ExecutionPolicy Bypass -File "%TEMP%\install-ip-switch.ps1"
 > ```
 
 ### macOS / Ubuntu
@@ -71,10 +71,10 @@ bash <(curl -fsSL https://gitee.com/areyi2014/ip-switch/raw/main/install.sh)
 
 ```bash
 # 下载安装脚本
-curl -fsSL https://gitee.com/areyi2014/ip-switch/raw/main/install.sh -o install-cloud-ip-rotator.sh
+curl -fsSL https://gitee.com/areyi2014/ip-switch/raw/main/install.sh -o install-ip-switch.sh
 
 # 运行
-bash install-cloud-ip-rotator.sh
+bash install-ip-switch.sh
 ```
 
 ### 脚本自动完成的内容
@@ -94,20 +94,20 @@ bash install-cloud-ip-rotator.sh
 Windows PowerShell：
 
 ```powershell
-& "$env:TEMP\install-cloud-ip-rotator.ps1" -InstallDir "D:\tools\ip-switch"
-& "$env:TEMP\install-cloud-ip-rotator.ps1" -RepoUrl "https://gitee.com/areyi2014/ip-switch.git"
-& "$env:TEMP\install-cloud-ip-rotator.ps1" -Branch develop
-& "$env:TEMP\install-cloud-ip-rotator.ps1" -SkipBuild
-& "$env:TEMP\install-cloud-ip-rotator.ps1" -Help
+& "$env:TEMP\install-ip-switch.ps1" -InstallDir "D:\tools\ip-switch"
+& "$env:TEMP\install-ip-switch.ps1" -RepoUrl "https://gitee.com/areyi2014/ip-switch.git"
+& "$env:TEMP\install-ip-switch.ps1" -Branch develop
+& "$env:TEMP\install-ip-switch.ps1" -SkipBuild
+& "$env:TEMP\install-ip-switch.ps1" -Help
 ```
 
 macOS / Ubuntu：
 
 ```bash
-bash install-cloud-ip-rotator.sh --install-dir /opt/ip-switch
-bash install-cloud-ip-rotator.sh --repo-url https://gitee.com/areyi2014/ip-switch.git
-bash install-cloud-ip-rotator.sh --branch develop
-bash install-cloud-ip-rotator.sh --skip-build
+bash install-ip-switch.sh --install-dir /opt/ip-switch
+bash install-ip-switch.sh --repo-url https://gitee.com/areyi2014/ip-switch.git
+bash install-ip-switch.sh --branch develop
+bash install-ip-switch.sh --skip-build
 ```
 
 ---

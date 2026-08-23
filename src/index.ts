@@ -16,7 +16,7 @@
  *   2. 在 AI Agent 的 MCP 配置中添加：
  *      {
  *        "mcpServers": {
- *          "cloud-ip-rotator": {
+ *          "ip-switch": {
  *            "command": "node",
  *            "args": ["/path/to/ip-switch/dist/index.js"]
  *          }
@@ -31,7 +31,7 @@ import { registerTools } from './tools.js';
 import { getSupportedProviders } from './router.js';
 
 const server = new McpServer({
-  name: 'cloud-ip-rotator',
+  name: 'ip-switch',
   version: '1.0.0',
 });
 
@@ -41,15 +41,15 @@ registerTools(server);
 // 启动服务
 async function main() {
   const providers = getSupportedProviders().join(', ');
-  console.error(`[cloud-ip-rotator] Starting MCP server (providers: ${providers})`);
+  console.error(`[ip-switch] Starting MCP server (providers: ${providers})`);
 
   const transport = new StdioServerTransport();
   await server.connect(transport);
 
-  console.error('[cloud-ip-rotator] MCP server ready');
+  console.error('[ip-switch] MCP server ready');
 }
 
 main().catch((err) => {
-  console.error('[cloud-ip-rotator] Fatal error:', err);
+  console.error('[ip-switch] Fatal error:', err);
   process.exit(1);
 });

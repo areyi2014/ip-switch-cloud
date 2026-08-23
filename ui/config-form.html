@@ -593,7 +593,7 @@ function fallbackSubmit(text, json, c) {
   // iframe postMessage
   if (window.parent !== window) {
     window.parent.postMessage({
-      type: 'cloud-ip-rotator-config',
+      type: 'ip-switch-config',
       text: text,
       json: json,
       config: c,

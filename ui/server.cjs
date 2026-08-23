@@ -5,7 +5,7 @@
  * GET  /api/config                            → returns current config.json
  * GET  /                                      → serves static files from ui/
  *
- * Config file: ~/.cloud-ip-rotator/config.json
+ * Config file: ~/.ip-switch/config.json
  */
 const http = require('http');
 const fs = require('fs');
@@ -14,7 +14,7 @@ const os = require('os');
 
 const PORT = 0; // 0 = 由系统自动分配空闲端口
 const UI_DIR = __dirname;
-const CONFIG_DIR = path.join(os.homedir(), '.cloud-ip-rotator');
+const CONFIG_DIR = path.join(os.homedir(), '.ip-switch');
 const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json');
 
 const MIME = {

@@ -16,15 +16,15 @@
 
 ```powershell
 # 下载安装脚本
-Invoke-WebRequest -Uri "https://gitee.com/areyi2014/ip-switch/raw/main/install.ps1" -OutFile "$env:TEMP\install-cloud-ip-rotator.ps1"
+Invoke-WebRequest -Uri "https://gitee.com/areyi2014/ip-switch/raw/main/install.ps1" -OutFile "$env:TEMP\install-ip-switch.ps1"
 
 # 运行（必须在 PowerShell 中执行；cmd 中不支持 & 语法）
-& "$env:TEMP\install-cloud-ip-rotator.ps1"
+& "$env:TEMP\install-ip-switch.ps1"
 ```
 
 > **提示**: 如在 cmd 或其他环境，可用以下命令（不依赖 `&`，也自动绕过执行策略限制）：
 > ```
-> powershell -ExecutionPolicy Bypass -File "%TEMP%\install-cloud-ip-rotator.ps1"
+> powershell -ExecutionPolicy Bypass -File "%TEMP%\install-ip-switch.ps1"
 > ```
 
 **macOS / Ubuntu**：
@@ -33,10 +33,10 @@ Invoke-WebRequest -Uri "https://gitee.com/areyi2014/ip-switch/raw/main/install.p
 
 ```bash
 # 下载安装脚本
-curl -fsSL https://gitee.com/areyi2014/ip-switch/raw/main/install.sh -o install-cloud-ip-rotator.sh
+curl -fsSL https://gitee.com/areyi2014/ip-switch/raw/main/install.sh -o install-ip-switch.sh
 
 # 运行
-bash install-cloud-ip-rotator.sh
+bash install-ip-switch.sh
 ```
 
 脚本自动完成：检查环境（缺 git 自动安装）→ 克隆仓库 → 安装依赖 → 编译 → 写入 MCP 配置。详细安装说明见下文。
@@ -87,10 +87,10 @@ bash install-cloud-ip-rotator.sh
 
 ```bash
 # 下载安装脚本
-curl -fsSL https://gitee.com/areyi2014/ip-switch/raw/main/install.sh -o install-cloud-ip-rotator.sh
+curl -fsSL https://gitee.com/areyi2014/ip-switch/raw/main/install.sh -o install-ip-switch.sh
 
 # 运行（需要网络连接）
-bash install-cloud-ip-rotator.sh
+bash install-ip-switch.sh
 ```
 
 **自定义参数：**
@@ -99,16 +99,16 @@ bash install-cloud-ip-rotator.sh
 
 ```bash
 # 指定安装目录
-bash install-cloud-ip-rotator.sh --install-dir /opt/ip-switch
+bash install-ip-switch.sh --install-dir /opt/ip-switch
 
 # 使用 GitHub 镜像
-bash install-cloud-ip-rotator.sh --repo-url https://gitee.com/areyi2014/ip-switch.git
+bash install-ip-switch.sh --repo-url https://gitee.com/areyi2014/ip-switch.git
 
 # 指定分支
-bash install-cloud-ip-rotator.sh --branch develop
+bash install-ip-switch.sh --branch develop
 
 # 仅下载不编译
-bash install-cloud-ip-rotator.sh --skip-build
+bash install-ip-switch.sh --skip-build
 ```
 
 脚本会依次完成：
@@ -128,10 +128,10 @@ bash install-cloud-ip-rotator.sh --skip-build
 Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
 
 # 下载安装脚本
-Invoke-WebRequest -Uri "https://gitee.com/areyi2014/ip-switch/raw/main/install.ps1" -OutFile "$env:TEMP\install-cloud-ip-rotator.ps1"
+Invoke-WebRequest -Uri "https://gitee.com/areyi2014/ip-switch/raw/main/install.ps1" -OutFile "$env:TEMP\install-ip-switch.ps1"
 
 # 运行
-& "$env:TEMP\install-cloud-ip-rotator.ps1"
+& "$env:TEMP\install-ip-switch.ps1"
 ```
 
 **自定义参数：**
@@ -139,8 +139,8 @@ Invoke-WebRequest -Uri "https://gitee.com/areyi2014/ip-switch/raw/main/install.p
 > **执行环境：PowerShell**
 
 ```powershell
-& "$env:TEMP\install-cloud-ip-rotator.ps1" -InstallDir "D:\tools\ip-switch"
-& "$env:TEMP\install-cloud-ip-rotator.ps1" -RepoUrl "https://gitee.com/areyi2014/ip-switch.git"
+& "$env:TEMP\install-ip-switch.ps1" -InstallDir "D:\tools\ip-switch"
+& "$env:TEMP\install-ip-switch.ps1" -RepoUrl "https://gitee.com/areyi2014/ip-switch.git"
 ```
 
 > **注意**: 如遇 `无法加载文件，因为在此系统上禁止运行脚本` 错误，请先执行 `Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned`。
