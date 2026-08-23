@@ -535,7 +535,7 @@ try {
   config = {};
 }
 config.mcpServers = config.mcpServers || {};
-config.mcpServers['cloud-ip-rotator'] = entry;
+config.mcpServers['ip-switch'] = entry;
 fs.writeFileSync(target, JSON.stringify(config, null, 2) + '\n', 'utf8');
 '@
 
@@ -563,7 +563,7 @@ function Generate-MCPConfig {
     $configJson = @"
 {
   "mcpServers": {
-    "cloud-ip-rotator": {
+    "ip-switch": {
       "command": "$wbNodeExeEscaped",
       "args": ["$distJsEscaped"]
     }
@@ -581,7 +581,7 @@ function Generate-MCPConfig {
         }
         Write-MCPConfig -PlatformDir $wbDir -NodeExe $wbNodeExe -DistJs $distJs
         Write-OK "已写入 MCP 配置: $wbDir\mcp.json"
-        Write-Info "WorkBuddy 连接器管理页面点击「信任」cloud-ip-rotator 即可使用"
+        Write-Info "WorkBuddy 连接器管理页面点击「信任」ip-switch 即可使用"
         $written = $true
     }
 

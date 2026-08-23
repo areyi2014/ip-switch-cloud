@@ -410,7 +410,7 @@ try {
   config = {};
 }
 config.mcpServers = config.mcpServers || {};
-config.mcpServers["cloud-ip-rotator"] = entry;
+config.mcpServers["ip-switch"] = entry;
 fs.writeFileSync(target, JSON.stringify(config, null, 2) + "\n", "utf8");
 ' "$target_path" "$node_exe" "$dist_js" || {
         log_error "写入 MCP 配置失败: ${target_path}"
@@ -441,7 +441,7 @@ generate_mcp_config() {
     if $DETECTED_WB; then
         write_mcp_config_file "$HOME/.workbuddy" "$wb_node" "$dist_js"
         log_ok "已写入 MCP 配置: ~/.workbuddy/mcp.json"
-        log_info "WorkBuddy 连接器管理页面点击「信任」cloud-ip-rotator 即可使用"
+        log_info "WorkBuddy 连接器管理页面点击「信任」ip-switch 即可使用"
         written=true
     fi
 
@@ -457,7 +457,7 @@ generate_mcp_config() {
         json_content=$(cat <<EOF_CONFIG
 {
   "mcpServers": {
-    "cloud-ip-rotator": {
+    "ip-switch": {
       "command": "${wb_node}",
       "args": ["${dist_js}"]
     }
@@ -521,7 +521,7 @@ ${YELLOW}手动更新:${NC}
 
 ${YELLOW}卸载:${NC}
   rm -rf ${INSTALL_DIR}
-  rm -rf ~/.cloud-ip-rotator
+  rm -rf ~/.ip-switch
 
 EOF
 }
