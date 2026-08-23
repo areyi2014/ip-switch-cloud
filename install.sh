@@ -51,6 +51,32 @@ detect_os() {
     log_ok "检测到操作系统: ${OS}"
 }
 
+# ── 查找 WorkBuddy/CodeBuddy 自带 Node.js ─────────────────────────────────────
+find_workbuddy_node() {
+    # 优先使用 CodeBuddy 注入的环境变量（运行时自动指向最新版本）
+    if [ -n "${CODEBUDDY_NODE_BIN:-}" ] && [ -x "$CODEBUDDY_NODE_BIN" ]; then
+        echo "$CODEBUDDY_NODE_BIN"
+        return 0
+    fi
+
+    local versions_root="$HOME/.workbuddy/binaries/node/versions"
+    [ -d "$versions_root" ] || return 1
+
+    # 取版本号最大的目录（sort -V 按版本排序，取最后一个）
+    local latest
+    latest=$(ls -1 "$versions_root" 2>/dev/null | sort -V 2>/dev/null | tail -1)
+    [ -n "$latest" ] || return 1
+
+    # Unix 布局: bin/node；部分版本直接放在版本目录下
+    for f in "$versions_root/$latest/bin/node" "$versions_root/$latest/node"; do
+        if [ -x "$f" ]; then
+            echo "$f"
+            return 0
+        fi
+    done
+    return 1
+}
+
 # ── 查找 Codex 自带 Node.js ─────────────────────────────────────────────────
 find_codex_node() {
     local codex_node
@@ -73,17 +99,20 @@ find_codex_node() {
 check_node() {
     log_step "检查 Node.js 环境"
 
-    # 优先使用 Codex 自带 Node.js（用户机器可能只装了 Codex，没有独立 Node）
-    local codex_node
+    # 优先级：WorkBuddy 自带 Node.js > Codex 自带 Node.js > 系统 Node
+    # （用户机器可能只装了 IDE，没有独立 Node）
+    local wb_node codex_node
+    wb_node=$(find_workbuddy_node) || wb_node=""
     codex_node=$(find_codex_node) || codex_node=""
 
-    if [ -n "$codex_node" ]; then
+    local node_exe=""
+    if [ -n "$wb_node" ]; then
+        log_ok "检测到 WorkBuddy 自带 Node.js: ${wb_node}"
+        node_exe="$wb_node"
+    elif [ -n "$codex_node" ]; then
         log_ok "检测到 Codex 自带 Node.js: ${codex_node}"
-        # 将 Codex node 的 bin 目录加入 PATH，使 node/npm 命令可直接使用
-        export PATH="$(dirname "$codex_node"):${PATH}"
-        CODEX_NODE_EXE="$codex_node"
+        node_exe="$codex_node"
     else
-        CODEX_NODE_EXE=""
         if ! command -v node &>/dev/null; then
             log_error "未检测到 Node.js，请先安装 Node.js >= ${NODE_MIN_VERSION}"
             log_info  "安装方式:"
@@ -93,6 +122,13 @@ check_node() {
             exit 1
         fi
     fi
+
+    # 将自带 node 的目录加入 PATH，使 node/npm 命令可直接使用
+    if [ -n "$node_exe" ]; then
+        export PATH="$(dirname "$node_exe"):${PATH}"
+    fi
+    WB_NODE_EXE="$wb_node"
+    CODEX_NODE_EXE="$codex_node"
 
     local node_version
     node_version=$(node -v | sed 's/v//')
@@ -104,7 +140,7 @@ check_node() {
         exit 1
     fi
 
-    NODE_PATH="${CODEX_NODE_EXE:-$(command -v node)}"
+    NODE_PATH="${node_exe:-$(command -v node)}"
     log_ok "Node.js v${node_version} ($NODE_PATH)"
 
     if ! command -v npm &>/dev/null; then
@@ -386,33 +422,31 @@ fs.writeFileSync(target, JSON.stringify(config, null, 2) + "\n", "utf8");
 generate_mcp_config() {
     log_step "生成 MCP 配置"
 
-    local node_exe
-    if [ -n "${CODEX_NODE_EXE:-}" ]; then
-        # 优先使用 Codex 自带 Node.js（MCP 配置 command 指向 Codex runtime 的 node）
-        node_exe="$CODEX_NODE_EXE"
-    else
-        node_exe=$(command -v node)
-        if [ -z "$node_exe" ]; then
-            # 尝试常见路径
-            for p in /usr/local/bin/node /opt/homebrew/bin/node /usr/bin/node; do
-                if [ -x "$p" ]; then node_exe="$p"; break; fi
-            done
-        fi
+    # 各平台优先使用其自带 Node.js（用户可能只装了 IDE，没有独立 Node）
+    local default_node wb_node codex_node
+    default_node=$(command -v node)
+    if [ -z "$default_node" ]; then
+        # 尝试常见路径
+        for p in /usr/local/bin/node /opt/homebrew/bin/node /usr/bin/node; do
+            if [ -x "$p" ]; then default_node="$p"; break; fi
+        done
     fi
+    wb_node="${WB_NODE_EXE:-$default_node}"
+    codex_node="${CODEX_NODE_EXE:-$default_node}"
 
     local dist_js="${INSTALL_DIR}/dist/index.js"
     local written=false
 
-    # 直接写入对应平台的 mcp.json
+    # 直接写入对应平台的 mcp.json（各自优先用自带 Node.js）
     if $DETECTED_WB; then
-        write_mcp_config_file "$HOME/.workbuddy" "$node_exe" "$dist_js"
+        write_mcp_config_file "$HOME/.workbuddy" "$wb_node" "$dist_js"
         log_ok "已写入 MCP 配置: ~/.workbuddy/mcp.json"
         log_info "WorkBuddy 连接器管理页面点击「信任」cloud-ip-rotator 即可使用"
         written=true
     fi
 
     if $DETECTED_CODEX; then
-        write_mcp_config_file "$HOME/.codex" "$node_exe" "$dist_js"
+        write_mcp_config_file "$HOME/.codex" "$codex_node" "$dist_js"
         log_ok "已写入 MCP 配置: ~/.codex/mcp.json"
         log_info "重启 Codex 使配置生效"
         written=true
@@ -424,7 +458,7 @@ generate_mcp_config() {
 {
   "mcpServers": {
     "cloud-ip-rotator": {
-      "command": "${node_exe}",
+      "command": "${wb_node}",
       "args": ["${dist_js}"]
     }
   }
