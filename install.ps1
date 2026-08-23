@@ -94,19 +94,28 @@ function Get-AllNodeExes {
     # 1. WorkBuddy 自带
     $wb = Get-WorkBuddyNodeExe
     if ($wb) {
-        $nodes += [pscustomobject]@{ Source = "WorkBuddy 自带"; Path = $wb }
+        $nodes += [pscustomobject]@{
+            Source = "WorkBuddy 自带"
+            Path   = $wb
+        }
     }
 
     # 2. Codex 自带
     $codex = Get-CodexNodeExe
     if ($codex) {
-        $nodes += [pscustomobject]@{ Source = "Codex 自带"; Path = $codex }
+        $nodes += [pscustomobject]@{
+            Source = "Codex 自带"
+            Path   = $codex
+        }
     }
 
     # 3. 系统 PATH 中的 node
     $sys = Get-Command node -ErrorAction SilentlyContinue
     if ($sys -and $sys.Source) {
-        $nodes += [pscustomobject]@{ Source = "系统 PATH"; Path = $sys.Source }
+        $nodes += [pscustomobject]@{
+            Source = "系统 PATH"
+            Path   = $sys.Source
+        }
     }
 
     # 去重（同一路径可能被多种来源命中）
@@ -168,8 +177,8 @@ function Check-Node {
     $script:WBNodeExe = ($allNodes | Where-Object { $_.Source -eq "WorkBuddy 自带" } | Select-Object -First 1).Path
     $script:CodexNodeExe = ($allNodes | Where-Object { $_.Source -eq "Codex 自带" } | Select-Object -First 1).Path
 
-    # 默认使用版本号最大的 Node.js（其目录加入 PATH，使 node/npm 命令可直接使用）
-    $nodeExe = if ($maxNode) { $maxNode.Path } else { $allNodes[0].Path }
+    # 默认使用"版本号最大"的 Node.js
+    $nodeExe = $maxNode.Path
     $nodeBinDir = Split-Path $nodeExe -Parent
     if ($env:PATH -notlike "*$nodeBinDir*") {
         $env:PATH = "$nodeBinDir;$env:PATH"
@@ -185,13 +194,6 @@ function Check-Node {
     }
 
     Write-OK "使用 Node.js $nodeVersion ($nodeExe)"
-
-    $npmCmd = Get-Command npm -ErrorAction SilentlyContinue
-    if (-not $npmCmd) {
-        Write-Err "未检测到 npm"
-        exit 1
-    }
-    Write-OK "npm $(& npm --version) ($($npmCmd.Source))"
 }
 
 # -- 检查 git -----------------------------------------------------------------
