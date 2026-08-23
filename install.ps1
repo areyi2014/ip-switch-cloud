@@ -47,6 +47,28 @@ function Write-OK($msg)    { Write-Host "[ OK ]  $msg" -ForegroundColor Green }
 function Write-Warn($msg)  { Write-Host "[WARN]  $msg" -ForegroundColor Yellow }
 function Write-Err($msg)   { Write-Host "[ERROR] $msg" -ForegroundColor Red }
 
+# -- 查找 WorkBuddy/CodeBuddy 自带 Node.js -------------------------------------
+function Get-WorkBuddyNodeExe {
+    # 优先使用 CodeBuddy 注入的环境变量（运行时自动指向最新版本）
+    if ($env:CODEBUDDY_NODE_BIN -and (Test-Path $env:CODEBUDDY_NODE_BIN)) {
+        return $env:CODEBUDDY_NODE_BIN
+    }
+
+    # 兜底: 扫描 ~/.workbuddy/binaries/node/versions/<版本>/node.exe
+    $versionsDir = "$env:USERPROFILE\.workbuddy\binaries\node\versions"
+    if (-not (Test-Path $versionsDir)) { return $null }
+
+    # 按修改时间取最新版本目录
+    $versions = Get-ChildItem -Path $versionsDir -Directory -ErrorAction SilentlyContinue |
+        Sort-Object LastWriteTime -Descending
+
+    foreach ($v in $versions) {
+        $nodeExe = Join-Path $v.FullName "node.exe"
+        if (Test-Path $nodeExe) { return $nodeExe }
+    }
+    return $null
+}
+
 # -- 查找 Codex 自带 Node.js --------------------------------------------------
 function Get-CodexNodeExe {
     $cacheRoot = "$env:USERPROFILE\.cache\codex-runtimes"
@@ -69,19 +91,23 @@ function Get-CodexNodeExe {
 function Check-Node {
     Write-Step "检查 Node.js 环境"
 
-    # 优先使用 Codex 自带 Node.js（用户机器可能只装了 Codex，没有独立 Node）
-    $codexNode = Get-CodexNodeExe
-    if ($codexNode) {
-        Write-OK "检测到 Codex 自带 Node.js: $codexNode"
-        $script:CodexNodeExe = $codexNode
-        # 将 Codex node 的 bin 目录加入 PATH，使 node/npm 命令可直接使用
-        $codexBinDir = Split-Path $codexNode -Parent
-        if ($env:PATH -notlike "*$codexBinDir*") {
-            $env:PATH = "$codexBinDir;$env:PATH"
-        }
-        $nodeVersion = & $codexNode -v
+    # 优先级：WorkBuddy 自带 Node.js > Codex 自带 Node.js > 系统 Node
+    # （用户机器可能只装了 IDE，没有独立 Node）
+    $script:WBNodeExe    = Get-WorkBuddyNodeExe
+    $script:CodexNodeExe = Get-CodexNodeExe
+
+    $nodeExe = $null
+    $nodeSource = "系统"
+
+    if ($script:WBNodeExe) {
+        Write-OK "检测到 WorkBuddy 自带 Node.js: $($script:WBNodeExe)"
+        $nodeExe = $script:WBNodeExe
+        $nodeSource = "WorkBuddy"
+    } elseif ($script:CodexNodeExe) {
+        Write-OK "检测到 Codex 自带 Node.js: $($script:CodexNodeExe)"
+        $nodeExe = $script:CodexNodeExe
+        $nodeSource = "Codex"
     } else {
-        $script:CodexNodeExe = $null
         $nodeCmd = Get-Command node -ErrorAction SilentlyContinue
         if (-not $nodeCmd) {
             Write-Err "未检测到 Node.js，请先安装 Node.js >= $NodeMinVersion"
@@ -89,6 +115,16 @@ function Check-Node {
             Write-Info "推荐安装 Node.js 22 LTS 版本"
             exit 1
         }
+    }
+
+    # 将自带 node 的目录加入 PATH，使 node/npm 命令可直接使用
+    if ($nodeExe) {
+        $nodeBinDir = Split-Path $nodeExe -Parent
+        if ($env:PATH -notlike "*$nodeBinDir*") {
+            $env:PATH = "$nodeBinDir;$env:PATH"
+        }
+        $nodeVersion = & $nodeExe -v
+    } else {
         $nodeVersion = node -v
     }
 
@@ -99,8 +135,8 @@ function Check-Node {
         exit 1
     }
 
-    if ($script:CodexNodeExe) {
-        Write-OK "Node.js $nodeVersion ($script:CodexNodeExe)"
+    if ($nodeExe) {
+        Write-OK "Node.js $nodeVersion (${nodeSource}: $nodeExe)"
     } else {
         Write-OK "Node.js $nodeVersion ($((Get-Command node).Source))"
     }
@@ -514,19 +550,21 @@ fs.writeFileSync(target, JSON.stringify(config, null, 2) + '\n', 'utf8');
 function Generate-MCPConfig {
     Write-Step "生成 MCP 配置"
 
-    # 优先使用 Codex 自带 Node.js（MCP 配置 command 指向 Codex runtime 的 node）
-    $nodeExe = if ($script:CodexNodeExe) { $script:CodexNodeExe } else { (Get-Command node).Source }
+    # 各平台优先使用其自带 Node.js（用户可能只装了 IDE，没有独立 Node）
+    $defaultNode = (Get-Command node).Source
+    $wbNodeExe    = if ($script:WBNodeExe)    { $script:WBNodeExe }    else { $defaultNode }
+    $codexNodeExe = if ($script:CodexNodeExe) { $script:CodexNodeExe } else { $defaultNode }
     $distJs  = "$InstallDir\dist\index.js"
 
     # Windows 路径在 JSON 中需将反斜杠转义为 \\（仅用于终端提示展示）
-    $nodeExeEscaped = $nodeExe.Replace('\', '\\')
+    $wbNodeExeEscaped = $wbNodeExe.Replace('\', '\\')
     $distJsEscaped  = $distJs.Replace('\', '\\')
 
     $configJson = @"
 {
   "mcpServers": {
     "cloud-ip-rotator": {
-      "command": "$nodeExeEscaped",
+      "command": "$wbNodeExeEscaped",
       "args": ["$distJsEscaped"]
     }
   }
@@ -535,13 +573,13 @@ function Generate-MCPConfig {
 
     $written = $false
 
-    # 直接写入对应平台的 mcp.json
+    # 直接写入对应平台的 mcp.json（各自优先用自带 Node.js）
     if ($script:DetectedWB) {
         $wbDir = "$env:USERPROFILE\.workbuddy"
         if (-not (Test-Path $wbDir)) {
             New-Item -ItemType Directory -Path $wbDir -Force | Out-Null
         }
-        Write-MCPConfig -PlatformDir $wbDir -NodeExe $nodeExe -DistJs $distJs
+        Write-MCPConfig -PlatformDir $wbDir -NodeExe $wbNodeExe -DistJs $distJs
         Write-OK "已写入 MCP 配置: $wbDir\mcp.json"
         Write-Info "WorkBuddy 连接器管理页面点击「信任」cloud-ip-rotator 即可使用"
         $written = $true
@@ -552,7 +590,7 @@ function Generate-MCPConfig {
         if (-not (Test-Path $codexDir)) {
             New-Item -ItemType Directory -Path $codexDir -Force | Out-Null
         }
-        Write-MCPConfig -PlatformDir $codexDir -NodeExe $nodeExe -DistJs $distJs
+        Write-MCPConfig -PlatformDir $codexDir -NodeExe $codexNodeExe -DistJs $distJs
         Write-OK "已写入 MCP 配置: $codexDir\mcp.json"
         Write-Info "重启 Codex 使配置生效"
         $written = $true

@@ -224,6 +224,13 @@ dir dist\index.js
 
 ### WorkBuddy
 
+一键脚本检测到 `~/.workbuddy` 目录时会自动写入 `~/.workbuddy/mcp.json`。**WorkBuddy 自带 Node.js**，脚本优先将 `command` 指向它（无需单独安装 Node.js）：
+
+```
+Windows:     C:\Users\<用户名>\.workbuddy\binaries\node\versions\22.22.2\node.exe
+macOS/Linux: ~/.workbuddy/binaries/node/versions/<版本>/bin/node
+```
+
 打开 WorkBuddy **连接器管理页面**，在「自定义连接器」区域找到 `ip-switch`，点击 **「信任」** 即可在对话中使用。
 
 如未自动写入，可手动编辑 `~/.workbuddy/mcp.json`（如文件不存在则创建）：
@@ -232,17 +239,25 @@ dir dist\index.js
 {
   "mcpServers": {
     "ip-switch": {
-      "command": "/usr/local/bin/node",
-      "args": ["/Users/你的用户名/ip-switch/dist/index.js"]
+      "command": "C:\\Users\\你的用户名\\.workbuddy\\binaries\\node\\versions\\22.22.2\\node.exe",
+      "args": ["C:\\Users\\你的用户名\\ip-switch\\dist\\index.js"]
     }
   }
 }
 ```
 
 > **路径说明**:
-> - `command`: Node.js 可执行文件的完整路径（通过 `which node` 获取；**Codex 环境优先使用 Codex 自带的 Node.js**，见下方 Codex 小节）
+> - `command`: Node.js 可执行文件的完整路径（**WorkBuddy 环境优先使用 WorkBuddy 自带的 Node.js**；安装脚本还会自动检测 Codex 自带的 Node.js，见下方 Codex 小节）
 > - `args[0]`: `dist/index.js` 的完整绝对路径
 > - Windows 路径中使用双反斜杠 `\\` 转义
+> - **注意**: WorkBuddy 自带 Node.js 的版本号目录可能随更新变化，若路径失效，可用以下命令找到实际路径：
+> ```bash
+> # Windows PowerShell（版本目录会随更新变化）
+> Get-ChildItem "$env:USERPROFILE\.workbuddy\binaries\node\versions" -Recurse -Filter node.exe | Select-Object -ExpandProperty FullName
+>
+> # macOS / Linux
+> find ~/.workbuddy/binaries/node/versions -name node -type f
+> ```
 
 ### Codex
 
