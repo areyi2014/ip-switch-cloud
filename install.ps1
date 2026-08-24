@@ -632,17 +632,6 @@ function Generate-MCPConfig {
         $written = $true
     }
 
-    if ($script:DetectedCodex) {
-        $codexDir = "$env:USERPROFILE\.codex"
-        if (-not (Test-Path $codexDir)) {
-            New-Item -ItemType Directory -Path $codexDir -Force | Out-Null
-        }
-        Write-MCPConfig -PlatformDir $codexDir -NodeExe $codexNodeExe -DistJs $distJs
-        Write-OK "已写入 MCP 配置: $codexDir\mcp.json"
-        Write-Info "重启 Codex 使配置生效"
-        $written = $true
-    }
-
     if (-not $written) {
         Write-Warn "未检测到 WorkBuddy 或 Codex 平台目录"
         Write-Host ""
@@ -697,6 +686,15 @@ function Install-CodexPlugin {
     $pluginDir = "$srcDir\plugins\ip-switch"
     $targetDir = "$env:USERPROFILE\.codex\plugins\ip-switch"
 
+    # 拷贝外层 UI 到插件目录（插件自包含，UI 跟随安装）
+    if (Test-Path "$srcDir\ui") {
+        Write-Info "复制 ui 到插件目录..."
+        if (Test-Path "$pluginDir\ui") {
+            Remove-Item "$pluginDir\ui" -Recurse -Force
+        }
+        Copy-Item -Recurse -Force "$srcDir\ui" "$pluginDir\ui"
+    }
+
     New-Item -ItemType Directory -Path "$env:USERPROFILE\.codex\plugins" -Force | Out-Null
 
     # 目标已存在则整体替换（避免残留旧文件）
@@ -720,6 +718,8 @@ function Install-CodexPlugin {
 
 # -- 安装完成后提示 ----------------------------------------------------------
 function Show-Success {
+    $targetDir = "$env:USERPROFILE\.codex\plugins\ip-switch"
+
     if ($script:DetectedWB -and $script:DetectedCodex) {
         $mcpHint = "  # 通过 MCP 工具使用（在 WorkBuddy/Codex 中直接对话即可）"
     } elseif ($script:DetectedWB) {
@@ -739,14 +739,14 @@ function Show-Success {
 "@
     Write-Host $successBanner -ForegroundColor Green
 
-    Write-Host "源代码路径:   $srcDir"
-    Write-Host "UI 服务器:  node $srcDir\ui\server.cjs"
+    Write-Host "插件安装路径: $targetDir"
+    Write-Host "UI 服务器:  node $targetDir\ui\server.cjs"
     Write-Host "UI 地址:    启动后终端会显示实际地址"
     Write-Host ""
 
     Write-Host "使用方式:" -ForegroundColor Yellow
     Write-Host "  # 启动 UI 配置服务器（可选）"
-    Write-Host "  node $srcDir\ui\server.cjs"
+    Write-Host "  node $targetDir\ui\server.cjs"
     Write-Host ""
     Write-Host "  # 浏览器打开配置页面（地址见服务器启动输出）"
     Write-Host "  start http://127.0.0.1:端口号"
@@ -758,11 +758,11 @@ function Show-Success {
     Write-Host ""
 
     Write-Host "手动更新:" -ForegroundColor Yellow
-    Write-Host "  cd $srcDir; git pull; npm install; npm run build"
+    Write-Host "  cd $targetDir; git pull; npm install; npm run build"
     Write-Host ""
 
     Write-Host "卸载:" -ForegroundColor Yellow
-    Write-Host "  Remove-Item -Recurse -Force $srcDir"
+    Write-Host "  Remove-Item -Recurse -Force $targetDir"
     Write-Host ""
 }
 
@@ -782,7 +782,9 @@ function Main {
     if (-not $SkipBuild) {
         Build-Project
     }
-    Generate-MCPConfig
+    if ($script:DetectedWB) {
+        Generate-MCPConfig
+    }
     if ($script:DetectedCodex) {
         Build-CodexPlugin
         Install-CodexPlugin
