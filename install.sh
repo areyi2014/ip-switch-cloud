@@ -546,6 +546,13 @@ install_codex_plugin() {
     local plugin_dir="$srcDir/plugins/ip-switch"
     local target_dir="$HOME/.codex/plugins/ip-switch"
 
+    # 拷贝外层 UI 到插件目录（插件自包含，UI 跟随安装）
+    if [ -d "$srcDir/ui" ]; then
+        log_info "复制 ui 到插件目录..."
+        rm -rf "$plugin_dir/ui"
+        cp -r "$srcDir/ui" "$plugin_dir/ui"
+    fi
+
     mkdir -p "$HOME/.codex/plugins"
 
     # 目标已存在则整体替换（避免残留旧文件）
@@ -569,6 +576,7 @@ install_codex_plugin() {
 
 # ── 安装完成后提示 ───────────────────────────────────────────────────────────
 print_success() {
+    local target_dir="$HOME/.codex/plugins/ip-switch"
     local browser_cmd
     if [ "$OS" = "macos" ]; then
         browser_cmd="open [启动服务器后显示的地址]"
@@ -593,13 +601,13 @@ ${GREEN}╔═══════════════════════
 ║          ip-switch 安装成功!                  ║
 ╚══════════════════════════════════════════════════════════╝${NC}
 
-项目路径:   ${srcDir}
-UI 服务器:  node ${srcDir}/ui/server.cjs
+插件安装路径: ${target_dir}
+UI 服务器:  node ${target_dir}/ui/server.cjs
 UI 地址:    启动后终端会显示实际地址
 
 ${YELLOW}使用方式:${NC}
   # 启动 UI 配置服务器（可选）
-  node ${srcDir}/ui/server.cjs
+  node ${target_dir}/ui/server.cjs
 
   # 浏览器打开配置页面
   ${browser_cmd}
@@ -610,10 +618,10 @@ ${mcp_hint}
   - 添加配置:   "我要添加一个 AWS 配置"
 
 ${YELLOW}手动更新:${NC}
-  cd ${srcDir} && git pull && npm install && npm run build
+  cd ${target_dir} && git pull && npm install && npm run build
 
 ${YELLOW}卸载:${NC}
-  rm -rf ${srcDir}
+  rm -rf ${target_dir}
   rm -rf ~/.ip-switch
 
 EOF
@@ -634,7 +642,9 @@ main() {
     clone_repo
     install_deps
     build_project
-    generate_mcp_config
+    if $DETECTED_WB; then
+        generate_mcp_config
+    fi
     if $DETECTED_CODEX; then
         package_codex_plugin
         install_codex_plugin
