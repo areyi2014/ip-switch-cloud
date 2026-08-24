@@ -770,7 +770,7 @@ function Show-Success {
 function Main {
     Write-Host ""
     Write-Host "+============================================================+" -ForegroundColor Green
-    Write-Host "|   ip-switch 自动部署脚本 v1.0                    |" -ForegroundColor Green
+    Write-Host "|   ip-switch 自动部署脚本 v1.0                               |" -ForegroundColor Green
     Write-Host "+============================================================+" -ForegroundColor Green
     Write-Host ""
 
