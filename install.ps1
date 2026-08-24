@@ -653,6 +653,71 @@ function Generate-MCPConfig {
     }
 }
 
+# -- 打包 Codex 插件（复制 dist + 安装生产依赖，插件自包含） -------------------
+function Build-CodexPlugin {
+    Write-Step "打包 Codex 插件"
+
+    $pluginDir = "$env:USERPROFILE\.codex\plugins\ip-switch"
+    if (-not (Test-Path "$InstallDir\dist\index.js")) {
+        Write-Err "缺少编译产物 dist\index.js，请先编译（或去掉 -SkipBuild）"
+        exit 1
+    }
+    if (-not (Test-Path "$pluginDir\.codex-plugin\plugin.json")) {
+        Write-Err "缺少插件清单 $pluginDir\.codex-plugin\plugin.json，项目结构异常"
+        exit 1
+    }
+
+    # 1. 复制编译产物与 package.json
+    Write-Info "复制 dist 与 package.json 到插件目录..."
+    if (Test-Path "$pluginDir\dist") {
+        Remove-Item "$pluginDir\dist" -Recurse -Force
+    }
+    Copy-Item -Recurse -Force "$InstallDir\dist" "$pluginDir\dist"
+    Copy-Item -Force "$InstallDir\package.json" "$pluginDir\package.json"
+
+    # 2. 安装生产依赖（插件必须自包含，安装时整体复制）
+    Push-Location $pluginDir
+    try {
+        Write-Info "安装插件生产依赖 (npm install --omit=dev)..."
+        $null = npm install --omit=dev --no-audit --no-fund --loglevel=error 2>&1
+        Write-OK "插件依赖安装完成"
+    } catch {
+        Write-Err "插件依赖安装失败: $_"
+        Write-Info "手动重试: cd $pluginDir; npm install --omit=dev"
+        Pop-Location
+        exit 1
+    }
+    Pop-Location
+}
+
+# -- 安装 Codex 插件到 ~\.codex\plugins ----------------------------------------
+function Install-CodexPlugin {
+    Write-Step "安装 Codex 插件"
+
+    $pluginDir = "$InstallDir\plugins\ip-switch"
+    $targetDir = "$env:USERPROFILE\.codex\plugins\ip-switch"
+
+    New-Item -ItemType Directory -Path "$env:USERPROFILE\.codex\plugins" -Force | Out-Null
+
+    # 目标已存在则整体替换（避免残留旧文件）
+    if (Test-Path $targetDir) {
+        Write-Info "目标目录已存在，执行整体替换: $targetDir"
+        Remove-Item $targetDir -Recurse -Force
+    }
+
+    Write-Info "复制插件目录到 $targetDir (含 node_modules，可能需要一点时间)..."
+    Copy-Item -Recurse -Force $pluginDir $targetDir
+
+    # 验证
+    if ((Test-Path "$targetDir\.codex-plugin\plugin.json") -and (Test-Path "$targetDir\dist\index.js")) {
+        Write-OK "插件已安装: $targetDir"
+        Write-Info "重启 Codex 后插件生效"
+    } else {
+        Write-Err "插件安装不完整，请检查 $targetDir"
+        exit 1
+    }
+}
+
 # -- 安装完成后提示 ----------------------------------------------------------
 function Show-Success {
     if ($script:DetectedWB -and $script:DetectedCodex) {
@@ -718,6 +783,10 @@ function Main {
         Build-Project
     }
     Generate-MCPConfig
+    if ($script:DetectedCodex) {
+        Build-CodexPlugin
+        Install-CodexPlugin
+    }
     Show-Success
 
     Write-OK "部署完成!"

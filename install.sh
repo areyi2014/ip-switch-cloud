@@ -505,6 +505,68 @@ EOF_CONFIG
     fi
 }
 
+# ── 打包 Codex 插件（复制 dist + 安装生产依赖，插件自包含）──────────────
+package_codex_plugin() {
+    log_step "打包 Codex 插件"
+
+    local plugin_dir="$INSTALL_DIR/plugins/ip-switch"
+    if [ ! -f "$INSTALL_DIR/dist/index.js" ]; then
+        log_error "缺少编译产物 dist/index.js，请先编译"
+        exit 1
+    fi
+    if [ ! -f "$plugin_dir/.codex-plugin/plugin.json" ]; then
+        log_error "缺少插件清单 ${plugin_dir}/.codex-plugin/plugin.json，项目结构异常"
+        exit 1
+    fi
+
+    # 1. 复制编译产物与 package.json
+    log_info "复制 dist 与 package.json 到插件目录..."
+    rm -rf "$plugin_dir/dist"
+    cp -r "$INSTALL_DIR/dist" "$plugin_dir/dist"
+    cp -f "$INSTALL_DIR/package.json" "$plugin_dir/package.json"
+
+    # 2. 安装生产依赖（插件必须自包含，安装时整体复制）
+    (
+        cd "$plugin_dir" || exit 1
+        log_info "安装插件生产依赖 (npm install --omit=dev)..."
+        if npm install --omit=dev --no-audit --no-fund --loglevel=error; then
+            log_ok "插件依赖安装完成"
+        else
+            log_error "插件依赖安装失败"
+            log_info  "手动重试: cd ${plugin_dir} && npm install --omit=dev"
+            exit 1
+        fi
+    ) || exit 1
+}
+
+# ── 安装 Codex 插件到 ~/.codex/plugins ─────────────────────────────────────
+install_codex_plugin() {
+    log_step "安装 Codex 插件"
+
+    local plugin_dir="$INSTALL_DIR/plugins/ip-switch"
+    local target_dir="$HOME/.codex/plugins/ip-switch"
+
+    mkdir -p "$HOME/.codex/plugins"
+
+    # 目标已存在则整体替换（避免残留旧文件）
+    if [ -d "$target_dir" ]; then
+        log_info "目标目录已存在，执行整体替换: ${target_dir}"
+        rm -rf "$target_dir"
+    fi
+
+    log_info "复制插件目录到 ${target_dir} (含 node_modules，可能需要一点时间)..."
+    cp -r "$plugin_dir" "$target_dir"
+
+    # 验证
+    if [ -f "$target_dir/.codex-plugin/plugin.json" ] && [ -f "$target_dir/dist/index.js" ]; then
+        log_ok "插件已安装: ${target_dir}"
+        log_info "重启 Codex 后插件生效"
+    else
+        log_error "插件安装不完整，请检查 ${target_dir}"
+        exit 1
+    fi
+}
+
 # ── 安装完成后提示 ───────────────────────────────────────────────────────────
 print_success() {
     local browser_cmd
@@ -573,6 +635,10 @@ main() {
     install_deps
     build_project
     generate_mcp_config
+    if $DETECTED_CODEX; then
+        package_codex_plugin
+        install_codex_plugin
+    fi
     print_success
 
     log_ok "部署完成!"
