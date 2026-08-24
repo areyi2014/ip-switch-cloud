@@ -19,7 +19,7 @@ NC='\033[0m'
 # ── 默认值 ───────────────────────────────────────────────────────────────────
 REPO_URL="${REPO_URL:-https://gitee.com/areyi2014/ip-switch.git}"
 BRANCH="${BRANCH:-main}"
-INSTALL_DIR="${INSTALL_DIR:-$HOME/ip-switch}"
+srcDir="${srcDir:-$HOME/ip-switch}"
 NODE_MIN_VERSION=18
 PROJECT_NAME="ip-switch"
 
@@ -269,25 +269,25 @@ check_git() {
 clone_repo() {
     log_step "克隆项目仓库"
 
-    if [ -d "$INSTALL_DIR/.git" ]; then
+    if [ -d "$srcDir/.git" ]; then
         log_warn "目标目录已存在，执行 git pull 更新..."
-        cd "$INSTALL_DIR"
+        cd "$srcDir"
         git fetch origin "$BRANCH"
         git checkout "$BRANCH"
         git pull origin "$BRANCH"
-        log_ok "项目已更新: $INSTALL_DIR"
+        log_ok "项目已更新: $srcDir"
         return
     fi
 
     # 确认安装目录
     log_info "仓库地址: ${REPO_URL}"
     log_info "目标分支: ${BRANCH}"
-    log_info "安装目录: ${INSTALL_DIR}"
+    log_info "安装目录: ${srcDir}"
     echo ""
     read -r -p "确认安装到此目录? 按 Enter 确认，或输入新目录路径: " user_dir
     if [ -n "$user_dir" ]; then
-        INSTALL_DIR="$user_dir"
-        log_info "已更新安装目录: ${INSTALL_DIR}"
+        srcDir="$user_dir"
+        log_info "已更新安装目录: ${srcDir}"
     fi
 
     # DNS 预热
@@ -307,7 +307,7 @@ clone_repo() {
 
     for attempt in $(seq 1 $max_retries); do
         if [ "$attempt" -gt 1 ]; then
-            rm -rf "$INSTALL_DIR" 2>/dev/null
+            rm -rf "$srcDir" 2>/dev/null
             log_info "第 ${attempt} / ${max_retries} 次重试克隆..."
             sleep 3
         else
@@ -315,7 +315,7 @@ clone_repo() {
         fi
 
         # git 的进度条（Receiving objects 等）输出到 stderr，2>&1 让它直接显示在终端
-        git clone --branch "$BRANCH" --depth 1 "$REPO_URL" "$INSTALL_DIR" 2>&1 && {
+        git clone --branch "$BRANCH" --depth 1 "$REPO_URL" "$srcDir" 2>&1 && {
             clone_ok=true
             break
         }
@@ -333,17 +333,17 @@ clone_repo() {
         log_info "  3. 如为私有仓库，请先配置 SSH Key"
         log_info ""
         log_info "手动操作:"
-        log_info "  git clone ${REPO_URL} ${INSTALL_DIR}"
+        log_info "  git clone ${REPO_URL} ${srcDir}"
         exit 1
     fi
-    log_ok "克隆成功: ${INSTALL_DIR}"
+    log_ok "克隆成功: ${srcDir}"
 }
 
 # ── 安装依赖 ─────────────────────────────────────────────────────────────────
 install_deps() {
     log_step "安装 npm 依赖"
 
-    cd "$INSTALL_DIR"
+    cd "$srcDir"
 
     if [ ! -f package.json ]; then
         log_error "未找到 package.json，项目结构异常"
@@ -355,7 +355,7 @@ install_deps() {
         log_ok "依赖安装完成"
     else
         log_error "依赖安装失败"
-        log_info  "尝试清除缓存后重试: cd ${INSTALL_DIR} && rm -rf node_modules && npm install"
+        log_info  "尝试清除缓存后重试: cd ${srcDir} && rm -rf node_modules && npm install"
         exit 1
     fi
 }
@@ -364,7 +364,7 @@ install_deps() {
 build_project() {
     log_step "编译 TypeScript"
 
-    cd "$INSTALL_DIR"
+    cd "$srcDir"
 
     # 清除 Electron 环境变量干扰（WorkBuddy 环境可能设置）
     local env_prefix=""
@@ -378,12 +378,12 @@ build_project() {
         log_ok "编译完成"
     else
         log_error "编译失败"
-        log_info  "手动编译: cd ${INSTALL_DIR} && env -u ELECTRON_RUN_AS_NODE npm run build"
+        log_info  "手动编译: cd ${srcDir} && env -u ELECTRON_RUN_AS_NODE npm run build"
         exit 1
     fi
 
     # 验证编译产物
-    if [ -f "$INSTALL_DIR/dist/index.js" ]; then
+    if [ -f "$srcDir/dist/index.js" ]; then
         log_ok "验证通过: dist/index.js 已生成"
     else
         log_error "编译产物缺失: dist/index.js 不存在"
@@ -465,7 +465,7 @@ generate_mcp_config() {
     wb_node="${WB_NODE_EXE:-$default_node}"
     codex_node="${CODEX_NODE_EXE:-$default_node}"
 
-    local dist_js="${INSTALL_DIR}/dist/index.js"
+    local dist_js="${srcDir}/dist/index.js"
     local written=false
 
     # 直接写入对应平台的 mcp.json（各自优先用自带 Node.js）
@@ -509,8 +509,8 @@ EOF_CONFIG
 package_codex_plugin() {
     log_step "打包 Codex 插件"
 
-    local plugin_dir="$INSTALL_DIR/plugins/ip-switch"
-    if [ ! -f "$INSTALL_DIR/dist/index.js" ]; then
+    local plugin_dir="$srcDir/plugins/ip-switch"
+    if [ ! -f "$srcDir/dist/index.js" ]; then
         log_error "缺少编译产物 dist/index.js，请先编译"
         exit 1
     fi
@@ -522,8 +522,8 @@ package_codex_plugin() {
     # 1. 复制编译产物与 package.json
     log_info "复制 dist 与 package.json 到插件目录..."
     rm -rf "$plugin_dir/dist"
-    cp -r "$INSTALL_DIR/dist" "$plugin_dir/dist"
-    cp -f "$INSTALL_DIR/package.json" "$plugin_dir/package.json"
+    cp -r "$srcDir/dist" "$plugin_dir/dist"
+    cp -f "$srcDir/package.json" "$plugin_dir/package.json"
 
     # 2. 安装生产依赖（插件必须自包含，安装时整体复制）
     (
@@ -543,7 +543,7 @@ package_codex_plugin() {
 install_codex_plugin() {
     log_step "安装 Codex 插件"
 
-    local plugin_dir="$INSTALL_DIR/plugins/ip-switch"
+    local plugin_dir="$srcDir/plugins/ip-switch"
     local target_dir="$HOME/.codex/plugins/ip-switch"
 
     mkdir -p "$HOME/.codex/plugins"
@@ -593,13 +593,13 @@ ${GREEN}╔═══════════════════════
 ║          ip-switch 安装成功!                  ║
 ╚══════════════════════════════════════════════════════════╝${NC}
 
-项目路径:   ${INSTALL_DIR}
-UI 服务器:  node ${INSTALL_DIR}/ui/server.cjs
+项目路径:   ${srcDir}
+UI 服务器:  node ${srcDir}/ui/server.cjs
 UI 地址:    启动后终端会显示实际地址
 
 ${YELLOW}使用方式:${NC}
   # 启动 UI 配置服务器（可选）
-  node ${INSTALL_DIR}/ui/server.cjs
+  node ${srcDir}/ui/server.cjs
 
   # 浏览器打开配置页面
   ${browser_cmd}
@@ -610,10 +610,10 @@ ${mcp_hint}
   - 添加配置:   "我要添加一个 AWS 配置"
 
 ${YELLOW}手动更新:${NC}
-  cd ${INSTALL_DIR} && git pull && npm install && npm run build
+  cd ${srcDir} && git pull && npm install && npm run build
 
 ${YELLOW}卸载:${NC}
-  rm -rf ${INSTALL_DIR}
+  rm -rf ${srcDir}
   rm -rf ~/.ip-switch
 
 EOF
@@ -651,8 +651,8 @@ while [ $# -gt 0 ]; do
             REPO_URL="$2"; shift 2;;
         --branch)
             BRANCH="$2"; shift 2;;
-        --install-dir)
-            INSTALL_DIR="$2"; shift 2;;
+        --src-dir)
+            srcDir="$2"; shift 2;;
         --skip-build)
             SKIP_BUILD=true; shift;;
         --help|-h)
@@ -661,7 +661,7 @@ while [ $# -gt 0 ]; do
             echo "选项:"
             echo "  --repo-url URL     指定仓库地址（默认 gitee）"
             echo "  --branch NAME      指定分支（默认 main）"
-            echo "  --install-dir DIR  指定安装目录（默认 ~/ip-switch）"
+            echo "  --src-dir DIR  指定安装目录（默认 ~/ip-switch）"
             echo "  --skip-build       跳过编译步骤"
             echo "  -h, --help         显示帮助"
             exit 0;;
