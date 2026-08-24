@@ -8,7 +8,7 @@
 param(
     [string]$RepoUrl    = "https://gitee.com/areyi2014/ip-switch.git",
     [string]$Branch     = "main",
-    [string]$InstallDir = "$env:USERPROFILE\ip-switch",
+    [string]$srcDir = "$env:USERPROFILE\ip-switch",
     [switch]$SkipBuild  = $false,
     [switch]$Help       = $false
 )
@@ -20,14 +20,14 @@ if ($Help) {
 选项:
   -RepoUrl URL     指定仓库地址（默认 gitee）
   -Branch NAME     指定分支（默认 main）
-  -InstallDir DIR  指定安装目录（默认 ~\ip-switch）
+  -srcDir DIR  指定安装目录（默认 ~\ip-switch）
   -SkipBuild       跳过编译步骤
   -Help            显示帮助
 
 示例:
   .\install.ps1
   .\install.ps1 -RepoUrl "https://gitee.com/user/ip-switch.git"
-  .\install.ps1 -InstallDir "D:\my-tools\ip-switch"
+  .\install.ps1 -srcDir "D:\my-tools\ip-switch"
 "@
     exit 0
 }
@@ -384,30 +384,30 @@ function Get-GitDownloadUrls {
 function Clone-Repo {
     Write-Step "克隆项目仓库"
 
-    if (Test-Path "$InstallDir\.git") {
+    if (Test-Path "$srcDir\.git") {
         Write-Warn "目标目录已存在，执行 git pull 更新..."
-        Push-Location $InstallDir
+        Push-Location $srcDir
         git fetch origin $Branch
         git checkout $Branch
         git pull origin $Branch
         Pop-Location
-        Write-OK "项目已更新: $InstallDir"
+        Write-OK "项目已更新: $srcDir"
         return
     }
 
     Write-Info "仓库地址: $RepoUrl"
     Write-Info "目标分支: $Branch"
-    Write-Info "安装目录: $InstallDir"
+    Write-Info "安装目录: $srcDir"
     Write-Host ""
     $userInput = Read-Host "确认安装到此目录? 按 Enter 确认，或输入新目录路径"
     if ($userInput) {
-        $InstallDir = $userInput
+        $srcDir = $userInput
         # 更新全局变量，后续步骤使用新路径
-        $script:InstallDir = $InstallDir
-        Write-Info "已更新安装目录: $InstallDir"
+        $script:srcDir = $srcDir
+        Write-Info "已更新安装目录: $srcDir"
     }
 
-    $parentDir = Split-Path $InstallDir -Parent
+    $parentDir = Split-Path $srcDir -Parent
     if (-not (Test-Path $parentDir)) {
         New-Item -ItemType Directory -Path $parentDir -Force | Out-Null
     }
@@ -430,7 +430,7 @@ function Clone-Repo {
     for ($attempt = 1; $attempt -le $maxRetries; $attempt++) {
         if ($attempt -gt 1) {
             # 清理上次失败残留
-            Remove-Item $InstallDir -Recurse -Force -ErrorAction SilentlyContinue
+            Remove-Item $srcDir -Recurse -Force -ErrorAction SilentlyContinue
             Write-Info "第 $attempt / $maxRetries 次重试克隆..."
             Start-Sleep -Seconds 3
         } else {
@@ -439,7 +439,7 @@ function Clone-Repo {
 
         # 直接用 Start-Process，git 进度条会自动输出到终端
         $proc = Start-Process -FilePath "git" `
-            -ArgumentList "clone", "--branch", $Branch, "--depth", "1", $RepoUrl, $InstallDir `
+            -ArgumentList "clone", "--branch", $Branch, "--depth", "1", $RepoUrl, $srcDir `
             -NoNewWindow -Wait -PassThru
 
         if ($proc.ExitCode -eq 0) {
@@ -460,17 +460,17 @@ function Clone-Repo {
         Write-Info "  3. 如为私有仓库，请先配置 SSH Key"
         Write-Info ""
         Write-Info "手动操作:"
-        Write-Info "  git clone $RepoUrl $InstallDir"
+        Write-Info "  git clone $RepoUrl $srcDir"
         exit 1
     }
-    Write-OK "克隆成功: $InstallDir"
+    Write-OK "克隆成功: $srcDir"
 }
 
 # -- 安装依赖 ----------------------------------------------------------------
 function Install-Deps {
     Write-Step "安装 npm 依赖"
 
-    Push-Location $InstallDir
+    Push-Location $srcDir
 
     if (-not (Test-Path package.json)) {
         Write-Err "未找到 package.json，项目结构异常"
@@ -484,7 +484,7 @@ function Install-Deps {
         Write-OK "依赖安装完成"
     } catch {
         Write-Err "依赖安装失败"
-        Write-Info "尝试清除缓存后重试: cd $InstallDir; Remove-Item -Recurse -Force node_modules; npm install"
+        Write-Info "尝试清除缓存后重试: cd $srcDir; Remove-Item -Recurse -Force node_modules; npm install"
         Pop-Location
         exit 1
     }
@@ -496,7 +496,7 @@ function Install-Deps {
 function Build-Project {
     Write-Step "编译 TypeScript"
 
-    Push-Location $InstallDir
+    Push-Location $srcDir
 
     # 清除 Electron 环境变量干扰（WorkBuddy 环境可能设置）
     $oldElectron = $env:ELECTRON_RUN_AS_NODE
@@ -510,7 +510,7 @@ function Build-Project {
         Write-OK "编译完成"
     } catch {
         Write-Err "编译失败: $_"
-        Write-Info "手动编译: cd $InstallDir; `$env:ELECTRON_RUN_AS_NODE=''; npm run build"
+        Write-Info "手动编译: cd $srcDir; `$env:ELECTRON_RUN_AS_NODE=''; npm run build"
         Pop-Location
         exit 1
     } finally {
@@ -520,7 +520,7 @@ function Build-Project {
     }
 
     # 验证编译产物
-    if (Test-Path "$InstallDir\dist\index.js") {
+    if (Test-Path "$srcDir\dist\index.js") {
         Write-OK "验证通过: dist\index.js 已生成"
     } else {
         Write-Err "编译产物缺失: dist\index.js 不存在"
@@ -601,7 +601,7 @@ function Generate-MCPConfig {
     $defaultNode = (Get-Command node).Source
     $wbNodeExe    = if ($script:WBNodeExe)    { $script:WBNodeExe }    else { $defaultNode }
     $codexNodeExe = if ($script:CodexNodeExe) { $script:CodexNodeExe } else { $defaultNode }
-    $distJs  = "$InstallDir\dist\index.js"
+    $distJs  = "$srcDir\dist\index.js"
 
     # Windows 路径在 JSON 中需将反斜杠转义为 \\（仅用于终端提示展示）
     $wbNodeExeEscaped = $wbNodeExe.Replace('\', '\\')
@@ -658,7 +658,7 @@ function Build-CodexPlugin {
     Write-Step "打包 Codex 插件"
 
     $pluginDir = "$env:USERPROFILE\.codex\plugins\ip-switch"
-    if (-not (Test-Path "$InstallDir\dist\index.js")) {
+    if (-not (Test-Path "$srcDir\dist\index.js")) {
         Write-Err "缺少编译产物 dist\index.js，请先编译（或去掉 -SkipBuild）"
         exit 1
     }
@@ -672,8 +672,8 @@ function Build-CodexPlugin {
     if (Test-Path "$pluginDir\dist") {
         Remove-Item "$pluginDir\dist" -Recurse -Force
     }
-    Copy-Item -Recurse -Force "$InstallDir\dist" "$pluginDir\dist"
-    Copy-Item -Force "$InstallDir\package.json" "$pluginDir\package.json"
+    Copy-Item -Recurse -Force "$srcDir\dist" "$pluginDir\dist"
+    Copy-Item -Force "$srcDir\package.json" "$pluginDir\package.json"
 
     # 2. 安装生产依赖（插件必须自包含，安装时整体复制）
     Push-Location $pluginDir
@@ -694,7 +694,7 @@ function Build-CodexPlugin {
 function Install-CodexPlugin {
     Write-Step "安装 Codex 插件"
 
-    $pluginDir = "$InstallDir\plugins\ip-switch"
+    $pluginDir = "$srcDir\plugins\ip-switch"
     $targetDir = "$env:USERPROFILE\.codex\plugins\ip-switch"
 
     New-Item -ItemType Directory -Path "$env:USERPROFILE\.codex\plugins" -Force | Out-Null
@@ -739,14 +739,14 @@ function Show-Success {
 "@
     Write-Host $successBanner -ForegroundColor Green
 
-    Write-Host "项目路径:   $InstallDir"
-    Write-Host "UI 服务器:  node $InstallDir\ui\server.cjs"
+    Write-Host "源代码路径:   $srcDir"
+    Write-Host "UI 服务器:  node $srcDir\ui\server.cjs"
     Write-Host "UI 地址:    启动后终端会显示实际地址"
     Write-Host ""
 
     Write-Host "使用方式:" -ForegroundColor Yellow
     Write-Host "  # 启动 UI 配置服务器（可选）"
-    Write-Host "  node $InstallDir\ui\server.cjs"
+    Write-Host "  node $srcDir\ui\server.cjs"
     Write-Host ""
     Write-Host "  # 浏览器打开配置页面（地址见服务器启动输出）"
     Write-Host "  start http://127.0.0.1:端口号"
@@ -758,11 +758,11 @@ function Show-Success {
     Write-Host ""
 
     Write-Host "手动更新:" -ForegroundColor Yellow
-    Write-Host "  cd $InstallDir; git pull; npm install; npm run build"
+    Write-Host "  cd $srcDir; git pull; npm install; npm run build"
     Write-Host ""
 
     Write-Host "卸载:" -ForegroundColor Yellow
-    Write-Host "  Remove-Item -Recurse -Force $InstallDir"
+    Write-Host "  Remove-Item -Recurse -Force $srcDir"
     Write-Host ""
 }
 
