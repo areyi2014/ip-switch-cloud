@@ -642,11 +642,16 @@ function Generate-MCPConfig {
     }
 }
 
-# -- 打包 Codex 插件（复制 dist + 安装生产依赖，插件自包含） -------------------
-function Build-CodexPlugin {
-    Write-Step "打包 Codex 插件"
 
-    $pluginDir = "$env:USERPROFILE\.codex\plugins\ip-switch"
+
+# -- 打包并安装 Codex 插件（源码插件包 → ~\.codex\plugins） -------------------
+function Install-CodexPlugin {
+    Write-Step "打包并安装 Codex 插件"
+
+    $pluginDir = "$srcDir\plugins\ip-switch"
+    $targetDir = "$env:USERPROFILE\.codex\plugins\ip-switch"
+
+    # 1. 校验源码编译产物与插件清单
     if (-not (Test-Path "$srcDir\dist\index.js")) {
         Write-Err "缺少编译产物 dist\index.js，请先编译（或去掉 -SkipBuild）"
         exit 1
@@ -656,7 +661,7 @@ function Build-CodexPlugin {
         exit 1
     }
 
-    # 1. 复制编译产物与 package.json
+    # 2. 打包：复制 dist 与 package.json 到源码内插件目录
     Write-Info "复制 dist 与 package.json 到插件目录..."
     if (Test-Path "$pluginDir\dist") {
         Remove-Item "$pluginDir\dist" -Recurse -Force
@@ -664,7 +669,7 @@ function Build-CodexPlugin {
     Copy-Item -Recurse -Force "$srcDir\dist" "$pluginDir\dist"
     Copy-Item -Force "$srcDir\package.json" "$pluginDir\package.json"
 
-    # 2. 安装生产依赖（插件必须自包含，安装时整体复制）
+    # 3. 安装生产依赖（插件必须自包含，安装时整体复制）
     Push-Location $pluginDir
     try {
         Write-Info "安装插件生产依赖 (npm install --omit=dev)..."
@@ -677,16 +682,8 @@ function Build-CodexPlugin {
         exit 1
     }
     Pop-Location
-}
 
-# -- 安装 Codex 插件到 ~\.codex\plugins ----------------------------------------
-function Install-CodexPlugin {
-    Write-Step "安装 Codex 插件"
-
-    $pluginDir = "$srcDir\plugins\ip-switch"
-    $targetDir = "$env:USERPROFILE\.codex\plugins\ip-switch"
-
-    # 拷贝外层 UI 到插件目录（插件自包含，UI 跟随安装）
+    # 4. 拷贝外层 UI 到插件目录（插件自包含，UI 跟随安装）
     if (Test-Path "$srcDir\ui") {
         Write-Info "复制 ui 到插件目录..."
         if (Test-Path "$pluginDir\ui") {
@@ -695,9 +692,8 @@ function Install-CodexPlugin {
         Copy-Item -Recurse -Force "$srcDir\ui" "$pluginDir\ui"
     }
 
+    # 5. 安装到 ~\.codex\plugins（整体替换，避免残留旧文件）
     New-Item -ItemType Directory -Path "$env:USERPROFILE\.codex\plugins" -Force | Out-Null
-
-    # 目标已存在则整体替换（避免残留旧文件）
     if (Test-Path $targetDir) {
         Write-Info "目标目录已存在，执行整体替换: $targetDir"
         Remove-Item $targetDir -Recurse -Force
@@ -786,7 +782,6 @@ function Main {
         Generate-MCPConfig
     }
     if ($script:DetectedCodex) {
-        Build-CodexPlugin
         Install-CodexPlugin
     }
     Show-Success

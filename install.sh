@@ -505,11 +505,16 @@ EOF_CONFIG
     fi
 }
 
-# ── 打包 Codex 插件（复制 dist + 安装生产依赖，插件自包含）──────────────
-package_codex_plugin() {
-    log_step "打包 Codex 插件"
+
+
+# ── 打包并安装 Codex 插件（源码插件包 → ~/.codex/plugins）────────────────────
+install_codex_plugin() {
+    log_step "打包并安装 Codex 插件"
 
     local plugin_dir="$srcDir/plugins/ip-switch"
+    local target_dir="$HOME/.codex/plugins/ip-switch"
+
+    # 1. 校验源码编译产物与插件清单
     if [ ! -f "$srcDir/dist/index.js" ]; then
         log_error "缺少编译产物 dist/index.js，请先编译"
         exit 1
@@ -519,13 +524,13 @@ package_codex_plugin() {
         exit 1
     fi
 
-    # 1. 复制编译产物与 package.json
+    # 2. 打包：复制 dist 与 package.json 到源码内插件目录
     log_info "复制 dist 与 package.json 到插件目录..."
     rm -rf "$plugin_dir/dist"
     cp -r "$srcDir/dist" "$plugin_dir/dist"
     cp -f "$srcDir/package.json" "$plugin_dir/package.json"
 
-    # 2. 安装生产依赖（插件必须自包含，安装时整体复制）
+    # 3. 安装生产依赖（插件必须自包含，安装时整体复制）
     (
         cd "$plugin_dir" || exit 1
         log_info "安装插件生产依赖 (npm install --omit=dev)..."
@@ -537,25 +542,17 @@ package_codex_plugin() {
             exit 1
         fi
     ) || exit 1
-}
 
-# ── 安装 Codex 插件到 ~/.codex/plugins ─────────────────────────────────────
-install_codex_plugin() {
-    log_step "安装 Codex 插件"
-
-    local plugin_dir="$srcDir/plugins/ip-switch"
-    local target_dir="$HOME/.codex/plugins/ip-switch"
-
-    # 拷贝外层 UI 到插件目录（插件自包含，UI 跟随安装）
+    # 4. 拷贝外层 UI 到插件目录（插件自包含，UI 跟随安装）
     if [ -d "$srcDir/ui" ]; then
         log_info "复制 ui 到插件目录..."
         rm -rf "$plugin_dir/ui"
         cp -r "$srcDir/ui" "$plugin_dir/ui"
     fi
 
+    # 5. 安装到 ~/.codex/plugins（整体替换，避免残留旧文件）
     mkdir -p "$HOME/.codex/plugins"
 
-    # 目标已存在则整体替换（避免残留旧文件）
     if [ -d "$target_dir" ]; then
         log_info "目标目录已存在，执行整体替换: ${target_dir}"
         rm -rf "$target_dir"
@@ -646,7 +643,6 @@ main() {
         generate_mcp_config
     fi
     if $DETECTED_CODEX; then
-        package_codex_plugin
         install_codex_plugin
     fi
     print_success
