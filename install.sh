@@ -507,61 +507,60 @@ EOF_CONFIG
 
 
 
-# ── 打包并安装 Codex 插件（源码插件包 → ~/.codex/plugins）────────────────────
+# ── 安装 Codex 插件（仅清单，MCP 直接运行源码 dist）────────────────────────
 install_codex_plugin() {
-    log_step "打包并安装 Codex 插件"
+    log_step "安装 Codex 插件（仅清单，MCP 直接运行源码 dist）"
+
     local target_dir="$HOME/.codex/plugins/ip-switch"
 
     # 1. 校验源码编译产物与插件清单
     if [ ! -f "$INSTALL_DIR/dist/index.js" ]; then
-        log_error "缺少编译产物 dist/index.js，请先编译"
+        log_error "缺少编译产物 ${INSTALL_DIR}/dist/index.js，请先编译"
         exit 1
     fi
     if [ ! -f "$INSTALL_DIR/.codex-plugin/plugin.json" ]; then
         log_error "缺少插件清单 ${INSTALL_DIR}/.codex-plugin/plugin.json，项目结构异常"
         exit 1
     fi
-
-    # 2. 打包：复制 dist 与 package.json 到源码内插件目录
-    log_info "复制 dist 与 package.json 到插件目录..."
-    rm -rf "$INSTALL_DIR/dist"
-    cp -r "$INSTALL_DIR/dist" "$INSTALL_DIR/dist"
-    cp -f "$INSTALL_DIR/package.json" "$INSTALL_DIR/package.json"
-
-    # 3. 安装生产依赖（插件必须自包含，安装时整体复制）
-    (
-        cd "$INSTALL_DIR" || exit 1
-        log_info "安装插件生产依赖 (npm install --omit=dev)..."
-        if npm install --omit=dev --no-audit --no-fund --loglevel=error; then
-            log_ok "插件依赖安装完成"
-        else
-            log_error "插件依赖安装失败"
-            log_info  "手动重试: cd ${INSTALL_DIR} && npm install --omit=dev"
-            exit 1
-        fi
-    ) || exit 1
-
-    # 4. 拷贝外层 UI 到插件目录（插件自包含，UI 跟随安装）
-    if [ -d "$INSTALL_DIR/ui" ]; then
-        log_info "复制 ui 到插件目录..."
-        rm -rf "$INSTALL_DIR/ui"
-        cp -r "$INSTALL_DIR/ui" "$INSTALL_DIR/ui"
+    if [ ! -f "$INSTALL_DIR/.mcp.json" ]; then
+        log_error "缺少 MCP 配置 ${INSTALL_DIR}/.mcp.json，项目结构异常"
+        exit 1
     fi
 
-    # 5. 安装到 ~/.codex/plugins（整体替换，避免残留旧文件）
+    # 2. 清理旧目标，避免残留旧文件
     mkdir -p "$HOME/.codex/plugins"
 
     if [ -d "$target_dir" ]; then
         log_info "目标目录已存在，执行整体替换: ${target_dir}"
         rm -rf "$target_dir"
     fi
+    mkdir -p "$target_dir"
 
-    log_info "复制插件目录到 ${target_dir} (含 node_modules，可能需要一点时间)..."
-    cp -r "$INSTALL_DIR" "$target_dir"
+    # 3. 只复制插件清单（MCP server 直接运行源码 dist，插件目录保持轻量）
+    log_info "复制插件清单 .codex-plugin 与 .mcp.json..."
+    cp -r "$INSTALL_DIR/.codex-plugin" "$target_dir/.codex-plugin"
+
+    # 4. 生成 .mcp.json，入口指向源码 dist（绝对路径）
+    cat > "$target_dir/.mcp.json" <<EOF
+{
+  "mcpServers": {
+    "ip-switch": {
+      "command": "node",
+      "args": [
+        "${INSTALL_DIR}/dist/index.js"
+      ],
+      "cwd": "${INSTALL_DIR}",
+      "startup_timeout_sec": 30,
+      "tool_timeout_sec": 300
+    }
+  }
+}
+EOF
 
     # 验证
-    if [ -f "$target_dir/.codex-plugin/plugin.json" ] && [ -f "$target_dir/dist/index.js" ]; then
+    if [ -f "$target_dir/.codex-plugin/plugin.json" ] && [ -f "$target_dir/.mcp.json" ]; then
         log_ok "插件已安装: ${target_dir}"
+        log_info "MCP 入口指向: ${INSTALL_DIR}/dist/index.js"
         log_info "重启 Codex 后插件生效"
     else
         log_error "插件安装不完整，请检查 ${target_dir}"
@@ -597,12 +596,12 @@ ${GREEN}╔═══════════════════════
 ╚══════════════════════════════════════════════════════════╝${NC}
 
 插件安装路径: ${target_dir}
-UI 服务器:  node ${target_dir}/ui/server.cjs
+UI 服务器:  node ${INSTALL_DIR}/ui/server.cjs
 UI 地址:    启动后终端会显示实际地址
 
 ${YELLOW}使用方式:${NC}
   # 启动 UI 配置服务器（可选）
-  node ${target_dir}/ui/server.cjs
+  node ${INSTALL_DIR}/ui/server.cjs
 
   # 浏览器打开配置页面
   ${browser_cmd}
@@ -613,10 +612,11 @@ ${mcp_hint}
   - 添加配置:   "我要添加一个 AWS 配置"
 
 ${YELLOW}手动更新:${NC}
-  cd ${target_dir} && git pull && npm install && npm run build
+  cd ${INSTALL_DIR} && git pull && npm install && npm run build
 
 ${YELLOW}卸载:${NC}
-  rm -rf ${target_dir}
+  rm -rf ${target_dir}       # 删除插件清单
+  rm -rf ${INSTALL_DIR}      # 删除源码（可选）
   rm -rf ~/.ip-switch
 
 EOF

@@ -644,65 +644,62 @@ function Generate-MCPConfig {
 
 
 
-# -- 打包并安装 Codex 插件（源码插件包 → ~\.codex\plugins） -------------------
+# -- 安装 Codex 插件（仅清单，MCP 直接运行源码 dist） --------------------------
 function Install-CodexPlugin {
-    Write-Step "打包并安装 Codex 插件"
+    Write-Step "安装 Codex 插件（仅清单，MCP 直接运行源码 dist）"
+
     $targetDir = "$env:USERPROFILE\.codex\plugins\ip-switch"
 
     # 1. 校验源码编译产物与插件清单
     if (-not (Test-Path "$installDir\dist\index.js")) {
-        Write-Err "缺少编译产物 dist\index.js，请先编译（或去掉 -SkipBuild）"
+        Write-Err "缺少编译产物 $installDir\dist\index.js，请先编译（或去掉 -SkipBuild）"
         exit 1
     }
     if (-not (Test-Path "$installDir\.codex-plugin\plugin.json")) {
         Write-Err "缺少插件清单 $installDir\.codex-plugin\plugin.json，项目结构异常"
         exit 1
     }
-
-    # 2. 打包：复制 dist 与 package.json 到源码内插件目录
-    Write-Info "复制 dist 与 package.json 到插件目录..."
-    if (Test-Path "$installDir\dist") {
-        Remove-Item "$installDir\dist" -Recurse -Force
-    }
-    Copy-Item -Recurse -Force "$installDir\dist" "$installDir\dist"
-    Copy-Item -Force "$installDir\package.json" "$installDir\package.json"
-
-    # 3. 安装生产依赖（插件必须自包含，安装时整体复制）
-    Push-Location $installDir
-    try {
-        Write-Info "安装插件生产依赖 (npm install --omit=dev)..."
-        $null = npm install --omit=dev --no-audit --no-fund --loglevel=error 2>&1
-        Write-OK "插件依赖安装完成"
-    } catch {
-        Write-Err "插件依赖安装失败: $_"
-        Write-Info "手动重试: cd $installDir; npm install --omit=dev"
-        Pop-Location
+    if (-not (Test-Path "$installDir\.mcp.json")) {
+        Write-Err "缺少 MCP 配置 $installDir\.mcp.json，项目结构异常"
         exit 1
     }
-    Pop-Location
 
-    # 4. 拷贝外层 UI 到插件目录（插件自包含，UI 跟随安装）
-    if (Test-Path "$installDir\ui") {
-        Write-Info "复制 ui 到插件目录..."
-        if (Test-Path "$installDir\ui") {
-            Remove-Item "$installDir\ui" -Recurse -Force
-        }
-        Copy-Item -Recurse -Force "$installDir\ui" "$installDir\ui"
-    }
-
-    # 5. 安装到 ~\.codex\plugins（整体替换，避免残留旧文件）
+    # 2. 清理旧目标，避免残留旧文件
     New-Item -ItemType Directory -Path "$env:USERPROFILE\.codex\plugins" -Force | Out-Null
     if (Test-Path $targetDir) {
         Write-Info "目标目录已存在，执行整体替换: $targetDir"
         Remove-Item $targetDir -Recurse -Force
     }
+    New-Item -ItemType Directory -Path $targetDir -Force | Out-Null
 
-    Write-Info "复制插件目录到 $targetDir (含 node_modules，可能需要一点时间)..."
-    Copy-Item -Recurse -Force $installDir $targetDir
+    # 3. 只复制插件清单（MCP server 直接运行源码 dist，插件目录保持轻量）
+    Write-Info "复制插件清单 .codex-plugin 与 .mcp.json..."
+    Copy-Item -Recurse -Force "$installDir\.codex-plugin" "$targetDir\.codex-plugin"
+
+    # 4. 生成 .mcp.json，入口指向源码 dist（绝对路径）
+    $mcpEntry = "$installDir\dist\index.js".Replace('\', '\\')
+    $mcpCwd   = $installDir.Replace('\', '\\')
+    $mcpJson = @"
+{
+  "mcpServers": {
+    "ip-switch": {
+      "command": "node",
+      "args": [
+        "$mcpEntry"
+      ],
+      "cwd": "$mcpCwd",
+      "startup_timeout_sec": 30,
+      "tool_timeout_sec": 300
+    }
+  }
+}
+"@
+    [System.IO.File]::WriteAllText("$targetDir\.mcp.json", $mcpJson, (New-Object System.Text.UTF8Encoding($false)))
 
     # 验证
-    if ((Test-Path "$targetDir\.codex-plugin\plugin.json") -and (Test-Path "$targetDir\dist\index.js")) {
+    if ((Test-Path "$targetDir\.codex-plugin\plugin.json") -and (Test-Path "$targetDir\.mcp.json")) {
         Write-OK "插件已安装: $targetDir"
+        Write-Info "MCP 入口指向: $installDir\dist\index.js"
         Write-Info "重启 Codex 后插件生效"
     } else {
         Write-Err "插件安装不完整，请检查 $targetDir"
@@ -734,13 +731,13 @@ function Show-Success {
     Write-Host $successBanner -ForegroundColor Green
 
     Write-Host "插件安装路径: $targetDir"
-    Write-Host "UI 服务器:  node $targetDir\ui\server.cjs"
+    Write-Host "UI 服务器:  node $installDir\ui\server.cjs"
     Write-Host "UI 地址:    启动后终端会显示实际地址"
     Write-Host ""
 
     Write-Host "使用方式:" -ForegroundColor Yellow
     Write-Host "  # 启动 UI 配置服务器（可选）"
-    Write-Host "  node $targetDir\ui\server.cjs"
+    Write-Host "  node $installDir\ui\server.cjs"
     Write-Host ""
     Write-Host "  # 浏览器打开配置页面（地址见服务器启动输出）"
     Write-Host "  start http://127.0.0.1:端口号"
@@ -752,11 +749,12 @@ function Show-Success {
     Write-Host ""
 
     Write-Host "手动更新:" -ForegroundColor Yellow
-    Write-Host "  cd $targetDir; git pull; npm install; npm run build"
+    Write-Host "  cd $installDir; git pull; npm install; npm run build"
     Write-Host ""
 
     Write-Host "卸载:" -ForegroundColor Yellow
-    Write-Host "  Remove-Item -Recurse -Force $targetDir"
+    Write-Host "  Remove-Item -Recurse -Force $targetDir   # 删除插件清单"
+    Write-Host "  Remove-Item -Recurse -Force $installDir  # 如需同时删除源码"
     Write-Host ""
 }
 
