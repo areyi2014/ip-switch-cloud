@@ -30,9 +30,9 @@
 |-----------|---------|-----------------------------------|
 | Node.js   | >= 18   | 需要原生 `fetch` API（Node 18+）  |
 | Npm       | >= 9    | 随 Node.js 一起安装               |
-| Git       | 可选     | 用于克隆仓库；缺失时脚本会自动安装 |
+| Git       | 可选    | 用于克隆仓库；缺失时脚本会自动安装 |
 | OS        | -       | Windows 10+, macOS 14+, Ubuntu 20.04+ |
-| Software  | -       | Workbuddy 1.1.0+|
+| Software  | -       | Workbuddy 1.1.0+， Codex 26.818 |
 
 ---
 
