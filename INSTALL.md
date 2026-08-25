@@ -310,7 +310,7 @@ node ui/server.cjs
 | 「轮换 aws-ty 的 IP 并更新 DNS」   | 轮换指定配置并同步 DNS      |
 | 「删除 aws-ty 配置」               | 移除指定配置               |
 
-13 个 MCP 工具完整列表详见 [AGENTS.md](./AGENTS.md)。
+13 个 MCP 工具完整列表详见 [README.md](./README.md) 的「使用方式」章节。
 
 ---
 
