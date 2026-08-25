@@ -2,7 +2,7 @@
 
 对多个云公网IP轻松轮换的 AI Agent插件 —— 一键批量轮换云服务器公网IP（AWS / Azure / Oracle / Vultr），并同步更新域名解析，免除了多个网络平台登录与配置的繁琐操作。
 
-支持平台：Workbuddy + AWS / Azure / Oracle OCI / Vultr + Cloudflare DNS
+支持平台：Workbuddy / Codex + AWS / Azure / Oracle OCI / Vultr + Cloudflare DNS
 
 ---
 
