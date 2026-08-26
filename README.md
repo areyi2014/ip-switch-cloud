@@ -559,6 +559,34 @@ Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
 
 或使用 `powershell -ExecutionPolicy Bypass -File install.ps1` 绕过限制。
 
+### 7. 创建 Codex 桌面快捷方式（无黑窗闪屏）
+
+在 Windows 上直接用 `codex.exe` 启动 Codex 桌面版时会弹出命令行窗口（一闪而过）。通过 `wscript.exe`（Windows 脚本宿主 GUI 版本）执行 VBS 脚本可避免该问题。
+
+**步骤：**
+
+1. 将项目根目录下的 `codex_app.vbs` 复制到固定位置（例如 `C:\Users\<用户名>\bin\codex_app.vbs`）。
+
+> 该脚本采用**动态路径解析**，无需手动修改硬编码路径，按以下策略依次查找 `codex.exe`：
+> 1. **策略一**：读取 `~\.codex\config.toml` 中的 `CODEX_CLI_PATH` 配置；
+> 2. **策略二**：扫描 `%LOCALAPPDATA%\OpenAI\Codex\bin` 下的所有子目录，选取**最新修改时间**的 `codex.exe`；
+> 3. **策略三**：以上均失败时回退到系统 `PATH` 中的 `codex` 命令。
+
+2. 在桌面右键 → **新建 → 快捷方式**，目标栏填入：
+
+```
+C:\Windows\System32\wscript.exe "C:\Users\<用户名>\bin\codex_app.vbs"
+```
+
+3. 点击「下一步」并命名为「Codex」，完成创建。双击快捷方式即可无黑窗启动 Codex 桌面版。
+
+> **说明**：
+> - `wscript.exe` 是 Windows 脚本宿主（WSH）的 GUI 版本；`cscript.exe` 是控制台版本。用 `wscript.exe` 执行脚本时**不会弹出命令行窗口**。
+> - `WshShell.Run` 的第 2 个参数 `0` 表示隐藏窗口启动；第 3 个参数 `False` 表示不等待脚本结束。
+> - **无需硬编码路径**：Codex 的安装目录常带版本哈希（如 `bin\8e8bf206e63ac436\`），此脚本会自动定位最新版本，升级 Codex 后快捷方式依然有效。
+> - 在 `config.toml` 中设置 `CODEX_CLI_PATH` 可显式指定 codex.exe 路径（优先级最高）。
+> - 也可改用 `wscript.exe` 直接执行：`wscript.exe "C:\Users\<用户名>\bin\codex_app.vbs"`（等价效果）。
+
 ---
 
 ## 开发者注意事项
