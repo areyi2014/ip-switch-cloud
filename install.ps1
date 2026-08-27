@@ -672,33 +672,58 @@ function Install-CodexPlugin {
     New-Item -ItemType Directory -Path $targetDir -Force | Out-Null
 
     # 3. 只复制插件清单（MCP server 直接运行源码 dist，插件目录保持轻量）
-    Write-Info "复制插件清单 .codex-plugin 与 .mcp.json..."
+    Write-Info "复制插件清单 .codex-plugin ..."
     Copy-Item -Recurse -Force "$installDir\.codex-plugin" "$targetDir\.codex-plugin"
 
-    # 4. 生成 .mcp.json，入口指向源码 dist（绝对路径）
-    $mcpEntry = "$installDir\dist\index.js".Replace('\', '\\')
-    $mcpCwd   = $installDir.Replace('\', '\\')
-    $mcpJson = @"
-{
-  "mcpServers": {
-    "ip-switch": {
-      "command": "node",
-      "args": [
-        "$mcpEntry"
-      ],
-      "cwd": "$mcpCwd",
-      "startup_timeout_sec": 30,
-      "tool_timeout_sec": 300
+    # 4. 改写 plugin.json，mcpServers 指向源码 .mcp.json（绝对路径）
+    $pluginJsonPath = "$targetDir\.codex-plugin\plugin.json"
+    $raw = Get-Content -Raw -Path $pluginJsonPath
+    $mcpRef = "$installDir\.mcp.json".Replace('\', '\\')
+    $newRaw = $raw -replace '"mcpServers"\s*:\s*"[^"]*"', ('"mcpServers": "' + $mcpRef + '"')
+    [System.IO.File]::WriteAllText($pluginJsonPath, $newRaw, (New-Object System.Text.UTF8Encoding($false)))
+
+    # 5. 写入/更新 Codex config.toml 的 [mcp_servers.ip-switch]（缺失则添加，已有则指向源码）
+    $configFile = "$env:USERPROFILE\.codex\config.toml"
+    New-Item -ItemType Directory -Path "$env:USERPROFILE\.codex" -Force | Out-Null
+    $content = ""
+    if (Test-Path $configFile) {
+        $content = [System.IO.File]::ReadAllText($configFile)
     }
-  }
-}
+    $mcpCmd = "$installDir\dist\index.js"
+    $mcpCwd = $installDir
+    if ($content -match '(?m)^\[mcp_servers\.ip-switch\]') {
+        Write-Info "config.toml 已含 [mcp_servers.ip-switch]，更新 command/cwd 指向源码..."
+        $segStart = $content.IndexOf("[mcp_servers.ip-switch]")
+        $segEnd = $content.IndexOf("`n[", $segStart)
+        if ($segEnd -lt 0) { $segEnd = $content.Length }
+        $seg = $content.Substring($segStart, $segEnd - $segStart)
+        $seg = $seg -replace '(?m)^command = .*$', "command = '$mcpCmd'"
+        $seg = $seg -replace '(?m)^cwd = .*$', "cwd = '$mcpCwd'"
+        $content = $content.Substring(0, $segStart) + $seg + $content.Substring($segEnd)
+    } else {
+        Write-Info "config.toml 缺少 [mcp_servers.ip-switch]，追加配置..."
+        $block = @"
+
+[mcp_servers.ip-switch]
+args = []
+command = '$mcpCmd'
+startup_timeout_sec = 30
+cwd = '$mcpCwd'
+enabled = true
 "@
-    [System.IO.File]::WriteAllText("$targetDir\.mcp.json", $mcpJson, (New-Object System.Text.UTF8Encoding($false)))
+        if ($content.Trim().Length -eq 0) {
+            $content = $block.TrimStart() + "`n"
+        } else {
+            $content = $content.TrimEnd() + "`n`n" + $block.TrimStart() + "`n"
+        }
+    }
+    [System.IO.File]::WriteAllText($configFile, $content, (New-Object System.Text.UTF8Encoding($false)))
+    Write-OK "已写入 MCP 配置: $configFile"
 
     # 验证
-    if ((Test-Path "$targetDir\.codex-plugin\plugin.json") -and (Test-Path "$targetDir\.mcp.json")) {
+    if (Test-Path "$targetDir\.codex-plugin\plugin.json") {
         Write-OK "插件已安装: $targetDir"
-        Write-Info "MCP 入口指向: $installDir\dist\index.js"
+        Write-Info "MCP 配置指向: $installDir\.mcp.json"
         Write-Info "重启 Codex 后插件生效"
     } else {
         Write-Err "插件安装不完整，请检查 $targetDir"
