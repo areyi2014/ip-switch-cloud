@@ -593,8 +593,8 @@ fs.writeFileSync(target, JSON.stringify(config, null, 2) + '\n', 'utf8');
     }
 }
 
-# -- 生成 MCP 配置 ------------------------------------------------------------
-function Generate-MCPConfig {
+# -- 生成 Workbuddy 配置 ------------------------------------------------------------
+function Generate-WbConfig {
     Write-Step "生成 MCP 配置"
 
     # 各平台优先使用其自带 Node.js（用户可能只装了 IDE，没有独立 Node）
@@ -799,7 +799,7 @@ function Main {
         Build-Project
     }
     if ($script:DetectedWB) {
-        Generate-MCPConfig
+        Generate-WbConfig
     }
     if ($script:DetectedCodex) {
         Install-CodexPlugin

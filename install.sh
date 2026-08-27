@@ -449,8 +449,8 @@ fs.writeFileSync(target, JSON.stringify(config, null, 2) + "\n", "utf8");
     }
 }
 
-# ── 生成 MCP 配置 ────────────────────────────────────────────────────────────
-generate_mcp_config() {
+# ── 生成 WorkBuddy 配置 ────────────────────────────────────────────────────────────
+generate_wb_config() {
     log_step "生成 MCP 配置"
 
     # 各平台优先使用其自带 Node.js（用户可能只装了 IDE，没有独立 Node）
@@ -652,7 +652,7 @@ main() {
     install_deps
     build_project
     if $DETECTED_WB; then
-        generate_mcp_config
+        generate_wb_config
     fi
     if $DETECTED_CODEX; then
         install_codex_plugin
