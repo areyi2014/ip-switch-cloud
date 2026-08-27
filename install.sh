@@ -536,30 +536,45 @@ install_codex_plugin() {
     mkdir -p "$target_dir"
 
     # 3. 只复制插件清单（MCP server 直接运行源码 dist，插件目录保持轻量）
-    log_info "复制插件清单 .codex-plugin 与 .mcp.json..."
+    log_info "复制插件清单 .codex-plugin ..."
     cp -r "$INSTALL_DIR/.codex-plugin" "$target_dir/.codex-plugin"
 
-    # 4. 生成 .mcp.json，入口指向源码 dist（绝对路径）
-    cat > "$target_dir/.mcp.json" <<EOF
-{
-  "mcpServers": {
-    "ip-switch": {
-      "command": "node",
-      "args": [
-        "${INSTALL_DIR}/dist/index.js"
-      ],
-      "cwd": "${INSTALL_DIR}",
-      "startup_timeout_sec": 30,
-      "tool_timeout_sec": 300
-    }
-  }
-}
+    # 4. 改写 plugin.json，mcpServers 指向源码 .mcp.json（绝对路径）
+    sed -i.bak "s|\"./\.mcp\.json\"|\"${INSTALL_DIR}/.mcp.json\"|" "$target_dir/.codex-plugin/plugin.json"
+    rm -f "$target_dir/.codex-plugin/plugin.json.bak"
+
+    # 5. 写入/更新 Codex config.toml 的 [mcp_servers.ip-switch]（缺失则添加，已有则指向源码）
+    local config_file="$HOME/.codex/config.toml"
+    local mcp_cmd="${INSTALL_DIR}/dist/index.js"
+    local mcp_cwd="${INSTALL_DIR}"
+    mkdir -p "$HOME/.codex"
+    if [ ! -f "$config_file" ]; then
+        : > "$config_file"
+    fi
+
+    if grep -q '^\[mcp_servers\.ip-switch\]' "$config_file"; then
+        log_info "config.toml 已含 [mcp_servers.ip-switch]，更新 command/cwd 指向源码..."
+        sed -i.bak -e "/^\[mcp_servers\.ip-switch\]/,/^\[/ s|^command = .*|command = '${mcp_cmd}'|" \
+                   -e "/^\[mcp_servers\.ip-switch\]/,/^\[/ s|^cwd = .*|cwd = '${mcp_cwd}'|" "$config_file"
+        rm -f "$config_file.bak"
+    else
+        log_info "config.toml 缺少 [mcp_servers.ip-switch]，追加配置..."
+        cat >> "$config_file" <<EOF
+
+[mcp_servers.ip-switch]
+args = []
+command = '${mcp_cmd}'
+startup_timeout_sec = 30
+cwd = '${mcp_cwd}'
+enabled = true
 EOF
+    fi
+    log_ok "已写入 MCP 配置: ${config_file}"
 
     # 验证
-    if [ -f "$target_dir/.codex-plugin/plugin.json" ] && [ -f "$target_dir/.mcp.json" ]; then
+    if [ -f "$target_dir/.codex-plugin/plugin.json" ]; then
         log_ok "插件已安装: ${target_dir}"
-        log_info "MCP 入口指向: ${INSTALL_DIR}/dist/index.js"
+        log_info "MCP 配置指向: ${INSTALL_DIR}/.mcp.json"
         log_info "重启 Codex 后插件生效"
     else
         log_error "插件安装不完整，请检查 ${target_dir}"
