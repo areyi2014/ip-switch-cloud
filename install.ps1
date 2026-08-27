@@ -648,8 +648,6 @@ function Generate-MCPConfig {
 function Install-CodexPlugin {
     Write-Step "安装 Codex 插件（仅清单，MCP 直接运行源码 dist）"
 
-    $targetDir = "$env:USERPROFILE\.codex\plugins\ip-switch"
-
     # 1. 校验源码编译产物与插件清单
     if (-not (Test-Path "$installDir\dist\index.js")) {
         Write-Err "缺少编译产物 $installDir\dist\index.js，请先编译（或去掉 -SkipBuild）"
@@ -665,6 +663,7 @@ function Install-CodexPlugin {
     }
 
     # 2. 清理旧目标，避免残留旧文件
+    $targetDir = "$env:USERPROFILE\.codex\plugins\ip-switch"
     New-Item -ItemType Directory -Path "$env:USERPROFILE\.codex\plugins" -Force | Out-Null
     if (Test-Path $targetDir) {
         Write-Info "目标目录已存在，执行整体替换: $targetDir"
