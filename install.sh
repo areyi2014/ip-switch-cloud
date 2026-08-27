@@ -511,8 +511,6 @@ EOF_CONFIG
 install_codex_plugin() {
     log_step "安装 Codex 插件（仅清单，MCP 直接运行源码 dist）"
 
-    local target_dir="$HOME/.codex/plugins/ip-switch"
-
     # 1. 校验源码编译产物与插件清单
     if [ ! -f "$INSTALL_DIR/dist/index.js" ]; then
         log_error "缺少编译产物 ${INSTALL_DIR}/dist/index.js，请先编译"
@@ -529,6 +527,7 @@ install_codex_plugin() {
 
     # 2. 清理旧目标，避免残留旧文件
     mkdir -p "$HOME/.codex/plugins"
+    local target_dir="$HOME/.codex/plugins/ip-switch"
 
     if [ -d "$target_dir" ]; then
         log_info "目标目录已存在，执行整体替换: ${target_dir}"
