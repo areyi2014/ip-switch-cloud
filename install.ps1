@@ -1,4 +1,4 @@
-﻿#===============================================================================
+#===============================================================================
 # ip-switch 自动部署脚本 (Windows PowerShell)
 #===============================================================================
 # 用途: 一键克隆、安装依赖、编译、生成 MCP 配置
@@ -719,6 +719,45 @@ enabled = true
     }
     [System.IO.File]::WriteAllText($configFile, $content, (New-Object System.Text.UTF8Encoding($false)))
     Write-OK "已写入 MCP 配置: $configFile"
+
+    # 6. 创建桌面快捷方式
+    Write-Host '正在创建Codex快捷方式...' -ForegroundColor Green
+
+    $shortcutName = 'Codex with ip-switch'
+    $shortcutPath = [System.Environment]::GetFolderPath('Desktop') + '\\' + $shortcutName + '.lnk'
+    $wscriptExe = "$env:SystemRoot\System32\wscript.exe"
+    $vbsPath = "$installDir\codex_app.vbs"
+
+    # 复制启动脚本
+    if (Test-Path '..\codex_app.vbs') {
+        Copy-Item '..\codex_app.vbs' -Destination $vbsPath -Force
+        Write-Host "✓ 已复制codex_app.vbs到 $vbsPath" -ForegroundColor Green
+    } elseif (-not (Test-Path $vbsPath)) {
+        Write-Host "警告: 安装目录下未找到codex_app.vbs文件" -ForegroundColor Yellow
+    }
+
+    # 复制图标文件
+    $iconPath = "$installDir\codex.ico"
+    if (Test-Path '..\codex.ico') {
+        Copy-Item '..\codex.ico' -Destination $iconPath -Force
+        Write-Host "✓ 已复制codex.ico到 $iconPath" -ForegroundColor Green
+    } elseif (-not (Test-Path $iconPath)) {
+        Write-Host "警告: 未找到codex.ico图标文件，将使用默认图标" -ForegroundColor Yellow
+    }
+
+    # 创建快捷方式
+    $shell = New-Object -ComObject WScript.Shell
+    $shortcut = $shell.CreateShortcut($shortcutPath)
+    $shortcut.TargetPath = $wscriptExe
+    $shortcut.Arguments = '"' + $vbsPath + '"'
+    $shortcut.Description = '启动 Codex 并自动加载 ip-switch MCP 服务'
+    $shortcut.WorkingDirectory = $installDir
+    if (Test-Path $iconPath) {
+        $shortcut.IconLocation = "$iconPath,0"
+    }
+    $shortcut.Save()
+
+    Write-Host "✓ 已创建桌面快捷方式: $shortcutPath" -ForegroundColor Green
 
     # 验证
     if (Test-Path "$targetDir\.codex-plugin\plugin.json") {
