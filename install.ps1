@@ -1,7 +1,7 @@
 ﻿#===============================================================================
 # ip-switch 自动部署脚本 (Windows PowerShell)
 #===============================================================================
-# 用途: 一键克隆、安装依赖、编译、生成 MCP 配置
+# 用途: 一键克隆、安装依赖、编译、生成 workbuddy 配置、生成 codex 配置[创建桌面图标]
 # 适用: Windows 10/11 (PowerShell 5.1+)
 # 前提: git 已安装, Node.js >= 18 已安装
 #===============================================================================
@@ -595,7 +595,7 @@ fs.writeFileSync(target, JSON.stringify(config, null, 2) + '\n', 'utf8');
 
 # -- 生成 Workbuddy 配置 ------------------------------------------------------------
 function Generate-WbConfig {
-    Write-Step "生成 MCP 配置"
+    Write-Step "生成 Workbuddy 配置"
 
     # 各平台优先使用其自带 Node.js（用户可能只装了 IDE，没有独立 Node）
     $defaultNode = (Get-Command node).Source
