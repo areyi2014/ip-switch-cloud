@@ -407,7 +407,7 @@ detect_mcp_platform() {
     # Codex: 检查目录或二进制是否存在
     if [ -d "$HOME/.codex" ] || command -v codex &>/dev/null; then
         DETECTED_CODEX=true
-        log_ok "检测到 Codex"
+        log_ok "检测到 Codex ($HOME/.codex)"
     fi
 
     if ! $DETECTED_WB && ! $DETECTED_CODEX; then
