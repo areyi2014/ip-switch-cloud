@@ -16,8 +16,8 @@ create_codex_shortcut() {
     echo "正在创建 Codex 快捷方式..."
 
     # 复制启动脚本
-    if [ -f "../codex_app.vbs" ]; then
-        cp "../codex_app.vbs" "$vbs_path"
+    if [ -f "./codex_app.vbs" ]; then
+        cp "./codex_app.vbs" "$vbs_path"
         chmod +x "$vbs_path"
         echo "✓ 已复制 codex_app.vbs 到 $vbs_path"
     elif [ ! -f "$vbs_path" ]; then
@@ -26,8 +26,8 @@ create_codex_shortcut() {
 
     # 复制图标文件
     local icon_path="$install_dir/codex.ico"
-    if [ -f "../codex.ico" ]; then
-        cp "../codex.ico" "$icon_path"
+    if [ -f "./codex.ico" ]; then
+        cp "./codex.ico" "$icon_path"
         echo "✓ 已复制 codex.ico 到 $icon_path"
     elif [ ! -f "$icon_path" ]; then
         echo "警告: 未找到 codex.ico 图标文件，将使用默认图标"
