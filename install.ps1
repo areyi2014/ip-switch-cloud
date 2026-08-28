@@ -550,7 +550,7 @@ function Detect-MCPPlatform {
     $codexBin = Get-Command codex -ErrorAction SilentlyContinue
     if ((Test-Path $codexDir) -or $codexBin) {
         $script:DetectedCodex = $true
-        Write-OK "检测到 Codex"
+        Write-OK "检测到 Codex ($codexDir)"
     }
 
     if (-not $script:DetectedWB -and -not $script:DetectedCodex) {
