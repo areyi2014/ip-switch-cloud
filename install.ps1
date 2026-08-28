@@ -729,8 +729,8 @@ enabled = true
     $vbsPath = "$installDir\codex_app.vbs"
 
     # 复制启动脚本
-    if (Test-Path '..\codex_app.vbs') {
-        Copy-Item '..\codex_app.vbs' -Destination $vbsPath -Force
+    if (Test-Path '.\codex_app.vbs') {
+        Copy-Item '.\codex_app.vbs' -Destination $vbsPath -Force
         Write-Host "✓ 已复制codex_app.vbs到 $vbsPath" -ForegroundColor Green
     } elseif (-not (Test-Path $vbsPath)) {
         Write-Host "警告: 安装目录下未找到codex_app.vbs文件" -ForegroundColor Yellow
@@ -738,8 +738,8 @@ enabled = true
 
     # 复制图标文件
     $iconPath = "$installDir\codex.ico"
-    if (Test-Path '..\codex.ico') {
-        Copy-Item '..\codex.ico' -Destination $iconPath -Force
+    if (Test-Path '.\codex.ico') {
+        Copy-Item '.\codex.ico' -Destination $iconPath -Force
         Write-Host "✓ 已复制codex.ico到 $iconPath" -ForegroundColor Green
     } elseif (-not (Test-Path $iconPath)) {
         Write-Host "警告: 未找到codex.ico图标文件，将使用默认图标" -ForegroundColor Yellow
