@@ -645,6 +645,125 @@ EOF
     fi
 }
 
+# ── 安装 Codex 插件市场（marketplace），使插件页/市场中可发现 ip-switch ──────
+install_codex_marketplace() {
+    log_step "安装 Codex 插件市场（ip-switch）"
+
+    local codex_root="$HOME/.codex"
+    local market_dir="$codex_root/marketplaces/ip-switch"
+    local market_plugin_dir="$market_dir/plugins/ip-switch/.codex-plugin"
+    local config_file="$codex_root/config.toml"
+
+    # 1. 市场清单 marketplace.json（参考 Codex 自带 openai-bundled 格式）
+    mkdir -p "$market_dir/.agents/plugins" "$market_plugin_dir"
+    cat > "$market_dir/.agents/plugins/marketplace.json" <<'EOF_MARKET'
+{
+  "name": "ip-switch",
+  "interface": {
+    "displayName": "IP Switch"
+  },
+  "plugins": [
+    {
+      "name": "ip-switch",
+      "source": {
+        "source": "local",
+        "path": "./plugins/ip-switch"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    }
+  ]
+}
+EOF_MARKET
+
+    # 2. 市场内插件清单 plugin.json（mcpServers 指向源码 .mcp.json 绝对路径）
+    cat > "$market_plugin_dir/plugin.json" <<EOF_PLUGIN
+{
+  "name": "ip-switch",
+  "version": "1.0.0",
+  "description": "Multi-cloud public IP switch MCP server with Cloudflare DNS auto-update",
+  "author": {
+    "name": "areyi2014",
+    "url": "https://github.com/areyi2014/ip-switch"
+  },
+  "homepage": "https://github.com/areyi2014/ip-switch",
+  "repository": "https://github.com/areyi2014/ip-switch.git",
+  "license": "MIT",
+  "keywords": [
+    "mcp",
+    "ip-switch",
+    "cloud",
+    "aws",
+    "azure",
+    "oci",
+    "vultr",
+    "cloudflare",
+    "dns"
+  ],
+  "mcpServers": "${INSTALL_DIR}/.mcp.json",
+  "interface": {
+    "displayName": "IP Switch",
+    "shortDescription": "Multi-cloud IP switch & DNS update",
+    "longDescription": "Switch the public IP of cloud instances across AWS / Azure / Oracle OCI / Vultr and automatically update Cloudflare DNS A records. Exposes 13 MCP tools for one-click IP rotation, instance management, and DNS sync.",
+    "developerName": "areyi2014",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Cloud",
+      "Network"
+    ],
+    "websiteURL": "https://github.com/areyi2014/ip-switch",
+    "defaultPrompt": [
+      "Use IP Switch to rotate the public IP of a cloud instance and update its Cloudflare DNS record.",
+      "Use IP Switch to query instance info or list instances in a cloud region."
+    ]
+  }
+}
+EOF_PLUGIN
+    log_ok "已写入市场清单: ${market_dir}/.agents/plugins/marketplace.json"
+    log_ok "已写入插件清单: ${market_plugin_dir}/plugin.json"
+
+    # 3. config.toml: [marketplaces.ip-switch]（缺失则追加，已有则保留）
+    if [ ! -f "$config_file" ]; then
+        touch "$config_file"
+    fi
+    if grep -q '^\[marketplaces\.ip-switch\]' "$config_file"; then
+        log_info "config.toml 已含 [marketplaces.ip-switch]，保留现有配置"
+    else
+        log_info "config.toml 缺少 [marketplaces.ip-switch]，追加配置..."
+        cat >> "$config_file" <<EOF
+
+[marketplaces.ip-switch]
+source_type = "local"
+source = '${market_dir}'
+EOF
+    fi
+
+    # 4. config.toml: [plugins."ip-switch@ip-switch"] enabled = true（缺失则追加）
+    if grep -q '^\[plugins\."ip-switch@ip-switch"\]' "$config_file"; then
+        log_info 'config.toml 已含 [plugins."ip-switch@ip-switch"]，保留现有配置'
+    else
+        log_info 'config.toml 缺少 [plugins."ip-switch@ip-switch"]，追加启用条目...'
+        cat >> "$config_file" <<EOF
+
+[plugins."ip-switch@ip-switch"]
+enabled = true
+EOF
+    fi
+    log_ok "已更新 Codex 配置: ${config_file}"
+
+    # 5. 验证
+    if [ -f "$market_dir/.agents/plugins/marketplace.json" ] && [ -f "$market_plugin_dir/plugin.json" ]; then
+        log_ok "Codex 插件市场已安装: ${market_dir}"
+        log_info "重启 Codex 后，插件页/市场中可见 IP Switch"
+    else
+        log_error "插件市场安装不完整，请检查 ${market_dir}"
+        exit 1
+    fi
+}
+
 # ── 安装完成后提示 ───────────────────────────────────────────────────────────
 print_success() {
     local target_dir="$HOME/.codex/plugins/ip-switch"
@@ -719,6 +838,7 @@ main() {
     fi
     if $DETECTED_CODEX; then
         install_codex_plugin
+        install_codex_marketplace
     fi
     print_success
 

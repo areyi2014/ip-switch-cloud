@@ -770,6 +770,142 @@ enabled = true
     }
 }
 
+# -- 安装 Codex 插件市场（marketplace），使插件页/市场中可发现 ip-switch ------
+function Install-CodexMarketplace {
+    Write-Step "安装 Codex 插件市场（ip-switch）"
+
+    $codexRoot = "$env:USERPROFILE\.codex"
+    $marketDir = "$codexRoot\marketplaces\ip-switch"
+    $marketPluginDir = "$marketDir\plugins\ip-switch\.codex-plugin"
+
+    # 1. 市场清单 marketplace.json（参考 Codex 自带 openai-bundled 格式）
+    $marketJson = @"
+{
+  "name": "ip-switch",
+  "interface": {
+    "displayName": "IP Switch"
+  },
+  "plugins": [
+    {
+      "name": "ip-switch",
+      "source": {
+        "source": "local",
+        "path": "./plugins/ip-switch"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    }
+  ]
+}
+"@
+
+    # 2. 市场内插件清单 plugin.json（mcpServers 指向源码 .mcp.json 绝对路径）
+    $mcpRef = "$installDir\.mcp.json".Replace('\', '\\')
+    $pluginJson = @"
+{
+  "name": "ip-switch",
+  "version": "1.0.0",
+  "description": "Multi-cloud public IP switch MCP server with Cloudflare DNS auto-update",
+  "author": {
+    "name": "areyi2014",
+    "url": "https://github.com/areyi2014/ip-switch"
+  },
+  "homepage": "https://github.com/areyi2014/ip-switch",
+  "repository": "https://github.com/areyi2014/ip-switch.git",
+  "license": "MIT",
+  "keywords": [
+    "mcp",
+    "ip-switch",
+    "cloud",
+    "aws",
+    "azure",
+    "oci",
+    "vultr",
+    "cloudflare",
+    "dns"
+  ],
+  "mcpServers": "$mcpRef",
+  "interface": {
+    "displayName": "IP Switch",
+    "shortDescription": "Multi-cloud IP switch & DNS update",
+    "longDescription": "Switch the public IP of cloud instances across AWS / Azure / Oracle OCI / Vultr and automatically update Cloudflare DNS A records. Exposes 13 MCP tools for one-click IP rotation, instance management, and DNS sync.",
+    "developerName": "areyi2014",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Cloud",
+      "Network"
+    ],
+    "websiteURL": "https://github.com/areyi2014/ip-switch",
+    "defaultPrompt": [
+      "Use IP Switch to rotate the public IP of a cloud instance and update its Cloudflare DNS record.",
+      "Use IP Switch to query instance info or list instances in a cloud region."
+    ]
+  }
+}
+"@
+
+    New-Item -ItemType Directory -Path "$marketDir\.agents\plugins" -Force | Out-Null
+    New-Item -ItemType Directory -Path $marketPluginDir -Force | Out-Null
+    [System.IO.File]::WriteAllText("$marketDir\.agents\plugins\marketplace.json", $marketJson, (New-Object System.Text.UTF8Encoding($false)))
+    [System.IO.File]::WriteAllText("$marketPluginDir\plugin.json", $pluginJson, (New-Object System.Text.UTF8Encoding($false)))
+    Write-OK "已写入市场清单: $marketDir\.agents\plugins\marketplace.json"
+    Write-OK "已写入插件清单: $marketPluginDir\plugin.json"
+
+    # 3. config.toml: [marketplaces.ip-switch]（缺失则追加，已有则保留）
+    $configFile = "$codexRoot\config.toml"
+    $content = ""
+    if (Test-Path $configFile) {
+        $content = [System.IO.File]::ReadAllText($configFile)
+    }
+    if ($content -notmatch '(?m)^\[marketplaces\.ip-switch\]') {
+        Write-Info "config.toml 缺少 [marketplaces.ip-switch]，追加配置..."
+        $block = @"
+
+[marketplaces.ip-switch]
+source_type = "local"
+source = '$marketDir'
+"@
+        if ($content.Trim().Length -eq 0) {
+            $content = $block.TrimStart() + "`n"
+        } else {
+            $content = $content.TrimEnd() + "`n`n" + $block.TrimStart() + "`n"
+        }
+    } else {
+        Write-Info "config.toml 已含 [marketplaces.ip-switch]，保留现有配置"
+    }
+
+    # 4. config.toml: [plugins."ip-switch@ip-switch"] enabled = true（缺失则追加）
+    if ($content -notmatch '(?m)^\[plugins\."ip-switch@ip-switch"\]') {
+        Write-Info "config.toml 缺少 [plugins.`"ip-switch@ip-switch`"]，追加启用条目..."
+        $block = @"
+
+[plugins."ip-switch@ip-switch"]
+enabled = true
+"@
+        if ($content.Trim().Length -eq 0) {
+            $content = $block.TrimStart() + "`n"
+        } else {
+            $content = $content.TrimEnd() + "`n`n" + $block.TrimStart() + "`n"
+        }
+    } else {
+        Write-Info "config.toml 已含 [plugins.`"ip-switch@ip-switch`"]，保留现有配置"
+    }
+    [System.IO.File]::WriteAllText($configFile, $content, (New-Object System.Text.UTF8Encoding($false)))
+    Write-OK "已更新 Codex 配置: $configFile"
+
+    # 5. 验证
+    if ((Test-Path "$marketDir\.agents\plugins\marketplace.json") -and (Test-Path "$marketPluginDir\plugin.json")) {
+        Write-OK "Codex 插件市场已安装: $marketDir"
+        Write-Info "重启 Codex 后，插件页/市场中可见 IP Switch"
+    } else {
+        Write-Err "插件市场安装不完整，请检查 $marketDir"
+        exit 1
+    }
+}
+
 # -- 安装完成后提示 ----------------------------------------------------------
 function Show-Success {
     $targetDir = "$env:USERPROFILE\.codex\plugins\ip-switch"
@@ -842,6 +978,7 @@ function Main {
     }
     if ($script:DetectedCodex) {
         Install-CodexPlugin
+        Install-CodexMarketplace
     }
     Show-Success
 
