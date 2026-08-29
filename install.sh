@@ -544,32 +544,32 @@ install_codex_plugin() {
     rm -f "$target_dir/.codex-plugin/plugin.json.bak"
 
     # 5. 写入/更新 Codex config.toml 的 [mcp_servers.ip-switch]（缺失则添加，已有则指向源码）
-#     local config_file="$HOME/.codex/config.toml"
-#     local mcp_cmd="${INSTALL_DIR}/dist/index.js"
-#     local mcp_cwd="${INSTALL_DIR}"
-#     mkdir -p "$HOME/.codex"
-#     if [ ! -f "$config_file" ]; then
-#         : > "$config_file"
-#     fi
+    local config_file="$HOME/.codex/config.toml"
+    local mcp_cmd="${INSTALL_DIR}/dist/index.js"
+    local mcp_cwd="${INSTALL_DIR}"
+    mkdir -p "$HOME/.codex"
+    if [ ! -f "$config_file" ]; then
+        : > "$config_file"
+    fi
 
-#     if grep -q '^\[mcp_servers\.ip-switch\]' "$config_file"; then
-#         log_info "config.toml 已含 [mcp_servers.ip-switch]，更新 command/cwd 指向源码..."
-#         sed -i.bak -e "/^\[mcp_servers\.ip-switch\]/,/^\[/ s|^command = .*|command = '${mcp_cmd}'|" \
-#                    -e "/^\[mcp_servers\.ip-switch\]/,/^\[/ s|^cwd = .*|cwd = '${mcp_cwd}'|" "$config_file"
-#         rm -f "$config_file.bak"
-#     else
-#         log_info "config.toml 缺少 [mcp_servers.ip-switch]，追加配置..."
-#         cat >> "$config_file" <<EOF
+    if grep -q '^\[mcp_servers\.ip-switch\]' "$config_file"; then
+        log_info "config.toml 已含 [mcp_servers.ip-switch]，更新 command/cwd 指向源码..."
+        sed -i.bak -e "/^\[mcp_servers\.ip-switch\]/,/^\[/ s|^command = .*|command = '${mcp_cmd}'|" \
+                   -e "/^\[mcp_servers\.ip-switch\]/,/^\[/ s|^cwd = .*|cwd = '${mcp_cwd}'|" "$config_file"
+        rm -f "$config_file.bak"
+    else
+        log_info "config.toml 缺少 [mcp_servers.ip-switch]，追加配置..."
+        cat >> "$config_file" <<EOF
 
-# [mcp_servers.ip-switch]
-# args = []
-# command = '${mcp_cmd}'
-# startup_timeout_sec = 30
-# cwd = '${mcp_cwd}'
-# enabled = true
-# EOF
-#     fi
-#     log_ok "已写入 MCP 配置: ${config_file}"
+[mcp_servers.ip-switch]
+args = []
+command = '${mcp_cmd}'
+startup_timeout_sec = 30
+cwd = '${mcp_cwd}'
+enabled = true
+EOF
+    fi
+    log_ok "已写入 MCP 配置: ${config_file}"
 
     # 6. 创建桌面快捷方式
     log_info "创建 Codex 桌面快捷方式..."
