@@ -683,42 +683,42 @@ function Install-CodexPlugin {
     [System.IO.File]::WriteAllText($pluginJsonPath, $newRaw, (New-Object System.Text.UTF8Encoding($false)))
 
     # 5. 写入/更新 Codex config.toml 的 [mcp_servers.ip-switch]（缺失则添加，已有则指向源码）
-    $configFile = "$env:USERPROFILE\.codex\config.toml"
-    New-Item -ItemType Directory -Path "$env:USERPROFILE\.codex" -Force | Out-Null
-    $content = ""
-    if (Test-Path $configFile) {
-        $content = [System.IO.File]::ReadAllText($configFile)
-    }
-    $mcpCmd = "$installDir\dist\index.js"
-    $mcpCwd = $installDir
-    if ($content -match '(?m)^\[mcp_servers\.ip-switch\]') {
-        Write-Info "config.toml 已含 [mcp_servers.ip-switch]，更新 command/cwd 指向源码..."
-        $segStart = $content.IndexOf("[mcp_servers.ip-switch]")
-        $segEnd = $content.IndexOf("`n[", $segStart)
-        if ($segEnd -lt 0) { $segEnd = $content.Length }
-        $seg = $content.Substring($segStart, $segEnd - $segStart)
-        $seg = $seg -replace '(?m)^command = .*$', "command = '$mcpCmd'"
-        $seg = $seg -replace '(?m)^cwd = .*$', "cwd = '$mcpCwd'"
-        $content = $content.Substring(0, $segStart) + $seg + $content.Substring($segEnd)
-    } else {
-        Write-Info "config.toml 缺少 [mcp_servers.ip-switch]，追加配置..."
-        $block = @"
+#     $configFile = "$env:USERPROFILE\.codex\config.toml"
+#     New-Item -ItemType Directory -Path "$env:USERPROFILE\.codex" -Force | Out-Null
+#     $content = ""
+#     if (Test-Path $configFile) {
+#         $content = [System.IO.File]::ReadAllText($configFile)
+#     }
+#     $mcpCmd = "$installDir\dist\index.js"
+#     $mcpCwd = $installDir
+#     if ($content -match '(?m)^\[mcp_servers\.ip-switch\]') {
+#         Write-Info "config.toml 已含 [mcp_servers.ip-switch]，更新 command/cwd 指向源码..."
+#         $segStart = $content.IndexOf("[mcp_servers.ip-switch]")
+#         $segEnd = $content.IndexOf("`n[", $segStart)
+#         if ($segEnd -lt 0) { $segEnd = $content.Length }
+#         $seg = $content.Substring($segStart, $segEnd - $segStart)
+#         $seg = $seg -replace '(?m)^command = .*$', "command = '$mcpCmd'"
+#         $seg = $seg -replace '(?m)^cwd = .*$', "cwd = '$mcpCwd'"
+#         $content = $content.Substring(0, $segStart) + $seg + $content.Substring($segEnd)
+#     } else {
+#         Write-Info "config.toml 缺少 [mcp_servers.ip-switch]，追加配置..."
+#         $block = @"
 
-[mcp_servers.ip-switch]
-args = []
-command = '$mcpCmd'
-startup_timeout_sec = 30
-cwd = '$mcpCwd'
-enabled = true
-"@
-        if ($content.Trim().Length -eq 0) {
-            $content = $block.TrimStart() + "`n"
-        } else {
-            $content = $content.TrimEnd() + "`n`n" + $block.TrimStart() + "`n"
-        }
-    }
-    [System.IO.File]::WriteAllText($configFile, $content, (New-Object System.Text.UTF8Encoding($false)))
-    Write-OK "已写入 MCP 配置: $configFile"
+# [mcp_servers.ip-switch]
+# args = []
+# command = '$mcpCmd'
+# startup_timeout_sec = 30
+# cwd = '$mcpCwd'
+# enabled = true
+# "@
+#         if ($content.Trim().Length -eq 0) {
+#             $content = $block.TrimStart() + "`n"
+#         } else {
+#             $content = $content.TrimEnd() + "`n`n" + $block.TrimStart() + "`n"
+#         }
+#     }
+#     [System.IO.File]::WriteAllText($configFile, $content, (New-Object System.Text.UTF8Encoding($false)))
+#     Write-OK "已写入 MCP 配置: $configFile"
 
     # 6. 创建桌面快捷方式
     Write-Host '正在创建Codex快捷方式...' -ForegroundColor Green
