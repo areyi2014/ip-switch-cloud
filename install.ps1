@@ -906,9 +906,67 @@ enabled = true
     }
 }
 
+# -- 重启客户端应用（WorkBuddy/Codex），使 MCP 配置立即生效 -------------------
+function Restart-ClientApp {
+    param(
+        [string]$AppName,
+        [string[]]$ProcessNames,
+        [string[]]$PathKeywords = @(),
+        [string]$LaunchExe = "",
+        [string[]]$LaunchArgs = @()
+    )
+
+    # 1) 先按进程名匹配（常见名，如 codex / ChatGPT / WorkBuddy / CodeBuddy）
+    $proc = $null
+    foreach ($name in $ProcessNames) {
+        $proc = Get-Process -Name $name -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($proc) { break }
+    }
+
+    # 2) 进程名没匹配上时，按可执行文件路径关键字兜底（路径比进程名稳定）
+    if (-not $proc -and $PathKeywords.Count -gt 0) {
+        foreach ($kw in $PathKeywords) {
+            $proc = Get-Process -ErrorAction SilentlyContinue |
+                Where-Object { $_.Path -and $_.Path -like "*$kw*" } |
+                Select-Object -First 1
+            if ($proc) { break }
+        }
+    }
+
+    if ($proc) {
+        $exePath = $proc.Path
+        Write-Info "检测到 $AppName 正在运行，正在重启..."
+        Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+        Start-Sleep -Seconds 2
+
+        # 优先用原进程路径重启，其次用指定启动命令
+        if ($exePath -and (Test-Path $exePath)) {
+            try {
+                Start-Process -FilePath $exePath -ErrorAction Stop | Out-Null
+                Write-OK "$AppName 已重新启动"
+                return
+            } catch { }
+        }
+        if ($LaunchExe) {
+            try {
+                Start-Process -FilePath $LaunchExe -ArgumentList $LaunchArgs -ErrorAction Stop | Out-Null
+                Write-OK "$AppName 已重新启动"
+                return
+            } catch { }
+        }
+        Write-Warn "$AppName 进程已关闭，但自动重启失败，请手动打开"
+    } else {
+        # 原进程未在运行 → 不做任何启动操作，保持现状
+        Write-Info "$AppName 未在运行，跳过重启（如需使用请手动打开）"
+    }
+}
+
 # -- 安装完成后提示 ----------------------------------------------------------
 function Show-Success {
-    $targetDir = "$env:USERPROFILE\.codex\plugins\ip-switch"
+    # 按实际安装的平台显示路径（WorkBuddy 无插件目录，只有 mcp.json）
+    $wbConfig       = "$env:USERPROFILE\.workbuddy\mcp.json"
+    $codexPluginDir = "$env:USERPROFILE\.codex\plugins\ip-switch"
+    $codexMarketDir = "$env:USERPROFILE\.codex\marketplaces\ip-switch"
 
     if ($script:DetectedWB -and $script:DetectedCodex) {
         $mcpHint = "  # 通过 MCP 工具使用（在 WorkBuddy/Codex 中直接对话即可）"
@@ -929,7 +987,13 @@ function Show-Success {
 "@
     Write-Host $successBanner -ForegroundColor Green
 
-    Write-Host "插件安装路径: $targetDir"
+    if ($script:DetectedWB) {
+        Write-Host "WorkBuddy MCP 配置: $wbConfig"
+    }
+    if ($script:DetectedCodex) {
+        Write-Host "Codex 插件清单:     $codexPluginDir"
+        Write-Host "Codex 市场清单:     $codexMarketDir"
+    }
     Write-Host "UI 服务器:  node $installDir\ui\server.cjs"
     Write-Host "UI 地址:    启动后终端会显示实际地址"
     Write-Host ""
@@ -952,9 +1016,42 @@ function Show-Success {
     Write-Host ""
 
     Write-Host "卸载:" -ForegroundColor Yellow
-    Write-Host "  Remove-Item -Recurse -Force $targetDir   # 删除插件清单"
+    if ($script:DetectedWB) {
+        Write-Host "  Remove-Item -Force $wbConfig          # 删除 WorkBuddy MCP 配置"
+    }
+    if ($script:DetectedCodex) {
+        Write-Host "  Remove-Item -Recurse -Force $codexPluginDir  # 删除 Codex 插件清单"
+        Write-Host "  Remove-Item -Recurse -Force $codexMarketDir  # 删除 Codex 市场清单"
+    }
     Write-Host "  Remove-Item -Recurse -Force $installDir  # 如需同时删除源码"
     Write-Host ""
+
+    # 自动重启客户端，使 MCP 配置立即生效
+    Write-Host "重启客户端:" -ForegroundColor Yellow
+    if ($script:DetectedWB) {
+        Write-Host "  > 即将自动重启 WorkBuddy（若你是从 WorkBuddy 内置终端运行本脚本，窗口将随之关闭）"
+        # 进程名常见候选 + 路径关键字兜底（路径含 .workbuddy / CodeBuddy / WorkBuddy）
+        Restart-ClientApp -AppName "WorkBuddy" `
+            -ProcessNames @("WorkBuddy", "CodeBuddy") `
+            -PathKeywords @("\.workbuddy\", "CodeBuddy", "WorkBuddy")
+    }
+    if ($script:DetectedCodex) {
+        $vbsPath = "$installDir\codex_app.vbs"
+        # 桌面版进程名可能是 codex / Codex / ChatGPT（Windows 商店包 exe 名），
+        # 兜底按路径含 OpenAI.Codex / OpenAI\Codex 匹配
+        if (Test-Path $vbsPath) {
+            # 通过 codex_app.vbs 启动，可同时拉起 ip-switch 服务
+            Restart-ClientApp -AppName "Codex" `
+                -ProcessNames @("codex", "Codex", "ChatGPT") `
+                -PathKeywords @("OpenAI.Codex", "OpenAI\Codex") `
+                -LaunchExe "$env:SystemRoot\System32\wscript.exe" -LaunchArgs @("`"$vbsPath`"")
+        } else {
+            Restart-ClientApp -AppName "Codex" `
+                -ProcessNames @("codex", "Codex", "ChatGPT") `
+                -PathKeywords @("OpenAI.Codex", "OpenAI\Codex") `
+                -LaunchExe "codex" -LaunchArgs @("app")
+        }
+    }
 }
 
 # -- 主流程 ------------------------------------------------------------------
