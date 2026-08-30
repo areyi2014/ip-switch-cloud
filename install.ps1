@@ -973,6 +973,7 @@ function Restart-ClientApp {
 # -- 安装完成后提示 ----------------------------------------------------------
 function Show-Success {
     # 自动重启客户端，使 MCP 配置立即生效
+    Write-Host ""
     Write-Host "重启客户端:" -ForegroundColor Yellow
     if ($script:DetectedWB) {
         Write-Host "  > 即将自动重启 WorkBuddy"
