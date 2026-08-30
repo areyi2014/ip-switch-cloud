@@ -976,7 +976,6 @@ function Show-Success {
     Write-Host ""
     Write-Host "重启客户端:" -ForegroundColor Yellow
     if ($script:DetectedWB) {
-        Write-Host "  > 即将自动重启 WorkBuddy"
         # 进程名常见候选 + 路径关键字兜底（路径含 .workbuddy / CodeBuddy / WorkBuddy）
         Restart-ClientApp -AppName "WorkBuddy" `
             -ProcessNames @("WorkBuddy", "CodeBuddy") `
