@@ -650,7 +650,7 @@ install_codex_marketplace() {
     log_step "安装 Codex 插件市场（ip-switch）"
 
     local codex_root="$HOME/.codex"
-    local market_dir="$codex_root/marketplaces/ip-switch"
+    local market_dir="$codex_root/marketplaces/local"
     local market_plugin_dir="$market_dir/plugins/ip-switch/.codex-plugin"
     local config_file="$codex_root/config.toml"
 
@@ -658,7 +658,7 @@ install_codex_marketplace() {
     mkdir -p "$market_dir/.agents/plugins" "$market_plugin_dir"
     cat > "$market_dir/.agents/plugins/marketplace.json" <<'EOF_MARKET'
 {
-  "name": "ip-switch",
+  "name": "local",
   "interface": {
     "displayName": "IP Switch"
   },
@@ -725,30 +725,30 @@ EOF_PLUGIN
     log_ok "已写入市场清单: ${market_dir}/.agents/plugins/marketplace.json"
     log_ok "已写入插件清单: ${market_plugin_dir}/plugin.json"
 
-    # 3. config.toml: [marketplaces.ip-switch]（缺失则追加，已有则保留）
+    # 3. config.toml: [marketplaces.local]（缺失则追加，已有则保留）
     if [ ! -f "$config_file" ]; then
         touch "$config_file"
     fi
-    if grep -q '^\[marketplaces\.ip-switch\]' "$config_file"; then
-        log_info "config.toml 已含 [marketplaces.ip-switch]，保留现有配置"
+    if grep -q '^\[marketplaces\.local\]' "$config_file"; then
+        log_info "config.toml 已含 [marketplaces.local]，保留现有配置"
     else
-        log_info "config.toml 缺少 [marketplaces.ip-switch]，追加配置..."
+        log_info "config.toml 缺少 [marketplaces.local]，追加配置..."
         cat >> "$config_file" <<EOF
 
-[marketplaces.ip-switch]
+[marketplaces.local]
 source_type = "local"
 source = '${market_dir}'
 EOF
     fi
 
-    # 4. config.toml: [plugins."ip-switch@ip-switch"] enabled = true（缺失则追加）
-    if grep -q '^\[plugins\."ip-switch@ip-switch"\]' "$config_file"; then
-        log_info 'config.toml 已含 [plugins."ip-switch@ip-switch"]，保留现有配置'
+    # 4. config.toml: [plugins."ip-switch@local"] enabled = true（缺失则追加）
+    if grep -q '^\[plugins\."ip-switch@local"\]' "$config_file"; then
+        log_info 'config.toml 已含 [plugins."ip-switch@local"]，保留现有配置'
     else
-        log_info 'config.toml 缺少 [plugins."ip-switch@ip-switch"]，追加启用条目...'
+        log_info 'config.toml 缺少 [plugins."ip-switch@local"]，追加启用条目...'
         cat >> "$config_file" <<EOF
 
-[plugins."ip-switch@ip-switch"]
+[plugins."ip-switch@local"]
 enabled = true
 EOF
     fi
@@ -769,7 +769,7 @@ print_success() {
     # 按实际安装的平台显示路径（WorkBuddy 无插件目录，只有 mcp.json）
     local wb_config="$HOME/.workbuddy/mcp.json"
     local codex_plugin_dir="$HOME/.codex/plugins/ip-switch"
-    local codex_market_dir="$HOME/.codex/marketplaces/ip-switch"
+    local codex_market_dir="$HOME/.codex/marketplaces/local"
     local browser_cmd
     if [ "$OS" = "macos" ]; then
         browser_cmd="open [启动服务器后显示的地址]"

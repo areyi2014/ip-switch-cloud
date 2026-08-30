@@ -775,13 +775,13 @@ function Install-CodexMarketplace {
     Write-Step "安装 Codex 插件市场（ip-switch）"
 
     $codexRoot = "$env:USERPROFILE\.codex"
-    $marketDir = "$codexRoot\marketplaces\ip-switch"
+    $marketDir = "$codexRoot\marketplaces\local"
     $marketPluginDir = "$marketDir\plugins\ip-switch\.codex-plugin"
 
     # 1. 市场清单 marketplace.json（参考 Codex 自带 openai-bundled 格式）
     $marketJson = @"
 {
-  "name": "ip-switch",
+  "name": "local",
   "interface": {
     "displayName": "IP Switch"
   },
@@ -854,17 +854,17 @@ function Install-CodexMarketplace {
     Write-OK "已写入市场清单: $marketDir\.agents\plugins\marketplace.json"
     Write-OK "已写入插件清单: $marketPluginDir\plugin.json"
 
-    # 3. config.toml: [marketplaces.ip-switch]（缺失则追加，已有则保留）
+    # 3. config.toml: [marketplaces.local]（缺失则追加，已有则保留）
     $configFile = "$codexRoot\config.toml"
     $content = ""
     if (Test-Path $configFile) {
         $content = [System.IO.File]::ReadAllText($configFile)
     }
-    if ($content -notmatch '(?m)^\[marketplaces\.ip-switch\]') {
-        Write-Info "config.toml 缺少 [marketplaces.ip-switch]，追加配置..."
+    if ($content -notmatch '(?m)^\[marketplaces\.local\]') {
+        Write-Info "config.toml 缺少 [marketplaces.local]，追加配置..."
         $block = @"
 
-[marketplaces.ip-switch]
+[marketplaces.local]
 source_type = "local"
 source = '$marketDir'
 "@
@@ -874,15 +874,15 @@ source = '$marketDir'
             $content = $content.TrimEnd() + "`n`n" + $block.TrimStart() + "`n"
         }
     } else {
-        Write-Info "config.toml 已含 [marketplaces.ip-switch]，保留现有配置"
+        Write-Info "config.toml 已含 [marketplaces.local]，保留现有配置"
     }
 
-    # 4. config.toml: [plugins."ip-switch@ip-switch"] enabled = true（缺失则追加）
-    if ($content -notmatch '(?m)^\[plugins\."ip-switch@ip-switch"\]') {
-        Write-Info "config.toml 缺少 [plugins.`"ip-switch@ip-switch`"]，追加启用条目..."
+    # 4. config.toml: [plugins."ip-switch@local"] enabled = true（缺失则追加）
+    if ($content -notmatch '(?m)^\[plugins\."ip-switch@local"\]') {
+        Write-Info "config.toml 缺少 [plugins.`"ip-switch@local`"]，追加启用条目..."
         $block = @"
 
-[plugins."ip-switch@ip-switch"]
+[plugins."ip-switch@local"]
 enabled = true
 "@
         if ($content.Trim().Length -eq 0) {
@@ -891,7 +891,7 @@ enabled = true
             $content = $content.TrimEnd() + "`n`n" + $block.TrimStart() + "`n"
         }
     } else {
-        Write-Info "config.toml 已含 [plugins.`"ip-switch@ip-switch`"]，保留现有配置"
+        Write-Info "config.toml 已含 [plugins.`"ip-switch@local`"]，保留现有配置"
     }
     [System.IO.File]::WriteAllText($configFile, $content, (New-Object System.Text.UTF8Encoding($false)))
     Write-OK "已更新 Codex 配置: $configFile"
@@ -1021,7 +1021,7 @@ function Show-Success {
     # 按实际安装的平台显示路径（WorkBuddy 无插件目录，只有 mcp.json）
     $wbConfig       = "$env:USERPROFILE\.workbuddy\mcp.json"
     $codexPluginDir = "$env:USERPROFILE\.codex\plugins\ip-switch"
-    $codexMarketDir = "$env:USERPROFILE\.codex\marketplaces\ip-switch"
+    $codexMarketDir = "$env:USERPROFILE\.codex\marketplaces\local"
 
     if ($script:DetectedWB) {
         Write-Host "WorkBuddy MCP 配置: $wbConfig"
