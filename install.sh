@@ -766,7 +766,10 @@ EOF
 
 # ── 安装完成后提示 ───────────────────────────────────────────────────────────
 print_success() {
-    local target_dir="$HOME/.codex/plugins/ip-switch"
+    # 按实际安装的平台显示路径（WorkBuddy 无插件目录，只有 mcp.json）
+    local wb_config="$HOME/.workbuddy/mcp.json"
+    local codex_plugin_dir="$HOME/.codex/plugins/ip-switch"
+    local codex_market_dir="$HOME/.codex/marketplaces/ip-switch"
     local browser_cmd
     if [ "$OS" = "macos" ]; then
         browser_cmd="open [启动服务器后显示的地址]"
@@ -785,14 +788,36 @@ print_success() {
         mcp_hint="  # 配置 MCP 客户端后，即可通过对话使用以下指令"
     fi
 
+    # 动态构建"安装位置"与"卸载命令"（只显示实际安装的平台）
+    local install_locations=""
+    if $DETECTED_WB; then
+        install_locations="${install_locations}WorkBuddy MCP 配置: ${wb_config}
+"
+    fi
+    if $DETECTED_CODEX; then
+        install_locations="${install_locations}Codex 插件清单:     ${codex_plugin_dir}
+Codex 市场清单:     ${codex_market_dir}
+"
+    fi
+
+    local uninstall_cmds=""
+    if $DETECTED_WB; then
+        uninstall_cmds="${uninstall_cmds}  rm -f ${wb_config}            # 删除 WorkBuddy MCP 配置
+"
+    fi
+    if $DETECTED_CODEX; then
+        uninstall_cmds="${uninstall_cmds}  rm -rf ${codex_plugin_dir}       # 删除 Codex 插件清单
+  rm -rf ${codex_market_dir}       # 删除 Codex 市场清单
+"
+    fi
+
     cat <<EOF
 
 ${GREEN}╔══════════════════════════════════════════════════════════╗
 ║          ip-switch 安装成功!                  ║
 ╚══════════════════════════════════════════════════════════╝${NC}
 
-插件安装路径: ${target_dir}
-UI 服务器:  node ${INSTALL_DIR}/ui/server.cjs
+${install_locations}UI 服务器:  node ${INSTALL_DIR}/ui/server.cjs
 UI 地址:    启动后终端会显示实际地址
 
 ${YELLOW}使用方式:${NC}
@@ -811,11 +836,18 @@ ${YELLOW}手动更新:${NC}
   cd ${INSTALL_DIR} && git pull && npm install && npm run build
 
 ${YELLOW}卸载:${NC}
-  rm -rf ${target_dir}       # 删除插件清单
-  rm -rf ${INSTALL_DIR}      # 删除源码（可选）
+${uninstall_cmds}  rm -rf ${INSTALL_DIR}      # 删除源码（可选）
   rm -rf ~/.ip-switch
 
+${YELLOW}重启客户端:${NC}
 EOF
+    if $DETECTED_WB; then
+        echo "  重启 WorkBuddy 后 MCP 配置生效"
+    fi
+    if $DETECTED_CODEX; then
+        echo "  重启 Codex 后插件页可见 IP Switch"
+    fi
+    echo ""
 }
 
 # ── 主流程 ───────────────────────────────────────────────────────────────────
