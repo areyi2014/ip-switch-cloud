@@ -933,6 +933,11 @@ function Restart-ClientApp {
         }
     }
 
+    # 3) 启动子进程时重定向 stdout/stderr 到临时文件，屏蔽 Electron 调试日志
+    $logOut = Join-Path $env:TEMP "ip-switch-$AppName-out.log"
+    $logErr = Join-Path $env:TEMP "ip-switch-$AppName-err.log"
+    Remove-Item $logOut, $logErr -Force -ErrorAction SilentlyContinue
+
     if ($proc) {
         $exePath = $proc.Path
         Write-Info "检测到 $AppName 正在运行，正在重启..."
@@ -942,14 +947,18 @@ function Restart-ClientApp {
         # 优先用原进程路径重启，其次用指定启动命令
         if ($exePath -and (Test-Path $exePath)) {
             try {
-                Start-Process -FilePath $exePath -ErrorAction Stop | Out-Null
+                Start-Process -FilePath $exePath `
+                    -RedirectStandardOutput $logOut -RedirectStandardError $logErr `
+                    -ErrorAction Stop | Out-Null
                 Write-OK "$AppName 已重新启动"
                 return
             } catch { }
         }
         if ($LaunchExe) {
             try {
-                Start-Process -FilePath $LaunchExe -ArgumentList $LaunchArgs -ErrorAction Stop | Out-Null
+                Start-Process -FilePath $LaunchExe -ArgumentList $LaunchArgs `
+                    -RedirectStandardOutput $logOut -RedirectStandardError $logErr `
+                    -ErrorAction Stop | Out-Null
                 Write-OK "$AppName 已重新启动"
                 return
             } catch { }
@@ -1029,7 +1038,7 @@ function Show-Success {
     # 自动重启客户端，使 MCP 配置立即生效
     Write-Host "重启客户端:" -ForegroundColor Yellow
     if ($script:DetectedWB) {
-        Write-Host "  > 即将自动重启 WorkBuddy（若你是从 WorkBuddy 内置终端运行本脚本，窗口将随之关闭）"
+        Write-Host "  > 即将自动重启 WorkBuddy"
         # 进程名常见候选 + 路径关键字兜底（路径含 .workbuddy / CodeBuddy / WorkBuddy）
         Restart-ClientApp -AppName "WorkBuddy" `
             -ProcessNames @("WorkBuddy", "CodeBuddy") `
