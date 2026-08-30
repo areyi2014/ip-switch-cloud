@@ -972,10 +972,32 @@ function Restart-ClientApp {
 
 # -- 安装完成后提示 ----------------------------------------------------------
 function Show-Success {
-    # 按实际安装的平台显示路径（WorkBuddy 无插件目录，只有 mcp.json）
-    $wbConfig       = "$env:USERPROFILE\.workbuddy\mcp.json"
-    $codexPluginDir = "$env:USERPROFILE\.codex\plugins\ip-switch"
-    $codexMarketDir = "$env:USERPROFILE\.codex\marketplaces\ip-switch"
+    # 自动重启客户端，使 MCP 配置立即生效
+    Write-Host "重启客户端:" -ForegroundColor Yellow
+    if ($script:DetectedWB) {
+        Write-Host "  > 即将自动重启 WorkBuddy"
+        # 进程名常见候选 + 路径关键字兜底（路径含 .workbuddy / CodeBuddy / WorkBuddy）
+        Restart-ClientApp -AppName "WorkBuddy" `
+            -ProcessNames @("WorkBuddy", "CodeBuddy") `
+            -PathKeywords @("\.workbuddy\", "CodeBuddy", "WorkBuddy")
+    }
+    if ($script:DetectedCodex) {
+        $vbsPath = "$installDir\codex_app.vbs"
+        # 桌面版进程名可能是 codex / Codex / ChatGPT（Windows 商店包 exe 名），
+        # 兜底按路径含 OpenAI.Codex / OpenAI\Codex 匹配
+        if (Test-Path $vbsPath) {
+            # 通过 codex_app.vbs 启动，可同时拉起 ip-switch 服务
+            Restart-ClientApp -AppName "Codex" `
+                -ProcessNames @("codex", "Codex", "ChatGPT") `
+                -PathKeywords @("OpenAI.Codex", "OpenAI\Codex") `
+                -LaunchExe "$env:SystemRoot\System32\wscript.exe" -LaunchArgs @("`"$vbsPath`"")
+        } else {
+            Restart-ClientApp -AppName "Codex" `
+                -ProcessNames @("codex", "Codex", "ChatGPT") `
+                -PathKeywords @("OpenAI.Codex", "OpenAI\Codex") `
+                -LaunchExe "codex" -LaunchArgs @("app")
+        }
+    }
 
     if ($script:DetectedWB -and $script:DetectedCodex) {
         $mcpHint = "  # 通过 MCP 工具使用（在 WorkBuddy/Codex 中直接对话即可）"
@@ -995,6 +1017,11 @@ function Show-Success {
 
 "@
     Write-Host $successBanner -ForegroundColor Green
+
+    # 按实际安装的平台显示路径（WorkBuddy 无插件目录，只有 mcp.json）
+    $wbConfig       = "$env:USERPROFILE\.workbuddy\mcp.json"
+    $codexPluginDir = "$env:USERPROFILE\.codex\plugins\ip-switch"
+    $codexMarketDir = "$env:USERPROFILE\.codex\marketplaces\ip-switch"
 
     if ($script:DetectedWB) {
         Write-Host "WorkBuddy MCP 配置: $wbConfig"
@@ -1034,33 +1061,6 @@ function Show-Success {
     }
     Write-Host "  Remove-Item -Recurse -Force $installDir  # 如需同时删除源码"
     Write-Host ""
-
-    # 自动重启客户端，使 MCP 配置立即生效
-    Write-Host "重启客户端:" -ForegroundColor Yellow
-    if ($script:DetectedWB) {
-        Write-Host "  > 即将自动重启 WorkBuddy"
-        # 进程名常见候选 + 路径关键字兜底（路径含 .workbuddy / CodeBuddy / WorkBuddy）
-        Restart-ClientApp -AppName "WorkBuddy" `
-            -ProcessNames @("WorkBuddy", "CodeBuddy") `
-            -PathKeywords @("\.workbuddy\", "CodeBuddy", "WorkBuddy")
-    }
-    if ($script:DetectedCodex) {
-        $vbsPath = "$installDir\codex_app.vbs"
-        # 桌面版进程名可能是 codex / Codex / ChatGPT（Windows 商店包 exe 名），
-        # 兜底按路径含 OpenAI.Codex / OpenAI\Codex 匹配
-        if (Test-Path $vbsPath) {
-            # 通过 codex_app.vbs 启动，可同时拉起 ip-switch 服务
-            Restart-ClientApp -AppName "Codex" `
-                -ProcessNames @("codex", "Codex", "ChatGPT") `
-                -PathKeywords @("OpenAI.Codex", "OpenAI\Codex") `
-                -LaunchExe "$env:SystemRoot\System32\wscript.exe" -LaunchArgs @("`"$vbsPath`"")
-        } else {
-            Restart-ClientApp -AppName "Codex" `
-                -ProcessNames @("codex", "Codex", "ChatGPT") `
-                -PathKeywords @("OpenAI.Codex", "OpenAI\Codex") `
-                -LaunchExe "codex" -LaunchArgs @("app")
-        }
-    }
 }
 
 # -- 主流程 ------------------------------------------------------------------
