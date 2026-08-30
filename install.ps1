@@ -945,9 +945,10 @@ function Restart-ClientApp {
         Start-Sleep -Seconds 2
 
         # 优先用原进程路径重启，其次用指定启动命令
+        # -WindowStyle Hidden: 防止启动控制台程序（如 codex.exe CLI）时闪现黑色弹窗
         if ($exePath -and (Test-Path $exePath)) {
             try {
-                Start-Process -FilePath $exePath `
+                Start-Process -FilePath $exePath -WindowStyle Hidden `
                     -RedirectStandardOutput $logOut -RedirectStandardError $logErr `
                     -ErrorAction Stop | Out-Null
                 Write-OK "$AppName 已重新启动"
@@ -956,7 +957,7 @@ function Restart-ClientApp {
         }
         if ($LaunchExe) {
             try {
-                Start-Process -FilePath $LaunchExe -ArgumentList $LaunchArgs `
+                Start-Process -FilePath $LaunchExe -ArgumentList $LaunchArgs -WindowStyle Hidden `
                     -RedirectStandardOutput $logOut -RedirectStandardError $logErr `
                     -ErrorAction Stop | Out-Null
                 Write-OK "$AppName 已重新启动"
