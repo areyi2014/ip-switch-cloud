@@ -786,7 +786,7 @@ $ipSwitchConfigBody
 #   ② 复制 codex.ico 图标文件
 #   ③ 创建桌面快捷方式：wscript.exe + codex_app.vbs，以 ip-switch 目录为工作区启动 codex app
 function Install-CodexShotcut {
-    Write-Step "创建桌面快捷方式"
+    Write-Step "创建Codex桌面快捷方式"
 
     $shortcutName = 'Codex with ip-switch'
     $shortcutPath = [System.Environment]::GetFolderPath('Desktop') + '\\' + $shortcutName + '.lnk'
