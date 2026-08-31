@@ -507,7 +507,7 @@ EOF_CONFIG
 
 
 
-# ── 安装 Codex MCP 直连配置 + Profile 叠加层 + 项目级配置 + 桌面快捷方式 ──
+# ── 安装 Codex MCP 直连配置 + Profile 叠加层 + 项目级配置 ──
 # 职责：
 #   ① 生成 INSTALL_DIR/.mcp.json（codex 自带 node 全路径，供市场插件 plugin.json 引用）
 #   ② 生成 INSTALL_DIR/.codex/config.toml（项目级配置层 —— 桌面版的主要加载通道）
@@ -517,11 +517,12 @@ EOF_CONFIG
 #   ③ 创建 ~/.codex/ip-switch.config.toml（Profile 叠加层，CLI 专用）
 #      —— 用于 codex --profile ip-switch CLI 命令（mcp list / exec / review 等）
 #   ④ 清理旧版 ~/.codex/plugins/ip-switch 残留
-#   ⑤ 创建桌面快捷方式（codex_app.sh 以 INSTALL_DIR 为工作区启动 codex app）
+#   ⑤ 桌面快捷方式已拆出为 install_codex_shotcut 独立函数
+#      —— codex_app.sh 以 INSTALL_DIR 为工作区启动 codex app
 # 注：插件页发现/安装由 install_codex_marketplace 负责，本函数不重复。
 # 注：②③两份配置互为镜像；均独立于 config.toml，CC Switch 不影响。
-install_codex_plugin() {
-    log_step "安装 Codex MCP 直连配置 + 桌面快捷方式"
+install_codex_profile() {
+    log_step "安装 Codex MCP 直连配置 + Profile 叠加层"
 
     local dist_js="${INSTALL_DIR}/dist/index.js"
     local codex_node="${CODEX_NODE_EXE:-}"
@@ -553,18 +554,18 @@ install_codex_plugin() {
 EOF
     log_ok "已生成 MCP 配置: ${INSTALL_DIR}/.mcp.json"
 
-    # 2.5 生成项目级配置层（INSTALL_DIR/.codex/config.toml）—— 桌面版的主要加载通道
-    #     桌面版 codex app 无法接收 -c 覆盖（协议拉起时参数丢失），
-    #     只能通过「信任的工作区」内的项目级配置注册 ip-switch。
-    #     codex_app.sh 已改为以 INSTALL_DIR 为工作区启动，首次启动自动信任。
     local codex_dir="$HOME/.codex"
     local market_dir="$codex_dir/marketplaces/local"
     mkdir -p "${INSTALL_DIR}/.codex"
-    cat > "${INSTALL_DIR}/.codex/config.toml" <<EOF
-# ip-switch project-scoped config — layered on top of ~/.codex/config.toml
-# Independent of user config.toml (CC Switch safe).
-# Loaded by Codex when this workspace is opened and trusted.
 
+    # 公共配置主体 —— 项目级配置层与 Profile 叠加层的内容完全一致（互为镜像），
+    # 仅文件位置、加载时机与用途不同：
+    #   ① 项目级配置层（INSTALL_DIR/.codex/config.toml）→ 桌面版加载通道
+    #   ② Profile 叠加层（~/.codex/ip-switch.config.toml）→ CLI --profile 加载通道
+    # 统一维护这一份模板，避免两份配置内容漂移；TOML 中表顺序无关紧要。
+    # 注意：这里是 shell heredoc，${dist_js} / ${codex_node} / ${INSTALL_DIR} / ${market_dir} 会被展开。
+    local ip_switch_config_body
+    ip_switch_config_body=$(cat <<EOF
 [mcp_servers.ip-switch]
 args = ['${dist_js}']
 command = '${codex_node}'
@@ -579,6 +580,20 @@ source = '${market_dir}'
 [plugins."ip-switch@local"]
 enabled = true
 EOF
+)
+
+    # 2.5 生成项目级配置层（INSTALL_DIR/.codex/config.toml）—— 桌面版的主要加载通道
+    #     桌面版 codex app 无法接收 -c 覆盖（协议拉起时参数丢失），
+    #     只能通过「信任的工作区」内的项目级配置注册 ip-switch。
+    #     codex_app.sh 已改为以 INSTALL_DIR 为工作区启动，首次启动自动信任。
+    #     内容与 Profile 叠加层相同，共用 ip_switch_config_body（见上方模板说明）。
+    cat > "${INSTALL_DIR}/.codex/config.toml" <<EOF
+# ip-switch project-scoped config — layered on top of ~/.codex/config.toml
+# Independent of user config.toml (CC Switch safe).
+# Loaded by Codex when this workspace is opened and trusted.
+
+${ip_switch_config_body}
+EOF
     log_ok "已生成项目级配置层: ${INSTALL_DIR}/.codex/config.toml"
     log_info "桌面版 Codex 以本目录为工作区启动时自动加载（首次启动自动信任）"
 
@@ -586,6 +601,7 @@ EOF
     #    独立于 config.toml，CC Switch 篡改 config.toml 不影响 ip-switch
     #    用途：codex --profile ip-switch CLI 命令（mcp list / exec / review 等）
     #    注意：codex app 子命令不支持 --profile；桌面版走上面的项目级配置层
+    #    内容与项目级配置层相同，共用 ip_switch_config_body（见上方模板说明）。
     mkdir -p "$codex_dir"
     cat > "$codex_dir/ip-switch.config.toml" <<EOF
 # ip-switch Profile — 独立于 config.toml 的叠加层
@@ -593,19 +609,7 @@ EOF
 # 用途：codex --profile ip-switch CLI 命令（mcp list / exec / review 等）
 # 注意：codex app 子命令不支持 --profile；桌面版走工作区内 .codex/config.toml 项目级配置
 
-[marketplaces.local]
-source_type = "local"
-source = '${market_dir}'
-
-[plugins."ip-switch@local"]
-enabled = true
-
-[mcp_servers.ip-switch]
-args = ['${dist_js}']
-command = '${codex_node}'
-startup_timeout_sec = 30
-cwd = '${INSTALL_DIR}'
-enabled = true
+${ip_switch_config_body}
 EOF
     log_ok "已创建 Codex Profile 叠加层: ${codex_dir}/ip-switch.config.toml"
     log_info "CC Switch 篡改 config.toml 不再影响 ip-switch（独立叠加层）"
@@ -617,8 +621,27 @@ EOF
         rm -rf "$legacy_dir"
     fi
 
-    # 5. 创建桌面快捷方式
-    log_info "创建 Codex 桌面快捷方式..."
+    # 5. 创建桌面快捷方式（已拆出为 install_codex_shotcut 独立函数）
+    install_codex_shotcut
+
+    # 6. 验证
+    if [ -f "${INSTALL_DIR}/.mcp.json" ]; then
+        log_ok "Codex MCP 直连配置已就绪: ${INSTALL_DIR}/.mcp.json"
+        log_info "重启 Codex 后生效（插件页发现由市场负责）"
+    else
+        log_error "MCP 配置生成失败，请检查 ${INSTALL_DIR}/.mcp.json"
+        exit 1
+    fi
+}
+
+# ── 创建桌面快捷方式 ───────────────────────────────────────────────────────────
+# 从 install_codex_profile 拆出的独立函数：
+#   ① 复制 codex_app.vbs 启动脚本（Windows 专用；Linux 下另生成 codex_app.sh）
+#   ② 复制 codex.ico 图标文件
+#   ③ 生成 codex_app.sh（启动 ip-switch 服务并以 INSTALL_DIR 为工作区启动 codex app）
+#   ④ 创建 .desktop 快捷方式
+install_codex_shotcut() {
+    log_step "创建桌面快捷方式"
 
     # 桌面目录：优先 xdg-user-dir（Linux），回退 ~/Desktop（macOS/默认）
     local desktop_dir=""
@@ -682,15 +705,6 @@ Categories=Development;Utility;
 EOF
     chmod +x "$desktop_file"
     log_ok "已创建桌面快捷方式: ${desktop_file}"
-
-    # 6. 验证
-    if [ -f "${INSTALL_DIR}/.mcp.json" ]; then
-        log_ok "Codex MCP 直连配置已就绪: ${INSTALL_DIR}/.mcp.json"
-        log_info "重启 Codex 后生效（插件页发现由市场负责）"
-    else
-        log_error "MCP 配置生成失败，请检查 ${INSTALL_DIR}/.mcp.json"
-        exit 1
-    fi
 }
 
 # ── 安装 Codex 插件市场（marketplace），使插件页/市场中可发现 ip-switch ──────
@@ -892,7 +906,8 @@ main() {
         generate_wb_config
     fi
     if $DETECTED_CODEX; then
-        install_codex_plugin
+        install_codex_profile
+        install_codex_shotcut
         install_codex_marketplace
     fi
     print_success
