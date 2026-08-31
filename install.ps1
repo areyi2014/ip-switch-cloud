@@ -644,22 +644,13 @@ function Generate-WbConfig {
 
 
 
-# -- 安装 Codex MCP 直连配置 + Profile 叠加层 + 项目级配置 ----------------------
-# 职责：
-#   ① 生成 installDir\.mcp.json（codex 自带 node 全路径，供市场插件 plugin.json 引用）
-#   ② 生成 installDir\.codex\config.toml（项目级配置层 —— 桌面版的主要加载通道）
-#      —— 桌面版 codex app 通过 codex:// 协议拉起，-c 参数传不进桌面进程，
-#         桌面版只读 ~/.codex/config.toml + 工作区内项目级 .codex/config.toml
-#      —— 首次以该目录为工作区启动时 Codex 会自动信任（写入 [projects] 表），
-#         信任后本文件的 mcp_servers / marketplaces / plugins 全部生效
-#   ③ 创建 ~/.codex/ip-switch.config.toml（Profile 叠加层，CLI 专用）
-#      —— 用于 codex --profile ip-switch CLI 命令（mcp list / exec / review 等）
-#   ④ 桌面快捷方式已拆出为 Install-CodexShotcut 独立函数
-#      —— codex_app.vbs 以 ip-switch 目录为工作区启动 codex app
-# 注：插件页发现/安装由 Install-CodexMarketplace 负责，本函数不重复。
-# 注：②③两份配置互为镜像；均独立于 config.toml，CC Switch 不影响。
-function Install-CodexToml {
-    Write-Step "安装 Codex MCP 直连配置 + Profile 叠加层"
+# -- 生成 Codex MCP 直连配置（installDir\.mcp.json） ---------------------------
+#   ① 探测/校验 Node.js（优先 $script:CodexNodeExe，回退 PATH 中的 node）
+#   ② 校验编译产物 installDir\dist\index.js 存在
+#   ③ 生成 installDir\.mcp.json（全路径写法，覆盖仓库自带的 command:"node" 脆弱版本）
+# 并把最终选定的 node / dist 路径写入脚本级变量供 Install-CodexToml 复用。
+function Install-CodexMcp {
+    Write-Step "生成 Codex MCP 直连配置（.mcp.json）"
 
     $distJs    = "$installDir\dist\index.js"
     $codexNode = if ($script:CodexNodeExe) { $script:CodexNodeExe } else { (Get-Command node -ErrorAction SilentlyContinue).Source }
@@ -695,9 +686,39 @@ function Install-CodexToml {
     [System.IO.File]::WriteAllText($dotMcp, $mcpJson, (New-Object System.Text.UTF8Encoding($false)))
     Write-OK "已生成 MCP 配置: $dotMcp"
 
-    # 3.1 生成项目级配置层（installDir\.codex\config.toml）—— 桌面版的主要加载通道
+    # 3. 输出供后续 TOML 配置层复用（脚本级变量，跨函数可见）
+    $script:CodexMcpDist = $distJs
+    $script:CodexMcpNode = $codexNode
+
+    # 4. 验证
+    $dotMcp = "$installDir\.mcp.json"
+    if (Test-Path $dotMcp) {
+        Write-OK "Codex MCP 直连配置已就绪: $dotMcp"
+        Write-Info "重启 Codex 后生效（插件页发现由市场负责）"
+    } else {
+        Write-Err "MCP 配置生成失败，请检查 $dotMcp"
+        exit 1
+    }
+}
+
+# -- 安装 Codex TOML 配置层（项目级 + 叠加层配置） --------------------------
+# 职责：
+#   ② 生成 installDir\.codex\config.toml（项目级配置层 —— 桌面版的主要加载通道）
+#      —— 桌面版 codex app 通过 codex:// 协议拉起，-c 参数传不进桌面进程，工作区内项目级 .codex/config.toml
+#         首次以该目录为工作区启动时 Codex 会自动信任（写入 [projects] 表），
+#         信任后本文件的 mcp_servers / marketplaces / plugins 全部生效
+#   ③ 生成 ~/.codex/ip-switch.config.toml（叠加层配置，CLI 专用）
+#      —— 用于 codex --profile ip-switch CLI 命令（mcp list / exec / review 等），会自动搜索ip-switch.config.toml
+# 注：②③两份配置互为镜像；均独立于 config.toml，CC Switch 不影响。
+function Install-CodexToml {
+    Write-Step "安装 Codex TOML 配置层（项目级配置 + 叠加层配置）"
+
+    # 1. 取 Install-CodexMcp 的输出（该函数在主流程先于本函数执行）
+    $distJs    = $script:CodexMcpDist
+    $codexNode = $script:CodexMcpNode
+
+    # 2. 生成项目级配置层（installDir\.codex\config.toml）—— 桌面版的主要加载通道
     #     桌面版 codex app 无法接收 -c 覆盖（协议拉起时参数丢失），
-    #     只能通过「信任的工作区」内的项目级配置注册 ip-switch。
     #     codex_app.vbs 已改为以 installDir 为工作区启动，首次启动自动信任。
     $codexDir = "$env:USERPROFILE\.codex"
     $projectCodexDir = "$installDir\.codex"
@@ -727,7 +748,7 @@ source = '$marketDir'
 enabled = true
 "@
 
-    # 3.2 内容与 Profile 叠加层相同，共用 $ipSwitchConfigBody（见上方模板说明）。
+    # 2.1 内容与 Profile 叠加层相同，共用 $ipSwitchConfigBody（见上方模板说明）。
     $projectConfigContent = @"
 # ip-switch project-scoped config — layered on top of ~/.codex/config.toml
 # Independent of user config.toml (CC Switch safe).
@@ -738,7 +759,7 @@ $ipSwitchConfigBody
     Write-OK "已生成项目级配置层: $projectConfigFile"
     Write-Info "桌面版 Codex 以本目录为工作区启动时自动加载（首次启动自动信任）"
 
-    # 3.3 创建 Codex Profile 叠加层（~/.codex/ip-switch.config.toml）
+    # 2.2. 创建 Codex Profile 叠加层（~/.codex/ip-switch.config.toml）
     #    独立于 config.toml，CC Switch 篡改 config.toml 不影响 ip-switch
     #    用途：codex --profile ip-switch CLI 命令（mcp list / exec / review 等）
     #    注意：codex app 子命令不支持 --profile；桌面版走上面的项目级配置层
@@ -756,17 +777,7 @@ $ipSwitchConfigBody
     Write-OK "已创建 Codex Profile 叠加层: $profileFile"
     Write-Info "CC Switch 篡改 config.toml 不再影响 ip-switch（独立叠加层）"
 
-    # 4. 创建桌面快捷方式（已拆出为 Install-CodexShotcut 独立函数）
-    Install-CodexShotcut
 
-    # 5. 验证
-    if (Test-Path $dotMcp) {
-        Write-OK "Codex MCP 直连配置已就绪: $dotMcp"
-        Write-Info "重启 Codex 后生效（插件页发现由市场负责）"
-    } else {
-        Write-Err "MCP 配置生成失败，请检查 $dotMcp"
-        exit 1
-    }
 }
 
 # -- 创建桌面快捷方式 ----------------------------------------------------------
@@ -1091,6 +1102,7 @@ function Main {
         Generate-WbConfig
     }
     if ($script:DetectedCodex) {
+        Install-CodexMcp
         Install-CodexToml
         Install-CodexShotcut
         Install-CodexMarketplace
