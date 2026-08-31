@@ -837,7 +837,7 @@ function Install-CodexMarketplace {
 {
   "name": "local",
   "interface": {
-    "displayName": "IP Switch"
+    "displayName": "Local Marketplace"
   },
   "plugins": [
     {
