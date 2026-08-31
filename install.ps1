@@ -644,13 +644,16 @@ function Generate-WbConfig {
 
 
 
-# -- 安装 Codex MCP 直连配置 + 桌面快捷方式 ----------------------------------
+# -- 安装 Codex MCP 直连配置 + Profile 叠加层 + 桌面快捷方式 ------------------
 # 职责：
 #   ① 生成 installDir\.mcp.json（codex 自带 node 全路径，供市场插件 plugin.json 引用）
-#   ② 写入 config.toml [mcp_servers.ip-switch]（直连，不依赖插件安装即可用）
-#   ③ 清理旧版 ~/.codex/plugins/ip-switch 残留（曾导致插件页偶发重复发现）
-#   ④ 创建桌面快捷方式
+#   ② 创建 ~/.codex/ip-switch.config.toml（Profile 叠加层，含 mcp_servers + marketplaces + plugins）
+#      —— 独立于 config.toml，CC Switch 篡改 config.toml 不影响 ip-switch
+#      —— 用于 codex --profile ip-switch CLI 命令（mcp list / exec / review 等）
+#   ③ 清理旧版 ~/.codex/plugins/ip-switch 残留
+#   ④ 创建桌面快捷方式（codex_app.vbs 通过 -c 覆盖传递 ip-switch 配置给 codex app）
 # 注：插件页发现/安装由 Install-CodexMarketplace 负责，本函数不重复。
+# 重要：codex app 子命令不支持 --profile（v0.151+ 会报错），VBS 使用 -c key=value 覆盖。
 function Install-CodexPlugin {
     Write-Step "安装 Codex MCP 直连配置 + 桌面快捷方式"
 
@@ -688,42 +691,36 @@ function Install-CodexPlugin {
     [System.IO.File]::WriteAllText($dotMcp, $mcpJson, (New-Object System.Text.UTF8Encoding($false)))
     Write-OK "已生成 MCP 配置: $dotMcp"
 
-    # 3. 写入/更新 config.toml [mcp_servers.ip-switch]（command=node.exe, args=[dist/index.js]）
-    $configFile = "$env:USERPROFILE\.codex\config.toml"
-    New-Item -ItemType Directory -Path "$env:USERPROFILE\.codex" -Force | Out-Null
-    $content = ""
-    if (Test-Path $configFile) {
-        $content = [System.IO.File]::ReadAllText($configFile)
-    }
-    if ($content -match '(?m)^\[mcp_servers\.ip-switch\]') {
-        Write-Info "config.toml 已含 [mcp_servers.ip-switch]，更新 command/args/cwd..."
-        $segStart = $content.IndexOf("[mcp_servers.ip-switch]")
-        $segEnd = $content.IndexOf("`n[", $segStart)
-        if ($segEnd -lt 0) { $segEnd = $content.Length }
-        $seg = $content.Substring($segStart, $segEnd - $segStart)
-        $seg = $seg -replace '(?m)^command = .*$', "command = '$codexNode'"
-        $seg = $seg -replace '(?m)^args = .*$', "args = ['$distJs']"
-        $seg = $seg -replace '(?m)^cwd = .*$', "cwd = '$installDir'"
-        $content = $content.Substring(0, $segStart) + $seg + $content.Substring($segEnd)
-    } else {
-        Write-Info "config.toml 缺少 [mcp_servers.ip-switch]，追加配置..."
-        $block = @"
+    # 3. 创建 Codex Profile 叠加层（~/.codex/ip-switch.config.toml）
+    #    独立于 config.toml，CC Switch 篡改 config.toml 不影响 ip-switch
+    #    用途：codex --profile ip-switch CLI 命令（mcp list / exec / review 等）
+    #    注意：codex app 子命令不支持 --profile，桌面版通过 codex_app.vbs 的 -c 覆盖加载
+    $codexDir = "$env:USERPROFILE\.codex"
+    New-Item -ItemType Directory -Path $codexDir -Force | Out-Null
+    $profileFile = "$codexDir\ip-switch.config.toml"
+    $marketDir = "$codexDir\marketplaces\local"
+    $profileContent = @"
+# ip-switch Profile — 独立于 config.toml 的叠加层
+# CC Switch 只管 config.toml，此文件不受影响
+# Codex 启动时通过 --profile ip-switch 加载本文件
+
+[marketplaces.local]
+source_type = "local"
+source = '$marketDir'
+
+[plugins."ip-switch@local"]
+enabled = true
 
 [mcp_servers.ip-switch]
-command = '$codexNode'
 args = ['$distJs']
+command = '$codexNode'
 startup_timeout_sec = 30
 cwd = '$installDir'
 enabled = true
 "@
-        if ($content.Trim().Length -eq 0) {
-            $content = $block.TrimStart() + "`n"
-        } else {
-            $content = $content.TrimEnd() + "`n`n" + $block.TrimStart() + "`n"
-        }
-    }
-    [System.IO.File]::WriteAllText($configFile, $content, (New-Object System.Text.UTF8Encoding($false)))
-    Write-OK "已写入 MCP 直连配置: $configFile"
+    [System.IO.File]::WriteAllText($profileFile, $profileContent, (New-Object System.Text.UTF8Encoding($false)))
+    Write-OK "已创建 Codex Profile 叠加层: $profileFile"
+    Write-Info "CC Switch 篡改 config.toml 不再影响 ip-switch（独立叠加层）"
 
     # 4. 清理旧版 ~/.codex/plugins/ip-switch（曾导致插件页偶发重复发现 ip-switch）
     $legacyDir = "$env:USERPROFILE\.codex\plugins\ip-switch"
@@ -865,47 +862,9 @@ function Install-CodexMarketplace {
     Write-OK "已写入市场清单: $marketDir\.agents\plugins\marketplace.json"
     Write-OK "已写入插件清单: $marketPluginDir\plugin.json"
 
-    # 3. config.toml: [marketplaces.local]（缺失则追加，已有则保留）
-    $configFile = "$codexRoot\config.toml"
-    $content = ""
-    if (Test-Path $configFile) {
-        $content = [System.IO.File]::ReadAllText($configFile)
-    }
-    if ($content -notmatch '(?m)^\[marketplaces\.local\]') {
-        Write-Info "config.toml 缺少 [marketplaces.local]，追加配置..."
-        $block = @"
-
-[marketplaces.local]
-source_type = "local"
-source = '$marketDir'
-"@
-        if ($content.Trim().Length -eq 0) {
-            $content = $block.TrimStart() + "`n"
-        } else {
-            $content = $content.TrimEnd() + "`n`n" + $block.TrimStart() + "`n"
-        }
-    } else {
-        Write-Info "config.toml 已含 [marketplaces.local]，保留现有配置"
-    }
-
-    # 4. config.toml: [plugins."ip-switch@local"] enabled = true（缺失则追加）
-    if ($content -notmatch '(?m)^\[plugins\."ip-switch@local"\]') {
-        Write-Info "config.toml 缺少 [plugins.`"ip-switch@local`"]，追加启用条目..."
-        $block = @"
-
-[plugins."ip-switch@local"]
-enabled = true
-"@
-        if ($content.Trim().Length -eq 0) {
-            $content = $block.TrimStart() + "`n"
-        } else {
-            $content = $content.TrimEnd() + "`n`n" + $block.TrimStart() + "`n"
-        }
-    } else {
-        Write-Info "config.toml 已含 [plugins.`"ip-switch@local`"]，保留现有配置"
-    }
-    [System.IO.File]::WriteAllText($configFile, $content, (New-Object System.Text.UTF8Encoding($false)))
-    Write-OK "已更新 Codex 配置: $configFile"
+    # 3. 市场注册已移至 Profile 叠加层（~/.codex/ip-switch.config.toml）
+    #    不再写 config.toml，避免 CC Switch 篡改导致丢失
+    Write-OK "市场注册已在 Profile 叠加层中配置（ip-switch.config.toml）"
 
     # 5. 验证
     if ((Test-Path "$marketDir\.agents\plugins\marketplace.json") -and (Test-Path "$marketPluginDir\plugin.json")) {
@@ -1066,6 +1025,8 @@ function Show-Success {
         Write-Host "  Remove-Item -Force $wbConfig          # 删除 WorkBuddy MCP 配置"
     }
     if ($script:DetectedCodex) {
+        $profileFile = "$env:USERPROFILE\.codex\ip-switch.config.toml"
+        Write-Host "  Remove-Item -Force $profileFile        # 删除 Codex Profile 叠加层"
         Write-Host "  Remove-Item -Recurse -Force $codexMarketDir  # 删除 Codex 市场清单"
     }
     Write-Host "  Remove-Item -Recurse -Force $installDir  # 如需同时删除源码"

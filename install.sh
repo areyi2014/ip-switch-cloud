@@ -507,13 +507,16 @@ EOF_CONFIG
 
 
 
-# ── 安装 Codex MCP 直连配置 + 桌面快捷方式 ────────────────────────────────
+# ── 安装 Codex MCP 直连配置 + Profile 叠加层 + 桌面快捷方式 ──────────────
 # 职责：
 #   ① 生成 INSTALL_DIR/.mcp.json（codex 自带 node 全路径，供市场插件 plugin.json 引用）
-#   ② 写入 config.toml [mcp_servers.ip-switch]（直连，不依赖插件安装即可用）
-#   ③ 清理旧版 ~/.codex/plugins/ip-switch 残留（曾导致插件页偶发重复发现）
-#   ④ 创建桌面快捷方式
+#   ② 创建 ~/.codex/ip-switch.config.toml（Profile 叠加层，含 mcp_servers + marketplaces + plugins）
+#      —— 独立于 config.toml，CC Switch 篡改 config.toml 不影响 ip-switch
+#      —— 用于 codex --profile ip-switch CLI 命令（mcp list / exec / review 等）
+#   ③ 清理旧版 ~/.codex/plugins/ip-switch 残留
+#   ④ 创建桌面快捷方式（codex_app.sh 通过 -c 覆盖传递 ip-switch 配置给 codex app）
 # 注：插件页发现/安装由 install_codex_marketplace 负责，本函数不重复。
+# 重要：codex app 子命令不支持 --profile（v0.151+ 会报错），启动脚本使用 -c key=value 覆盖。
 install_codex_plugin() {
     log_step "安装 Codex MCP 直连配置 + 桌面快捷方式"
 
@@ -547,30 +550,35 @@ install_codex_plugin() {
 EOF
     log_ok "已生成 MCP 配置: ${INSTALL_DIR}/.mcp.json"
 
-    # 3. 写入/更新 config.toml [mcp_servers.ip-switch]（command=node, args=[dist/index.js]）
-    local config_file="$HOME/.codex/config.toml"
-    mkdir -p "$HOME/.codex"
-    [ -f "$config_file" ] || touch "$config_file"
+    # 3. 创建 Codex Profile 叠加层（~/.codex/ip-switch.config.toml）
+    #    独立于 config.toml，CC Switch 篡改 config.toml 不影响 ip-switch
+    #    用途：codex --profile ip-switch CLI 命令（mcp list / exec / review 等）
+    #    注意：codex app 子命令不支持 --profile，桌面版通过 codex_app.sh 的 -c 覆盖加载
+    local codex_dir="$HOME/.codex"
+    local market_dir="$codex_dir/marketplaces/local"
+    mkdir -p "$codex_dir"
+    cat > "$codex_dir/ip-switch.config.toml" <<EOF
+# ip-switch Profile — 独立于 config.toml 的叠加层
+# CC Switch 只管 config.toml，此文件不受影响
+# 用途：codex --profile ip-switch CLI 命令（mcp list / exec / review 等）
+# 注意：codex app 子命令不支持 --profile，桌面版通过 codex_app.sh 的 -c 覆盖加载
 
-    if grep -q '^\[mcp_servers\.ip-switch\]' "$config_file"; then
-        log_info "config.toml 已含 [mcp_servers.ip-switch]，更新 command/args/cwd..."
-        sed -i.bak -e "/^\[mcp_servers\.ip-switch\]/,/^\[/ s|^command = .*|command = '${codex_node}'|" \
-                   -e "/^\[mcp_servers\.ip-switch\]/,/^\[/ s|^args = .*|args = ['${dist_js}']|" \
-                   -e "/^\[mcp_servers\.ip-switch\]/,/^\[/ s|^cwd = .*|cwd = '${INSTALL_DIR}'|" "$config_file"
-        rm -f "$config_file.bak"
-    else
-        log_info "config.toml 缺少 [mcp_servers.ip-switch]，追加配置..."
-        cat >> "$config_file" <<EOF
+[marketplaces.local]
+source_type = "local"
+source = '${market_dir}'
+
+[plugins."ip-switch@local"]
+enabled = true
 
 [mcp_servers.ip-switch]
-command = '${codex_node}'
 args = ['${dist_js}']
+command = '${codex_node}'
 startup_timeout_sec = 30
 cwd = '${INSTALL_DIR}'
 enabled = true
 EOF
-    fi
-    log_ok "已写入 MCP 直连配置: ${config_file}"
+    log_ok "已创建 Codex Profile 叠加层: ${codex_dir}/ip-switch.config.toml"
+    log_info "CC Switch 篡改 config.toml 不再影响 ip-switch（独立叠加层）"
 
     # 4. 清理旧版 ~/.codex/plugins/ip-switch（曾导致插件页偶发重复发现 ip-switch）
     local legacy_dir="$HOME/.codex/plugins/ip-switch"
@@ -610,16 +618,18 @@ EOF
     fi
 
     # 生成 Linux/macOS 版启动脚本（等价 codex_app.vbs：启动 ip-switch 服务后启动 Codex）
+    # codex app 子命令不支持 --profile，改用 -c key=value 覆盖传递 ip-switch 配置
     local launcher="$INSTALL_DIR/codex_app.sh"
     cat > "$launcher" <<EOF
 #!/bin/bash
 # Codex launcher (Linux/macOS) - 启动 ip-switch 服务并启动 Codex
+# 通过 -c 覆盖传递 ip-switch 配置（--profile 不被 codex app 子命令支持）
 cd "$INSTALL_DIR" 2>/dev/null || exit 1
 if ! pgrep -f "node .*ip-switch" >/dev/null 2>&1; then
     nohup node dist/index.js >/dev/null 2>&1 &
 fi
 sleep 2
-exec codex app
+exec codex -c "mcp_servers.ip-switch.command='${codex_node}'" -c "mcp_servers.ip-switch.args=['${dist_js}']" -c 'mcp_servers.ip-switch.startup_timeout_sec=30' -c "mcp_servers.ip-switch.cwd='${INSTALL_DIR}'" -c 'mcp_servers.ip-switch.enabled=true' -c "marketplaces.local.source_type='local'" -c "marketplaces.local.source='${market_dir}'" -c 'plugins."ip-switch@local".enabled=true' app
 EOF
     chmod +x "$launcher"
     log_ok "已生成启动脚本: ${launcher}"
@@ -659,7 +669,6 @@ install_codex_marketplace() {
     local codex_root="$HOME/.codex"
     local market_dir="$codex_root/marketplaces/local"
     local market_plugin_dir="$market_dir/plugins/ip-switch/.codex-plugin"
-    local config_file="$codex_root/config.toml"
 
     # 1. 市场清单 marketplace.json（参考 Codex 自带 openai-bundled 格式）
     mkdir -p "$market_dir/.agents/plugins" "$market_plugin_dir"
@@ -732,34 +741,9 @@ EOF_PLUGIN
     log_ok "已写入市场清单: ${market_dir}/.agents/plugins/marketplace.json"
     log_ok "已写入插件清单: ${market_plugin_dir}/plugin.json"
 
-    # 3. config.toml: [marketplaces.local]（缺失则追加，已有则保留）
-    if [ ! -f "$config_file" ]; then
-        touch "$config_file"
-    fi
-    if grep -q '^\[marketplaces\.local\]' "$config_file"; then
-        log_info "config.toml 已含 [marketplaces.local]，保留现有配置"
-    else
-        log_info "config.toml 缺少 [marketplaces.local]，追加配置..."
-        cat >> "$config_file" <<EOF
-
-[marketplaces.local]
-source_type = "local"
-source = '${market_dir}'
-EOF
-    fi
-
-    # 4. config.toml: [plugins."ip-switch@local"] enabled = true（缺失则追加）
-    if grep -q '^\[plugins\."ip-switch@local"\]' "$config_file"; then
-        log_info 'config.toml 已含 [plugins."ip-switch@local"]，保留现有配置'
-    else
-        log_info 'config.toml 缺少 [plugins."ip-switch@local"]，追加启用条目...'
-        cat >> "$config_file" <<EOF
-
-[plugins."ip-switch@local"]
-enabled = true
-EOF
-    fi
-    log_ok "已更新 Codex 配置: ${config_file}"
+    # 3. 市场注册已移至 Profile 叠加层（~/.codex/ip-switch.config.toml）
+    #    不再写 config.toml，避免 CC Switch 篡改导致丢失
+    log_ok "市场注册已在 Profile 叠加层中配置（ip-switch.config.toml）"
 
     # 5. 验证
     if [ -f "$market_dir/.agents/plugins/marketplace.json" ] && [ -f "$market_plugin_dir/plugin.json" ]; then
@@ -811,7 +795,9 @@ print_success() {
 "
     fi
     if $DETECTED_CODEX; then
-        uninstall_cmds="${uninstall_cmds}  rm -rf ${codex_market_dir}       # 删除 Codex 市场清单
+        local profile_file="$HOME/.codex/ip-switch.config.toml"
+        uninstall_cmds="${uninstall_cmds}  rm -f ${profile_file}     # 删除 Codex Profile 叠加层
+  rm -rf ${codex_market_dir}       # 删除 Codex 市场清单
 "
     fi
 
