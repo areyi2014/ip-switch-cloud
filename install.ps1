@@ -644,7 +644,7 @@ function Generate-WbConfig {
 
 
 
-# -- 安装 Codex MCP 直连配置 + Profile 叠加层 + 项目级配置 + 桌面快捷方式 ------
+# -- 安装 Codex MCP 直连配置 + Profile 叠加层 + 项目级配置 ----------------------
 # 职责：
 #   ① 生成 installDir\.mcp.json（codex 自带 node 全路径，供市场插件 plugin.json 引用）
 #   ② 生成 installDir\.codex\config.toml（项目级配置层 —— 桌面版的主要加载通道）
@@ -654,12 +654,12 @@ function Generate-WbConfig {
 #         信任后本文件的 mcp_servers / marketplaces / plugins 全部生效
 #   ③ 创建 ~/.codex/ip-switch.config.toml（Profile 叠加层，CLI 专用）
 #      —— 用于 codex --profile ip-switch CLI 命令（mcp list / exec / review 等）
-#   ④ 清理旧版 ~/.codex/plugins/ip-switch 残留
-#   ⑤ 创建桌面快捷方式（codex_app.vbs 以 ip-switch 目录为工作区启动 codex app）
+#   ④ 桌面快捷方式已拆出为 Install-CodexShotcut 独立函数
+#      —— codex_app.vbs 以 ip-switch 目录为工作区启动 codex app
 # 注：插件页发现/安装由 Install-CodexMarketplace 负责，本函数不重复。
 # 注：②③两份配置互为镜像；均独立于 config.toml，CC Switch 不影响。
-function Install-CodexPlugin {
-    Write-Step "安装 Codex MCP 直连配置 + 桌面快捷方式"
+function Install-CodexProfile {
+    Write-Step "安装 Codex MCP 直连配置 + Profile 叠加层"
 
     $distJs    = "$installDir\dist\index.js"
     $codexNode = if ($script:CodexNodeExe) { $script:CodexNodeExe } else { (Get-Command node -ErrorAction SilentlyContinue).Source }
@@ -695,49 +695,29 @@ function Install-CodexPlugin {
     [System.IO.File]::WriteAllText($dotMcp, $mcpJson, (New-Object System.Text.UTF8Encoding($false)))
     Write-OK "已生成 MCP 配置: $dotMcp"
 
-    # 2.5 生成项目级配置层（installDir\.codex\config.toml）—— 桌面版的主要加载通道
+    # 3.1 生成项目级配置层（installDir\.codex\config.toml）—— 桌面版的主要加载通道
     #     桌面版 codex app 无法接收 -c 覆盖（协议拉起时参数丢失），
     #     只能通过「信任的工作区」内的项目级配置注册 ip-switch。
     #     codex_app.vbs 已改为以 installDir 为工作区启动，首次启动自动信任。
     $codexDir = "$env:USERPROFILE\.codex"
     $projectCodexDir = "$installDir\.codex"
+    $marketDir = "$codexDir\marketplaces\local"
     New-Item -ItemType Directory -Path $projectCodexDir -Force | Out-Null
     $projectConfigFile = "$projectCodexDir\config.toml"
-    $projectConfigContent = @"
-# ip-switch project-scoped config — layered on top of ~/.codex/config.toml
-# Independent of user config.toml (CC Switch safe).
-# Loaded by Codex when this workspace is opened and trusted.
 
+    # 公共配置主体的模板 —— 项目级配置层与 Profile 叠加层的内容完全一致（互为镜像），
+    # 仅文件位置、加载时机与用途不同：
+    #   ① 项目级配置层（installDir\.codex\config.toml）→ 桌面版加载通道
+    #   ② Profile 叠加层（~/.codex/ip-switch.config.toml）→ CLI --profile 加载通道
+    # 统一维护这一份模板，避免两份配置内容漂移；TOML 中表顺序无关紧要。
+    # 注意：这里是 PowerShell here-string，$distJs / $codexNode / $installDir / $marketDir 会被展开。
+    $ipSwitchConfigBody = @"
 [mcp_servers.ip-switch]
 args = ['$distJs']
 command = '$codexNode'
 startup_timeout_sec = 30
 cwd = '$installDir'
 enabled = true
-
-[marketplaces.local]
-source_type = "local"
-source = '$codexDir\marketplaces\local'
-
-[plugins."ip-switch@local"]
-enabled = true
-"@
-    [System.IO.File]::WriteAllText($projectConfigFile, $projectConfigContent, (New-Object System.Text.UTF8Encoding($false)))
-    Write-OK "已生成项目级配置层: $projectConfigFile"
-    Write-Info "桌面版 Codex 以本目录为工作区启动时自动加载（首次启动自动信任）"
-
-    # 3. 创建 Codex Profile 叠加层（~/.codex/ip-switch.config.toml）
-    #    独立于 config.toml，CC Switch 篡改 config.toml 不影响 ip-switch
-    #    用途：codex --profile ip-switch CLI 命令（mcp list / exec / review 等）
-    #    注意：codex app 子命令不支持 --profile；桌面版走上面的项目级配置层
-    New-Item -ItemType Directory -Path $codexDir -Force | Out-Null
-    $profileFile = "$codexDir\ip-switch.config.toml"
-    $marketDir = "$codexDir\marketplaces\local"
-    $profileContent = @"
-# ip-switch Profile — 独立于 config.toml 的叠加层
-# CC Switch 只管 config.toml，此文件不受影响
-# 用途：codex --profile ip-switch CLI 命令（mcp list / exec / review 等）
-# 注意：codex app 子命令不支持 --profile；桌面版走工作区内 .codex/config.toml 项目级配置
 
 [marketplaces.local]
 source_type = "local"
@@ -745,27 +725,57 @@ source = '$marketDir'
 
 [plugins."ip-switch@local"]
 enabled = true
+"@
 
-[mcp_servers.ip-switch]
-args = ['$distJs']
-command = '$codexNode'
-startup_timeout_sec = 30
-cwd = '$installDir'
-enabled = true
+    # 3.2 内容与 Profile 叠加层相同，共用 $ipSwitchConfigBody（见上方模板说明）。
+    $projectConfigContent = @"
+# ip-switch project-scoped config — layered on top of ~/.codex/config.toml
+# Independent of user config.toml (CC Switch safe).
+# Loaded by Codex when this workspace is opened and trusted.
+$ipSwitchConfigBody
+"@
+    [System.IO.File]::WriteAllText($projectConfigFile, $projectConfigContent, (New-Object System.Text.UTF8Encoding($false)))
+    Write-OK "已生成项目级配置层: $projectConfigFile"
+    Write-Info "桌面版 Codex 以本目录为工作区启动时自动加载（首次启动自动信任）"
+
+    # 3.3 创建 Codex Profile 叠加层（~/.codex/ip-switch.config.toml）
+    #    独立于 config.toml，CC Switch 篡改 config.toml 不影响 ip-switch
+    #    用途：codex --profile ip-switch CLI 命令（mcp list / exec / review 等）
+    #    注意：codex app 子命令不支持 --profile；桌面版走上面的项目级配置层
+    #    内容与项目级配置层相同，共用 $ipSwitchConfigBody（见上方模板说明）。
+    New-Item -ItemType Directory -Path $codexDir -Force | Out-Null
+    $profileFile = "$codexDir\ip-switch.config.toml"
+    $profileContent = @"
+# ip-switch Profile — 独立于 config.toml 的叠加层
+# CC Switch 只管 config.toml，此文件不受影响
+# 用途：codex --profile ip-switch CLI 命令（mcp list / exec / review 等）
+# 注意：codex app 子命令不支持 --profile；桌面版走工作区内 .codex/config.toml 项目级配
+$ipSwitchConfigBody
 "@
     [System.IO.File]::WriteAllText($profileFile, $profileContent, (New-Object System.Text.UTF8Encoding($false)))
     Write-OK "已创建 Codex Profile 叠加层: $profileFile"
     Write-Info "CC Switch 篡改 config.toml 不再影响 ip-switch（独立叠加层）"
 
-    # 4. 清理旧版 ~/.codex/plugins/ip-switch（曾导致插件页偶发重复发现 ip-switch）
-    $legacyDir = "$env:USERPROFILE\.codex\plugins\ip-switch"
-    if (Test-Path $legacyDir) {
-        Write-Info "清理旧版插件目录残留: $legacyDir"
-        Remove-Item $legacyDir -Recurse -Force
-    }
+    # 4. 创建桌面快捷方式（已拆出为 Install-CodexShotcut 独立函数）
+    Install-CodexShotcut
 
-    # 5. 创建桌面快捷方式
-    Write-Host '正在创建Codex快捷方式...' -ForegroundColor Green
+    # 5. 验证
+    if (Test-Path $dotMcp) {
+        Write-OK "Codex MCP 直连配置已就绪: $dotMcp"
+        Write-Info "重启 Codex 后生效（插件页发现由市场负责）"
+    } else {
+        Write-Err "MCP 配置生成失败，请检查 $dotMcp"
+        exit 1
+    }
+}
+
+# -- 创建桌面快捷方式 ----------------------------------------------------------
+# 从 Install-CodexProfile 拆出的独立函数：
+#   ① 复制 codex_app.vbs 启动脚本（wscript 静默运行，无控制台窗口）
+#   ② 复制 codex.ico 图标文件
+#   ③ 创建桌面快捷方式：wscript.exe + codex_app.vbs，以 ip-switch 目录为工作区启动 codex app
+function Install-CodexShotcut {
+    Write-Step "创建桌面快捷方式"
 
     $shortcutName = 'Codex with ip-switch'
     $shortcutPath = [System.Environment]::GetFolderPath('Desktop') + '\\' + $shortcutName + '.lnk'
@@ -802,21 +812,11 @@ enabled = true
     $shortcut.Save()
 
     Write-Host "✓ 已创建桌面快捷方式: $shortcutPath" -ForegroundColor Green
-
-    # 6. 验证
-    if (Test-Path $dotMcp) {
-        Write-OK "Codex MCP 直连配置已就绪: $dotMcp"
-        Write-Info "重启 Codex 后生效（插件页发现由市场负责）"
-    } else {
-        Write-Err "MCP 配置生成失败，请检查 $dotMcp"
-        exit 1
-    }
 }
 
 # -- 安装 Codex 插件市场（marketplace），使插件页/市场中可发现 ip-switch ------
 function Install-CodexMarketplace {
     Write-Step "安装 Codex 插件市场（ip-switch）"
-
     $codexRoot = "$env:USERPROFILE\.codex"
     $marketDir = "$codexRoot\marketplaces\local"
     $marketPluginDir = "$marketDir\plugins\ip-switch\.codex-plugin"
@@ -1091,7 +1091,8 @@ function Main {
         Generate-WbConfig
     }
     if ($script:DetectedCodex) {
-        Install-CodexPlugin
+        Install-CodexProfile
+        Install-CodexShotcut
         Install-CodexMarketplace
     }
     Show-Success
