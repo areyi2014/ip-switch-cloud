@@ -160,32 +160,20 @@ If codexPath = "" Or Not fso.FileExists(codexPath) Then
     End If
 End If
 
-' --- Build -c config overrides for ip-switch ---
-' Note: --profile is NOT supported by `codex app` subcommand (v0.151+ rejects it).
-' Instead, pass ip-switch MCP/plugin/marketplace config via -c key=value overrides.
-' These values mirror ~/.codex/ip-switch.config.toml (which still works for `codex --profile ip-switch` CLI usage).
-nodeExe = WshShell.ExpandEnvironmentStrings("%USERPROFILE%") & "\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe"
-distJs = WshShell.ExpandEnvironmentStrings("%USERPROFILE%") & "\ip-switch\dist\index.js"
-ipDir = WshShell.ExpandEnvironmentStrings("%USERPROFILE%") & "\ip-switch"
-marketDir = WshShell.ExpandEnvironmentStrings("%USERPROFILE%") & "\.codex\marketplaces\local"
+' --- Launch Codex with the ip-switch workspace ---
+' IMPORTANT: -c key=value overrides DO NOT reach the Desktop app.
+' `codex app` hands off via a codex:// protocol URL; the CLI parses -c flags
+' and silently drops them. The Desktop app only reads ~/.codex/config.toml
+' plus project-scoped .codex/config.toml layers inside the opened workspace.
+' So we pass the ip-switch install dir as the workspace PATH argument:
+'   1. Codex auto-trusts the workspace on first open (writes [projects] entry)
+'   2. The trusted workspace's .codex/config.toml registers mcp_servers,
+'      marketplaces and plugins for ip-switch (CC Switch safe)
+ipSwitchWorkspace = WshShell.ExpandEnvironmentStrings("%USERPROFILE%") & "\ip-switch"
 
-q = Chr(34)     ' double quote for wrapping -c arguments on Windows command line
-qq = q & q      ' Windows "" escape → literal " inside a quoted argument (for TOML keys like plugins."ip-switch@local")
-
-cFlags = _
-    " -c " & q & "mcp_servers.ip-switch.command='" & nodeExe & "'" & q & _
-    " -c " & q & "mcp_servers.ip-switch.args=['" & distJs & "']" & q & _
-    " -c " & q & "mcp_servers.ip-switch.startup_timeout_sec=30" & q & _
-    " -c " & q & "mcp_servers.ip-switch.cwd='" & ipDir & "'" & q & _
-    " -c " & q & "mcp_servers.ip-switch.enabled=true" & q & _
-    " -c " & q & "marketplaces.local.source_type='local'" & q & _
-    " -c " & q & "marketplaces.local.source='" & marketDir & "'" & q & _
-    " -c " & q & "plugins." & qq & "ip-switch@local" & qq & ".enabled=true" & q
-
-' --- Launch with -c config overrides (replaces --profile which doesn't work with `codex app`) ---
 If codexPath <> "" And fso.FileExists(codexPath) Then
-    WshShell.Run """" & codexPath & """" & cFlags & " app", 0, False
+    WshShell.Run """" & codexPath & """" & " app """ & ipSwitchWorkspace & """", 0, False
 Else
     ' Strategy 3: Fall back to PATH
-    WshShell.Run "codex" & cFlags & " app", 0, False
+    WshShell.Run "codex app """ & ipSwitchWorkspace & """", 0, False
 End If
