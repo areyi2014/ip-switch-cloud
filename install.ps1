@@ -644,71 +644,76 @@ function Generate-WbConfig {
 
 
 
-# -- 安装 Codex 插件（仅清单，MCP 直接运行源码 dist） --------------------------
+# -- 安装 Codex MCP 直连配置 + 桌面快捷方式 ----------------------------------
+# 职责：
+#   ① 生成 installDir\.mcp.json（codex 自带 node 全路径，供市场插件 plugin.json 引用）
+#   ② 写入 config.toml [mcp_servers.ip-switch]（直连，不依赖插件安装即可用）
+#   ③ 清理旧版 ~/.codex/plugins/ip-switch 残留（曾导致插件页偶发重复发现）
+#   ④ 创建桌面快捷方式
+# 注：插件页发现/安装由 Install-CodexMarketplace 负责，本函数不重复。
 function Install-CodexPlugin {
-    Write-Step "安装 Codex 插件（仅清单，MCP 直接运行源码 dist）"
+    Write-Step "安装 Codex MCP 直连配置 + 桌面快捷方式"
 
-    # 1. 校验源码编译产物与插件清单
-    if (-not (Test-Path "$installDir\dist\index.js")) {
-        Write-Err "缺少编译产物 $installDir\dist\index.js，请先编译（或去掉 -SkipBuild）"
-        exit 1
-    }
-    if (-not (Test-Path "$installDir\.codex-plugin\plugin.json")) {
-        Write-Err "缺少插件清单 $installDir\.codex-plugin\plugin.json，项目结构异常"
-        exit 1
-    }
-    if (-not (Test-Path "$installDir\.mcp.json")) {
-        Write-Err "缺少 MCP 配置 $installDir\.mcp.json，项目结构异常"
+    $distJs    = "$installDir\dist\index.js"
+    $codexNode = if ($script:CodexNodeExe) { $script:CodexNodeExe } else { (Get-Command node -ErrorAction SilentlyContinue).Source }
+    if (-not $codexNode) {
+        Write-Err "未找到 Node.js，无法生成 Codex MCP 配置"
         exit 1
     }
 
-    # 2. 清理旧目标，避免残留旧文件
-    $targetDir = "$env:USERPROFILE\.codex\plugins\ip-switch"
-    New-Item -ItemType Directory -Path "$env:USERPROFILE\.codex\plugins" -Force | Out-Null
-    if (Test-Path $targetDir) {
-        Write-Info "目标目录已存在，执行整体替换: $targetDir"
-        Remove-Item $targetDir -Recurse -Force
+    # 1. 校验编译产物存在
+    if (-not (Test-Path $distJs)) {
+        Write-Err "缺少编译产物 $distJs，请先编译（或去掉 -SkipBuild）"
+        exit 1
     }
-    New-Item -ItemType Directory -Path $targetDir -Force | Out-Null
 
-    # 3. 只复制插件清单（MCP server 直接运行源码 dist，插件目录保持轻量）
-    Write-Info "复制插件清单 .codex-plugin ..."
-    Copy-Item -Recurse -Force "$installDir\.codex-plugin" "$targetDir\.codex-plugin"
+    # 2. 生成 installDir\.mcp.json（全路径写法，覆盖仓库自带的 command:"node" 脆弱版本）
+    $nodeEsc = $codexNode.Replace('\', '\\')
+    $distEsc = $distJs.Replace('\', '\\')
+    $cwdEsc  = $installDir.Replace('\', '\\')
+    $mcpJson = @"
+{
+  "mcpServers": {
+    "ip-switch": {
+      "command": "$nodeEsc",
+      "args": ["$distEsc"],
+      "cwd": "$cwdEsc",
+      "startup_timeout_sec": 30,
+      "tool_timeout_sec": 300
+    }
+  }
+}
+"@
+    $dotMcp = "$installDir\.mcp.json"
+    [System.IO.File]::WriteAllText($dotMcp, $mcpJson, (New-Object System.Text.UTF8Encoding($false)))
+    Write-OK "已生成 MCP 配置: $dotMcp"
 
-    # 4. 改写 plugin.json，mcpServers 指向源码 .mcp.json（绝对路径）
-    $pluginJsonPath = "$targetDir\.codex-plugin\plugin.json"
-    $raw = Get-Content -Raw -Path $pluginJsonPath
-    $mcpRef = "$installDir\.mcp.json".Replace('\', '\\')
-    $newRaw = $raw -replace '"mcpServers"\s*:\s*"[^"]*"', ('"mcpServers": "' + $mcpRef + '"')
-    [System.IO.File]::WriteAllText($pluginJsonPath, $newRaw, (New-Object System.Text.UTF8Encoding($false)))
-
-    # 5. 写入/更新 Codex config.toml 的 [mcp_servers.ip-switch]（缺失则添加，已有则指向源码）
+    # 3. 写入/更新 config.toml [mcp_servers.ip-switch]（command=node.exe, args=[dist/index.js]）
     $configFile = "$env:USERPROFILE\.codex\config.toml"
     New-Item -ItemType Directory -Path "$env:USERPROFILE\.codex" -Force | Out-Null
     $content = ""
     if (Test-Path $configFile) {
         $content = [System.IO.File]::ReadAllText($configFile)
     }
-    $mcpCmd = "$installDir\dist\index.js"
-    $mcpCwd = $installDir
     if ($content -match '(?m)^\[mcp_servers\.ip-switch\]') {
-        Write-Info "config.toml 已含 [mcp_servers.ip-switch]，更新 command/cwd 指向源码..."
+        Write-Info "config.toml 已含 [mcp_servers.ip-switch]，更新 command/args/cwd..."
         $segStart = $content.IndexOf("[mcp_servers.ip-switch]")
         $segEnd = $content.IndexOf("`n[", $segStart)
         if ($segEnd -lt 0) { $segEnd = $content.Length }
         $seg = $content.Substring($segStart, $segEnd - $segStart)
-        $seg = $seg -replace '(?m)^command = .*$', "command = '$mcpCmd'"
-        $seg = $seg -replace '(?m)^cwd = .*$', "cwd = '$mcpCwd'"
+        $seg = $seg -replace '(?m)^command = .*$', "command = '$codexNode'"
+        $seg = $seg -replace '(?m)^args = .*$', "args = ['$distJs']"
+        $seg = $seg -replace '(?m)^cwd = .*$', "cwd = '$installDir'"
         $content = $content.Substring(0, $segStart) + $seg + $content.Substring($segEnd)
     } else {
         Write-Info "config.toml 缺少 [mcp_servers.ip-switch]，追加配置..."
         $block = @"
 
 [mcp_servers.ip-switch]
-args = []
-command = '$mcpCmd'
+command = '$codexNode'
+args = ['$distJs']
 startup_timeout_sec = 30
-cwd = '$mcpCwd'
+cwd = '$installDir'
 enabled = true
 "@
         if ($content.Trim().Length -eq 0) {
@@ -718,9 +723,16 @@ enabled = true
         }
     }
     [System.IO.File]::WriteAllText($configFile, $content, (New-Object System.Text.UTF8Encoding($false)))
-    Write-OK "已写入 MCP 配置: $configFile"
+    Write-OK "已写入 MCP 直连配置: $configFile"
 
-    # 6. 创建桌面快捷方式
+    # 4. 清理旧版 ~/.codex/plugins/ip-switch（曾导致插件页偶发重复发现 ip-switch）
+    $legacyDir = "$env:USERPROFILE\.codex\plugins\ip-switch"
+    if (Test-Path $legacyDir) {
+        Write-Info "清理旧版插件目录残留: $legacyDir"
+        Remove-Item $legacyDir -Recurse -Force
+    }
+
+    # 5. 创建桌面快捷方式
     Write-Host '正在创建Codex快捷方式...' -ForegroundColor Green
 
     $shortcutName = 'Codex with ip-switch'
@@ -759,13 +771,12 @@ enabled = true
 
     Write-Host "✓ 已创建桌面快捷方式: $shortcutPath" -ForegroundColor Green
 
-    # 验证
-    if (Test-Path "$targetDir\.codex-plugin\plugin.json") {
-        Write-OK "插件已安装: $targetDir"
-        Write-Info "MCP 配置指向: $installDir\.mcp.json"
-        Write-Info "重启 Codex 后插件生效"
+    # 6. 验证
+    if (Test-Path $dotMcp) {
+        Write-OK "Codex MCP 直连配置已就绪: $dotMcp"
+        Write-Info "重启 Codex 后生效（插件页发现由市场负责）"
     } else {
-        Write-Err "插件安装不完整，请检查 $targetDir"
+        Write-Err "MCP 配置生成失败，请检查 $dotMcp"
         exit 1
     }
 }
@@ -1021,14 +1032,12 @@ function Show-Success {
 
     # 按实际安装的平台显示路径（WorkBuddy 无插件目录，只有 mcp.json）
     $wbConfig       = "$env:USERPROFILE\.workbuddy\mcp.json"
-    $codexPluginDir = "$env:USERPROFILE\.codex\plugins\ip-switch"
     $codexMarketDir = "$env:USERPROFILE\.codex\marketplaces\local"
 
     if ($script:DetectedWB) {
         Write-Host "WorkBuddy MCP 配置: $wbConfig"
     }
     if ($script:DetectedCodex) {
-        Write-Host "Codex 插件清单:     $codexPluginDir"
         Write-Host "Codex 市场清单:     $codexMarketDir"
     }
     Write-Host "UI 服务器:  node $installDir\ui\server.cjs"
@@ -1057,7 +1066,6 @@ function Show-Success {
         Write-Host "  Remove-Item -Force $wbConfig          # 删除 WorkBuddy MCP 配置"
     }
     if ($script:DetectedCodex) {
-        Write-Host "  Remove-Item -Recurse -Force $codexPluginDir  # 删除 Codex 插件清单"
         Write-Host "  Remove-Item -Recurse -Force $codexMarketDir  # 删除 Codex 市场清单"
     }
     Write-Host "  Remove-Item -Recurse -Force $installDir  # 如需同时删除源码"

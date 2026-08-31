@@ -507,71 +507,79 @@ EOF_CONFIG
 
 
 
-# ── 安装 Codex 插件（仅清单，MCP 直接运行源码 dist）────────────────────────
+# ── 安装 Codex MCP 直连配置 + 桌面快捷方式 ────────────────────────────────
+# 职责：
+#   ① 生成 INSTALL_DIR/.mcp.json（codex 自带 node 全路径，供市场插件 plugin.json 引用）
+#   ② 写入 config.toml [mcp_servers.ip-switch]（直连，不依赖插件安装即可用）
+#   ③ 清理旧版 ~/.codex/plugins/ip-switch 残留（曾导致插件页偶发重复发现）
+#   ④ 创建桌面快捷方式
+# 注：插件页发现/安装由 install_codex_marketplace 负责，本函数不重复。
 install_codex_plugin() {
-    log_step "安装 Codex 插件（仅清单，MCP 直接运行源码 dist）"
+    log_step "安装 Codex MCP 直连配置 + 桌面快捷方式"
 
-    # 1. 校验源码编译产物与插件清单
-    if [ ! -f "$INSTALL_DIR/dist/index.js" ]; then
-        log_error "缺少编译产物 ${INSTALL_DIR}/dist/index.js，请先编译"
-        exit 1
-    fi
-    if [ ! -f "$INSTALL_DIR/.codex-plugin/plugin.json" ]; then
-        log_error "缺少插件清单 ${INSTALL_DIR}/.codex-plugin/plugin.json，项目结构异常"
-        exit 1
-    fi
-    if [ ! -f "$INSTALL_DIR/.mcp.json" ]; then
-        log_error "缺少 MCP 配置 ${INSTALL_DIR}/.mcp.json，项目结构异常"
+    local dist_js="${INSTALL_DIR}/dist/index.js"
+    local codex_node="${CODEX_NODE_EXE:-}"
+    [ -z "$codex_node" ] && codex_node="$(command -v node 2>/dev/null)"
+    if [ -z "$codex_node" ]; then
+        log_error "未找到 Node.js，无法生成 Codex MCP 配置"
         exit 1
     fi
 
-    # 2. 清理旧目标，避免残留旧文件
-    mkdir -p "$HOME/.codex/plugins"
-    local target_dir="$HOME/.codex/plugins/ip-switch"
-
-    if [ -d "$target_dir" ]; then
-        log_info "目标目录已存在，执行整体替换: ${target_dir}"
-        rm -rf "$target_dir"
+    # 1. 校验编译产物存在
+    if [ ! -f "$dist_js" ]; then
+        log_error "缺少编译产物 ${dist_js}，请先编译"
+        exit 1
     fi
-    mkdir -p "$target_dir"
 
-    # 3. 只复制插件清单（MCP server 直接运行源码 dist，插件目录保持轻量）
-    log_info "复制插件清单 .codex-plugin ..."
-    cp -r "$INSTALL_DIR/.codex-plugin" "$target_dir/.codex-plugin"
+    # 2. 生成 INSTALL_DIR/.mcp.json（全路径写法，覆盖仓库自带的 command:"node" 脆弱版本）
+    cat > "${INSTALL_DIR}/.mcp.json" <<EOF
+{
+  "mcpServers": {
+    "ip-switch": {
+      "command": "${codex_node}",
+      "args": ["${dist_js}"],
+      "cwd": "${INSTALL_DIR}",
+      "startup_timeout_sec": 30,
+      "tool_timeout_sec": 300
+    }
+  }
+}
+EOF
+    log_ok "已生成 MCP 配置: ${INSTALL_DIR}/.mcp.json"
 
-    # 4. 改写 plugin.json，mcpServers 指向源码 .mcp.json（绝对路径）
-    sed -i.bak "s|\"./\.mcp\.json\"|\"${INSTALL_DIR}/.mcp.json\"|" "$target_dir/.codex-plugin/plugin.json"
-    rm -f "$target_dir/.codex-plugin/plugin.json.bak"
-
-    # 5. 写入/更新 Codex config.toml 的 [mcp_servers.ip-switch]（缺失则添加，已有则指向源码）
+    # 3. 写入/更新 config.toml [mcp_servers.ip-switch]（command=node, args=[dist/index.js]）
     local config_file="$HOME/.codex/config.toml"
-    local mcp_cmd="${INSTALL_DIR}/dist/index.js"
-    local mcp_cwd="${INSTALL_DIR}"
     mkdir -p "$HOME/.codex"
-    if [ ! -f "$config_file" ]; then
-        : > "$config_file"
-    fi
+    [ -f "$config_file" ] || touch "$config_file"
 
     if grep -q '^\[mcp_servers\.ip-switch\]' "$config_file"; then
-        log_info "config.toml 已含 [mcp_servers.ip-switch]，更新 command/cwd 指向源码..."
-        sed -i.bak -e "/^\[mcp_servers\.ip-switch\]/,/^\[/ s|^command = .*|command = '${mcp_cmd}'|" \
-                   -e "/^\[mcp_servers\.ip-switch\]/,/^\[/ s|^cwd = .*|cwd = '${mcp_cwd}'|" "$config_file"
+        log_info "config.toml 已含 [mcp_servers.ip-switch]，更新 command/args/cwd..."
+        sed -i.bak -e "/^\[mcp_servers\.ip-switch\]/,/^\[/ s|^command = .*|command = '${codex_node}'|" \
+                   -e "/^\[mcp_servers\.ip-switch\]/,/^\[/ s|^args = .*|args = ['${dist_js}']|" \
+                   -e "/^\[mcp_servers\.ip-switch\]/,/^\[/ s|^cwd = .*|cwd = '${INSTALL_DIR}'|" "$config_file"
         rm -f "$config_file.bak"
     else
         log_info "config.toml 缺少 [mcp_servers.ip-switch]，追加配置..."
         cat >> "$config_file" <<EOF
 
 [mcp_servers.ip-switch]
-args = []
-command = '${mcp_cmd}'
+command = '${codex_node}'
+args = ['${dist_js}']
 startup_timeout_sec = 30
-cwd = '${mcp_cwd}'
+cwd = '${INSTALL_DIR}'
 enabled = true
 EOF
     fi
-    log_ok "已写入 MCP 配置: ${config_file}"
+    log_ok "已写入 MCP 直连配置: ${config_file}"
 
-    # 6. 创建桌面快捷方式
+    # 4. 清理旧版 ~/.codex/plugins/ip-switch（曾导致插件页偶发重复发现 ip-switch）
+    local legacy_dir="$HOME/.codex/plugins/ip-switch"
+    if [ -d "$legacy_dir" ]; then
+        log_info "清理旧版插件目录残留: ${legacy_dir}"
+        rm -rf "$legacy_dir"
+    fi
+
+    # 5. 创建桌面快捷方式
     log_info "创建 Codex 桌面快捷方式..."
 
     # 桌面目录：优先 xdg-user-dir（Linux），回退 ~/Desktop（macOS/默认）
@@ -634,13 +642,12 @@ EOF
     chmod +x "$desktop_file"
     log_ok "已创建桌面快捷方式: ${desktop_file}"
 
-    # 验证
-    if [ -f "$target_dir/.codex-plugin/plugin.json" ]; then
-        log_ok "插件已安装: ${target_dir}"
-        log_info "MCP 配置指向: ${INSTALL_DIR}/.mcp.json"
-        log_info "重启 Codex 后插件生效"
+    # 6. 验证
+    if [ -f "${INSTALL_DIR}/.mcp.json" ]; then
+        log_ok "Codex MCP 直连配置已就绪: ${INSTALL_DIR}/.mcp.json"
+        log_info "重启 Codex 后生效（插件页发现由市场负责）"
     else
-        log_error "插件安装不完整，请检查 ${target_dir}"
+        log_error "MCP 配置生成失败，请检查 ${INSTALL_DIR}/.mcp.json"
         exit 1
     fi
 }
@@ -768,7 +775,6 @@ EOF
 print_success() {
     # 按实际安装的平台显示路径（WorkBuddy 无插件目录，只有 mcp.json）
     local wb_config="$HOME/.workbuddy/mcp.json"
-    local codex_plugin_dir="$HOME/.codex/plugins/ip-switch"
     local codex_market_dir="$HOME/.codex/marketplaces/local"
     local browser_cmd
     if [ "$OS" = "macos" ]; then
@@ -795,8 +801,7 @@ print_success() {
 "
     fi
     if $DETECTED_CODEX; then
-        install_locations="${install_locations}Codex 插件清单:     ${codex_plugin_dir}
-Codex 市场清单:     ${codex_market_dir}
+        install_locations="${install_locations}Codex 市场清单:     ${codex_market_dir}
 "
     fi
 
@@ -806,8 +811,7 @@ Codex 市场清单:     ${codex_market_dir}
 "
     fi
     if $DETECTED_CODEX; then
-        uninstall_cmds="${uninstall_cmds}  rm -rf ${codex_plugin_dir}       # 删除 Codex 插件清单
-  rm -rf ${codex_market_dir}       # 删除 Codex 市场清单
+        uninstall_cmds="${uninstall_cmds}  rm -rf ${codex_market_dir}       # 删除 Codex 市场清单
 "
     fi
 
