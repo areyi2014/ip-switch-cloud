@@ -521,7 +521,7 @@ EOF_CONFIG
 #      —— codex_app.sh 以 INSTALL_DIR 为工作区启动 codex app
 # 注：插件页发现/安装由 install_codex_marketplace 负责，本函数不重复。
 # 注：②③两份配置互为镜像；均独立于 config.toml，CC Switch 不影响。
-install_codex_profile() {
+install_codex_toml() {
     log_step "安装 Codex MCP 直连配置 + Profile 叠加层"
 
     local dist_js="${INSTALL_DIR}/dist/index.js"
@@ -635,7 +635,7 @@ EOF
 }
 
 # ── 创建桌面快捷方式 ───────────────────────────────────────────────────────────
-# 从 install_codex_profile 拆出的独立函数：
+# 从 install_codex_toml 拆出的独立函数：
 #   ① 复制 codex_app.vbs 启动脚本（Windows 专用；Linux 下另生成 codex_app.sh）
 #   ② 复制 codex.ico 图标文件
 #   ③ 生成 codex_app.sh（启动 ip-switch 服务并以 INSTALL_DIR 为工作区启动 codex app）
@@ -906,7 +906,7 @@ main() {
         generate_wb_config
     fi
     if $DETECTED_CODEX; then
-        install_codex_profile
+        install_codex_toml
         install_codex_shotcut
         install_codex_marketplace
     fi

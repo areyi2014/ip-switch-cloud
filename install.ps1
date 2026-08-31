@@ -658,7 +658,7 @@ function Generate-WbConfig {
 #      —— codex_app.vbs 以 ip-switch 目录为工作区启动 codex app
 # 注：插件页发现/安装由 Install-CodexMarketplace 负责，本函数不重复。
 # 注：②③两份配置互为镜像；均独立于 config.toml，CC Switch 不影响。
-function Install-CodexProfile {
+function Install-CodexToml {
     Write-Step "安装 Codex MCP 直连配置 + Profile 叠加层"
 
     $distJs    = "$installDir\dist\index.js"
@@ -770,7 +770,7 @@ $ipSwitchConfigBody
 }
 
 # -- 创建桌面快捷方式 ----------------------------------------------------------
-# 从 Install-CodexProfile 拆出的独立函数：
+# 从 Install-CodexToml 拆出的独立函数：
 #   ① 复制 codex_app.vbs 启动脚本（wscript 静默运行，无控制台窗口）
 #   ② 复制 codex.ico 图标文件
 #   ③ 创建桌面快捷方式：wscript.exe + codex_app.vbs，以 ip-switch 目录为工作区启动 codex app
@@ -1091,7 +1091,7 @@ function Main {
         Generate-WbConfig
     }
     if ($script:DetectedCodex) {
-        Install-CodexProfile
+        Install-CodexToml
         Install-CodexShotcut
         Install-CodexMarketplace
     }
