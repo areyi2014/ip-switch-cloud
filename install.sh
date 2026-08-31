@@ -507,22 +507,14 @@ EOF_CONFIG
 
 
 
-# ── 安装 Codex MCP 直连配置 + Profile 叠加层 + 项目级配置 ──
-# 职责：
-#   ① 生成 INSTALL_DIR/.mcp.json（codex 自带 node 全路径，供市场插件 plugin.json 引用）
-#   ② 生成 INSTALL_DIR/.codex/config.toml（项目级配置层 —— 桌面版的主要加载通道）
-#      —— 桌面版 codex app 通过协议拉起，-c 参数传不进桌面进程，
-#         只能读 ~/.codex/config.toml + 工作区内项目级 .codex/config.toml
-#      —— 首次以该目录为工作区启动时 Codex 会自动信任，信任后本文件生效
-#   ③ 创建 ~/.codex/ip-switch.config.toml（Profile 叠加层，CLI 专用）
-#      —— 用于 codex --profile ip-switch CLI 命令（mcp list / exec / review 等）
-#   ④ 清理旧版 ~/.codex/plugins/ip-switch 残留
-#   ⑤ 桌面快捷方式已拆出为 install_codex_shotcut 独立函数
-#      —— codex_app.sh 以 INSTALL_DIR 为工作区启动 codex app
-# 注：插件页发现/安装由 install_codex_marketplace 负责，本函数不重复。
-# 注：②③两份配置互为镜像；均独立于 config.toml，CC Switch 不影响。
-install_codex_toml() {
-    log_step "安装 Codex MCP 直连配置 + Profile 叠加层"
+# ── 生成 Codex MCP 直连配置（INSTALL_DIR/.mcp.json） ───────────────────────────
+# 从 install_codex_toml 拆出的独立函数：
+#   ① 探测/校验 Node.js（优先 $CODEX_NODE_EXE，回退 PATH 中的 node）
+#   ② 校验编译产物 INSTALL_DIR/dist/index.js 存在
+#   ③ 生成 INSTALL_DIR/.mcp.json（全路径写法，覆盖仓库自带的 command:"node" 脆弱版本）
+# 并把最终选定的 node / dist 路径写入全局变量供 install_codex_toml 复用。
+install_codex_mcp() {
+    log_step "生成 Codex MCP 直连配置（.mcp.json）"
 
     local dist_js="${INSTALL_DIR}/dist/index.js"
     local codex_node="${CODEX_NODE_EXE:-}"
@@ -554,6 +546,33 @@ install_codex_toml() {
 EOF
     log_ok "已生成 MCP 配置: ${INSTALL_DIR}/.mcp.json"
 
+    # 3. 输出供后续 TOML 配置层复用（全局变量跨函数可见）
+    CODEX_MCP_DIST="$dist_js"
+    CODEX_MCP_NODE="$codex_node"
+}
+
+# ── 安装 Codex TOML 配置层（项目级 + Profile 叠加层） ──
+# 职责：
+#   ① 生成 INSTALL_DIR/.mcp.json —— 已拆出为 install_codex_mcp 独立函数
+#      （在主流程先于本函数执行；codex 自带 node 全路径，供市场插件 plugin.json 引用）
+#   ② 生成 INSTALL_DIR/.codex/config.toml（项目级配置层 —— 桌面版的主要加载通道）
+#      —— 桌面版 codex app 通过协议拉起，-c 参数传不进桌面进程，
+#         只能读 ~/.codex/config.toml + 工作区内项目级 .codex/config.toml
+#      —— 首次以该目录为工作区启动时 Codex 会自动信任，信任后本文件生效
+#   ③ 创建 ~/.codex/ip-switch.config.toml（Profile 叠加层，CLI 专用）
+#      —— 用于 codex --profile ip-switch CLI 命令（mcp list / exec / review 等）
+#   ④ 清理旧版 ~/.codex/plugins/ip-switch 残留
+#   ⑤ 桌面快捷方式已拆出为 install_codex_shotcut 独立函数（在主流程执行）
+#      —— codex_app.sh 以 INSTALL_DIR 为工作区启动 codex app
+# 注：插件页发现/安装由 install_codex_marketplace 负责，本函数不重复。
+# 注：②③两份配置互为镜像；均独立于 config.toml，CC Switch 不影响。
+install_codex_toml() {
+    log_step "安装 Codex TOML 配置层（项目级 + Profile）"
+
+    # 1. 取 install_codex_mcp 的输出（该函数在主流程先于本函数执行）
+    local dist_js="$CODEX_MCP_DIST"
+    local codex_node="$CODEX_MCP_NODE"
+
     local codex_dir="$HOME/.codex"
     local market_dir="$codex_dir/marketplaces/local"
     mkdir -p "${INSTALL_DIR}/.codex"
@@ -582,7 +601,7 @@ enabled = true
 EOF
 )
 
-    # 2.5 生成项目级配置层（INSTALL_DIR/.codex/config.toml）—— 桌面版的主要加载通道
+    # 2. 生成项目级配置层（INSTALL_DIR/.codex/config.toml）—— 桌面版的主要加载通道
     #     桌面版 codex app 无法接收 -c 覆盖（协议拉起时参数丢失），
     #     只能通过「信任的工作区」内的项目级配置注册 ip-switch。
     #     codex_app.sh 已改为以 INSTALL_DIR 为工作区启动，首次启动自动信任。
@@ -621,10 +640,7 @@ EOF
         rm -rf "$legacy_dir"
     fi
 
-    # 5. 创建桌面快捷方式（已拆出为 install_codex_shotcut 独立函数）
-    install_codex_shotcut
-
-    # 6. 验证
+    # 5. 验证
     if [ -f "${INSTALL_DIR}/.mcp.json" ]; then
         log_ok "Codex MCP 直连配置已就绪: ${INSTALL_DIR}/.mcp.json"
         log_info "重启 Codex 后生效（插件页发现由市场负责）"
@@ -906,6 +922,7 @@ main() {
         generate_wb_config
     fi
     if $DETECTED_CODEX; then
+        install_codex_mcp
         install_codex_toml
         install_codex_shotcut
         install_codex_marketplace
