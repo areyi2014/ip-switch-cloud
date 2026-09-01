@@ -650,6 +650,54 @@ EOF
     fi
 }
 
+# ── 确保 Codex 信任安装目录（用户级 config.toml 的 [projects] 表） ──
+# 项目级 INSTALL_DIR/.codex/config.toml 只有在「工作区已被信任」时才会被 Codex 读取
+# （信任是启动引导机制，存在鸡生蛋问题：把信任条目写进项目级配置无效）。
+# 信任条目只能存在于用户级 ~/.codex/config.toml 的 [projects] 表；
+# CC Switch 不管理该表（SSOT 无 projects 数据源，实证多次重写后存活），可安全补写。
+# 仅检测目标条目是否存在；不存在才追加，不做任何备份/恢复操作（避免风险）。
+ensure_codex_trust() {
+    local codex_config="$1"
+    local workspace="$2"
+    if [ ! -f "$codex_config" ]; then
+        log_info "未找到 ${codex_config}，跳过信任补写（首次运行 codex 后会自动创建）"
+        return 0
+    fi
+
+    # 归一化为 Codex 信任键格式：小写路径。
+    # Git Bash for Windows 下 INSTALL_DIR 默认来自 $HOME（MSYS 路径 /c/Users/...），
+    # 需转换为 Windows 盘符格式 c:\users\...；真正的 Windows 路径 c:\users\... 直接小写。
+    local lower_ws="$(echo "$workspace" | tr '[:upper:]' '[:lower:]')"
+    local trust_key
+    case "$lower_ws" in
+        /[a-z]/*)
+            # MSYS 路径：/c/Users/... -> c:\users\...
+            local drive="${lower_ws:1:1}"
+            local rest="${lower_ws:2}"
+            rest="${rest//\//\\}"
+            trust_key="[projects.'${drive}:${rest}']"
+            ;;
+        [a-z]:*)
+            # 已是 Windows 盘符路径：c:\users\... 反斜杠保留
+            trust_key="[projects.'${lower_ws//\//\\}']"
+            ;;
+        *)
+            # POSIX 路径（/home/... 等）原样小写
+            trust_key="[projects.'${lower_ws}']"
+            ;;
+    esac
+
+    if grep -qF "$trust_key" "$codex_config"; then
+        log_info "Codex 信任条目已存在，跳过补写"
+        return 0
+    fi
+
+    # 不存在：仅追加目标条目（不做备份/恢复，避免风险）
+    printf '\n%s\ntrust_level = "trusted"\n' "$trust_key" >> "$codex_config"
+    log_ok "已补写 Codex 信任条目: ${trust_key}"
+    log_info "安装目录 ${workspace} 已受信任，项目级配置将正常加载"
+}
+
 # ── 创建桌面快捷方式 ───────────────────────────────────────────────────────────
 # 从 install_codex_toml 拆出的独立函数：
 #   ① 复制 codex_app.vbs 启动脚本（Windows 专用；Linux 下另生成 codex_app.sh）
@@ -924,6 +972,7 @@ main() {
     if $DETECTED_CODEX; then
         install_codex_mcp
         install_codex_toml
+        ensure_codex_trust "$HOME/.codex/config.toml" "$INSTALL_DIR"
         install_codex_shotcut
         install_codex_marketplace
     fi
