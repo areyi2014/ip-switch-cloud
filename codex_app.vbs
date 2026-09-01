@@ -9,15 +9,15 @@ Function StartAndDetectIpSwitchService()
     On Error Resume Next
     Set WshShell = CreateObject("WScript.Shell")
     Set fso = CreateObject("Scripting.FileSystemObject")
-    
+
     ipSwitchPath = WshShell.ExpandEnvironmentStrings("%USERPROFILE%") & "\ip-switch\dist\index.js"
     ipSwitchDir = WshShell.ExpandEnvironmentStrings("%USERPROFILE%") & "\ip-switch"
     servicePort = ""
-    
+
     ' Check if ip-switch process is already running and get its port
     Set process = GetObject("winmgmts:\\.\root\cimv2:Win32_Process")
     ipSwitchAlreadyRunning = False
-    
+
     For Each p In process.ExecQuery("SELECT * FROM Win32_Process WHERE Name='node.exe'")
         If InStr(p.CommandLine, "ip-switch") > 0 Then
             ' Extract port from command line
@@ -33,17 +33,17 @@ Function StartAndDetectIpSwitchService()
             Exit For
         End If
     Next
-    
+
     ' If not running, start ip-switch service
     If Not ipSwitchAlreadyRunning Then
         If fso.FolderExists(ipSwitchDir) And fso.FileExists(ipSwitchPath) Then
             ' Start service and capture output to get port
             Set exec = WshShell.Exec("cmd /c cd " & ipSwitchDir & " && node " & ipSwitchPath)
-            
+
             ' Wait for service to start and find port
             startTime = Timer
             portFound = False
-            
+
             Do While Timer < startTime + 30 ' Wait up to 30 seconds
                 Do While Not exec.StdOut.AtEndOfStream
                     line = exec.StdOut.ReadLine()
@@ -54,9 +54,9 @@ Function StartAndDetectIpSwitchService()
                         Exit Do
                     End If
                 Loop
-                
+
                 If portFound Then Exit Do
-                
+
                 ' Also check if process is running with port
                 Set process2 = GetObject("winmgmts:\\.\root\cimv2:Win32_Process")
                 For Each p In process2.ExecQuery("SELECT * FROM Win32_Process WHERE Name='node.exe'")
@@ -70,21 +70,21 @@ Function StartAndDetectIpSwitchService()
                         End If
                     End If
                 Next
-                
+
                 If portFound Then Exit Do
                 WScript.Sleep 1000 ' Wait 1 second before checking again
             Loop
-            
+
             If Not portFound Then
                 ' Fallback to default port if not detected
                 servicePort = "54035"
             End If
-            
+
             ' Wait additional time for service to be fully ready
             WScript.Sleep 2000
         End If
     End If
-    
+
     StartAndDetectIpSwitchService = servicePort
 End Function
 
@@ -93,7 +93,7 @@ Function RegExpTest(input, pattern)
     Set regex = New RegExp
     regex.Pattern = pattern
     regex.IgnoreCase = True
-    
+
     If regex.Test(input) Then
         Set matches = regex.Execute(input)
         If matches.Count > 0 Then
@@ -103,6 +103,36 @@ Function RegExpTest(input, pattern)
     End If
     RegExpTest = ""
 End Function
+
+' === Ensure the ip-switch workspace is trusted (self-healing across CC Switch restarts) ===
+' Project-scoped .codex/config.toml is ONLY read when the workspace is trusted. That trust
+' entry lives in the user-level config.toml [projects] table, and CC Switch wipes hand-written
+' [projects] entries on its own restart. `codex app` does NOT reliably re-trust automatically,
+' so we (re)write the trust entry here, right before launching, to guarantee ip-switch's
+' project config is picked up this session. Idempotent: appends only if the key is absent.
+Sub EnsureWorkspaceTrust()
+    On Error Resume Next
+    Dim sh, fs, cfg, wsPath, key, txt, out
+    Set sh = CreateObject("WScript.Shell")
+    Set fs = CreateObject("Scripting.FileSystemObject")
+
+    cfg = sh.ExpandEnvironmentStrings("%USERPROFILE%") & "\.codex\config.toml"
+    If Not fs.FileExists(cfg) Then Exit Sub
+
+    wsPath = sh.ExpandEnvironmentStrings("%USERPROFILE%") & "\ip-switch"
+    ' Codex writes the key in lowercase, backslash form
+    key = "[projects.'" & LCase(wsPath) & "']"
+
+    Set out = fs.OpenTextFile(cfg, 1) ' ForReading
+    txt = LCase(out.ReadAll)
+    out.Close
+
+    If InStr(txt, LCase(key)) = 0 Then
+        Set out = fs.OpenTextFile(cfg, 8) ' ForAppending (ASCII bytes are valid UTF-8)
+        out.Write vbCrLf & key & vbCrLf & "trust_level = ""trusted""" & vbCrLf
+        out.Close
+    End If
+End Sub
 
 ' === END NEW CODE ===
 
@@ -160,15 +190,15 @@ If codexPath = "" Or Not fso.FileExists(codexPath) Then
     End If
 End If
 
+' --- Ensure workspace trust BEFORE launching (so project-scoped config loads) ---
+EnsureWorkspaceTrust
+
 ' --- Launch Codex with the ip-switch workspace ---
-' IMPORTANT: -c key=value overrides DO NOT reach the Desktop app.
-' `codex app` hands off via a codex:// protocol URL; the CLI parses -c flags
-' and silently drops them. The Desktop app only reads ~/.codex/config.toml
-' plus project-scoped .codex/config.toml layers inside the opened workspace.
-' So we pass the ip-switch install dir as the workspace PATH argument:
-'   1. Codex auto-trusts the workspace on first open (writes [projects] entry)
-'   2. The trusted workspace's .codex/config.toml registers mcp_servers,
-'      marketplaces and plugins for ip-switch (CC Switch safe)
+' `codex app "<path>"` opens the Desktop app focused on that workspace. The workspace must be
+' trusted (above) for its .codex/config.toml to register mcp_servers/marketplaces/plugins.
+' User-level [marketplaces.local] + [plugins."ip-switch@local"] are preserved by CC Switch,
+' but the mcp_servers.ip-switch block lives in the project-scoped config, so trust is what
+' makes it visible in the Desktop app's MCP list.
 ipSwitchWorkspace = WshShell.ExpandEnvironmentStrings("%USERPROFILE%") & "\ip-switch"
 
 If codexPath <> "" And fso.FileExists(codexPath) Then
