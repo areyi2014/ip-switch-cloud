@@ -701,35 +701,40 @@ function Install-CodexMcp {
     }
 }
 
-# -- 确保 Codex 信任安装目录（用户级 config.toml 的 [projects] 表） --------
-# 项目级 INSTALL_DIR\.codex\config.toml 只有在「工作区已被信任」时才会被 Codex 读取
-# （信任是启动引导机制，存在鸡生蛋问题：把信任条目写进项目级配置无效）。
-# 信任条目只能存在于用户级 ~/.codex/config.toml 的 [projects] 表；
-# CC Switch 不管理该表（SSOT 无 projects 数据源，实证多次重写后存活），可安全补写。
-# 仅检测目标条目是否存在；不存在才追加，不做任何备份/恢复操作（避免风险）。
-function Ensure-CodexTrust {
+# -- 确保 Codex 用户级 config.toml 注册本地市场与插件（全局可见） ----------
+#   • model / mcp_servers 由 CC Switch 管理 → 绝不能写用户级 config.toml（会被改写）
+#   • marketplaces / plugins 不由 CC Switch 管理（SSOT 无对应表）→ 写用户级安全，
+#     且只有写在这里，桌面版 Codex 在「任意工作区」打开时才能发现 ip-switch。
+#   项目级 .codex/config.toml 里的同名声明是工作区作用域，普通打开 Codex 时不加载，
+#   所以插件列表看不到。
+# 仅检测缺失项并追加，不做任何备份/恢复操作（避免风险）。
+function Ensure-CodexUserConfig {
     param(
-        [Parameter(Mandatory = $true)][string]$CodexConfig,
-        [Parameter(Mandatory = $true)][string]$InstallDir
+        [Parameter(Mandatory = $true)][string]$CodexConfig
     )
     if (-not (Test-Path $CodexConfig)) {
-        Write-Warning "未找到 $CodexConfig，跳过信任补写（首次运行 codex 后会自动创建）"
+        Write-Warning "未找到 $CodexConfig，跳过市场/插件注册（首次运行 codex 后会自动创建）"
         return
     }
 
-    # Codex 信任键使用小写路径（Windows 反斜杠，与 Codex 自动写入格式一致）
-    $trustKey = "[projects.'$($InstallDir.ToLower().Replace('/', '\'))']"
+    $marketDir = "$env:USERPROFILE\.codex\marketplaces\local"
     $content = [System.IO.File]::ReadAllText($CodexConfig)
+    $appended = @()
 
-    if ($content.Contains($trustKey)) {
-        Write-Info "Codex 信任条目已存在，跳过补写"
+    if (-not $content.Contains('[marketplaces.local]')) {
+        $appended += "[marketplaces.local]`nsource_type = `"local`"`nsource = '$marketDir'`n"
+    }
+    if (-not $content.Contains('[plugins."ip-switch@local"]')) {
+        $appended += "[plugins.`"ip-switch@local`"`]`nenabled = true`n"
+    }
+
+    if ($appended.Count -eq 0) {
+        Write-Info "ip-switch 市场与插件已在用户级 config.toml 中，跳过"
         return
     }
 
-    # 不存在：仅追加目标条目（不做备份/恢复，避免风险）
-    [System.IO.File]::AppendAllText($CodexConfig, "`n$trustKey`ntrust_level = `"trusted`"`n", (New-Object System.Text.UTF8Encoding($false)))
-    Write-OK "已补写 Codex 信任条目: $trustKey"
-    Write-Info "安装目录 $InstallDir 已受信任，项目级配置将正常加载"
+    [System.IO.File]::AppendAllText($CodexConfig, "`n" + ($appended -join "`n") + "`n", (New-Object System.Text.UTF8Encoding($false)))
+    Write-OK "已注册 ip-switch 市场与插件到用户级 config.toml（全局可见，CC Switch 不管理该表）"
 }
 
 # -- 安装 Codex TOML 配置层（项目级 + 叠加层配置） --------------------------
@@ -808,8 +813,9 @@ $ipSwitchConfigBody
     Write-OK "已创建 Codex Profile 叠加层: $profileFile"
     Write-Info "CC Switch 篡改 config.toml 不再影响 ip-switch（独立叠加层）"
 
-    # 2.3. 信任补写：安装目录已被 Codex 信任后，项目级配置才生效（纯检测+追加，无备份）
-    Ensure-CodexTrust -CodexConfig "$codexDir\config.toml" -InstallDir $installDir
+    # 2.3. 全局注册本地市场与插件到用户级 config.toml：
+    #      仅此处注册后，桌面版 Codex 在任意工作区打开都能发现 ip-switch（CC Switch 不管理该表，安全）
+    Ensure-CodexUserConfig -CodexConfig "$codexDir\config.toml"
 
 
 }
