@@ -674,7 +674,6 @@ function Install-CodexMcp {
 # -- 确保 Codex 用户级 config.toml 注册本地市场、插件与 ip-switch MCP（全局可见） ----------
 #   （若日后手动添加项目级 .codex/config.toml 声明，也仅在工作区作用域加载，普通打开 Codex 时不加载；
 #    全局可见性始终靠用户级注册。）
-# 仅检测缺失项并追加，不做任何备份/恢复操作（避免风险）。
 function Append-CodexUserConfig {
     param(
         [Parameter(Mandatory = $true)][string]$CodexConfig
@@ -716,13 +715,9 @@ function Append-CodexUserConfig {
 }
 
 # -- 安装 Codex 用户级配置（全局可见的唯一稳定通道） ------------------------
-# 职责：把 ip-switch 注册到用户级 ~/.codex/config.toml
+# 职责：把 ip-switch 注册到用户级 ~/.codex/config.toml：
 #       （[marketplaces.local] + [plugins."ip-switch@local"] + [mcp_servers.ip-switch]）。
-# 这是桌面版 Codex「插件列表 / MCP 列表」唯一的数据源——全局 UI 只读用户级 config，
-# 不读项目级或 Profile 配置；CC Switch 不管理这些表，故安装写入安全、重启存活。
-# 旧版曾额外生成 ① 项目级 .codex/config.toml 与 ② Profile ip-switch.config.toml，
-# 但二者对实际桌面流程无增益（项目级不进全局列表且信任易被 CC Switch 清空；Profile 仅
-# codex --profile 生效、桌面不加载且独立文件机制未经实证），已移除，统一以用户级注册为单一事实来源。
+#     如果此三项有缺失，请查看CC Switch 的 该模型的公共配置即cc-switch.db的 settings 表 common_config_codex 字段
 function Install-CodexToml {
     Write-Step "安装 Codex 用户级配置（全局可见的唯一稳定通道）"
 
