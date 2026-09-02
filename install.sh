@@ -556,90 +556,21 @@ EOF
     CODEX_MCP_NODE="$codex_node"
 }
 
-# ── 安装 Codex TOML 配置层（项目级 + Profile 叠加层） ──
-# 职责：
-#   ① 生成 INSTALL_DIR/.mcp.json —— 已拆出为 install_codex_mcp 独立函数
-#      （在主流程先于本函数执行；codex 自带 node 全路径，供市场插件 plugin.json 引用）
-#   ② 生成 INSTALL_DIR/.codex/config.toml（项目级配置层 —— 桌面版的主要加载通道）
-#      —— 桌面版 codex app 通过协议拉起，-c 参数传不进桌面进程，
-#         只能读 ~/.codex/config.toml + 工作区内项目级 .codex/config.toml
-#      —— 首次以该目录为工作区启动时 Codex 会自动信任，信任后本文件生效
-#   ③ 创建 ~/.codex/ip-switch.config.toml（Profile 叠加层，CLI 专用）
-#      —— 用于 codex --profile ip-switch CLI 命令（mcp list / exec / review 等）
-#   ④ 清理旧版 ~/.codex/plugins/ip-switch 残留
-#   ⑤ 桌面快捷方式已拆出为 install_codex_shotcut 独立函数（在主流程执行）
-#      —— codex_app.sh 以 INSTALL_DIR 为工作区启动 codex app
-# 注：插件页发现/安装由 install_codex_marketplace 负责，本函数不重复。
-# 注：②③两份配置互为镜像；均独立于 config.toml，CC Switch 不影响。
+# ── 安装 Codex 用户级配置（全局可见的唯一稳定通道） ──
+# 职责：把 ip-switch 注册到用户级 ~/.codex/config.toml
+#       （[marketplaces.local] + [plugins."ip-switch@local"] + [mcp_servers.ip-switch]）。
+# 这是桌面版 Codex「插件列表 / MCP 列表」唯一的数据源——全局 UI 只读用户级 config，
+# 不读项目级或 Profile 配置；CC Switch 不管理这些表，故安装写入安全、重启存活。
+# 旧版曾额外生成 ① 项目级 .codex/config.toml 与 ② Profile ip-switch.config.toml，
+# 但二者对实际桌面流程无增益（项目级不进全局列表且信任易被 CC Switch 清空；Profile 仅
+# codex --profile 生效、桌面不加载且独立文件机制未经实证），已移除，统一以用户级注册为单一事实来源。
 install_codex_toml() {
-    log_step "安装 Codex TOML 配置层（项目级 + Profile）"
+    log_step "安装 Codex 用户级配置（全局可见的唯一稳定通道）"
 
-    # 1. 取 install_codex_mcp 的输出（该函数在主流程先于本函数执行）
-    local dist_js="$CODEX_MCP_DIST"
-    local codex_node="$CODEX_MCP_NODE"
-
+    # 唯一稳定通道 = 用户级 ~/.codex/config.toml 的注册（marketplaces + plugins + mcp）。
+    # 桌面「插件列表 / MCP 列表」只读这里；CC Switch 不管理这些表，安全。
     local codex_dir="$HOME/.codex"
-    local market_dir="$codex_dir/marketplaces/local"
-    mkdir -p "${INSTALL_DIR}/.codex"
-
-    # 公共配置主体 —— 项目级配置层与 Profile 叠加层的内容完全一致（互为镜像），
-    # 仅文件位置、加载时机与用途不同：
-    #   ① 项目级配置层（INSTALL_DIR/.codex/config.toml）→ 桌面版加载通道
-    #   ② Profile 叠加层（~/.codex/ip-switch.config.toml）→ CLI --profile 加载通道
-    # 统一维护这一份模板，避免两份配置内容漂移；TOML 中表顺序无关紧要。
-    # 注意：这里是 shell heredoc，${dist_js} / ${codex_node} / ${INSTALL_DIR} / ${market_dir} 会被展开。
-    local ip_switch_config_body
-    ip_switch_config_body=$(cat <<EOF
-[marketplaces.local]
-source_type = "local"
-source = '${market_dir}'
-
-[plugins."ip-switch@local"]
-enabled = true
-EOF
-)
-
-    # 2. 生成项目级配置层（INSTALL_DIR/.codex/config.toml）—— 桌面版的主要加载通道
-    #     桌面版 codex app 无法接收 -c 覆盖（协议拉起时参数丢失），
-    #     只能通过「信任的工作区」内的项目级配置注册 ip-switch。
-    #     codex_app.sh 已改为以 INSTALL_DIR 为工作区启动，首次启动自动信任。
-    #     内容与 Profile 叠加层相同，共用 ip_switch_config_body（见上方模板说明）。
-    cat > "${INSTALL_DIR}/.codex/config.toml" <<EOF
-# ip-switch project-scoped config — layered on top of ~/.codex/config.toml
-# Independent of user config.toml (CC Switch safe).
-# Loaded by Codex when this workspace is opened and trusted.
-
-${ip_switch_config_body}
-EOF
-    log_ok "已生成项目级配置层: ${INSTALL_DIR}/.codex/config.toml"
-    log_info "桌面版 Codex 以本目录为工作区启动时自动加载（首次启动自动信任）"
-
-    # 3. 创建 Codex Profile 叠加层（~/.codex/ip-switch.config.toml）
-    #    独立于 config.toml，CC Switch 篡改 config.toml 不影响 ip-switch
-    #    用途：codex --profile ip-switch CLI 命令（mcp list / exec / review 等）
-    #    注意：codex app 子命令不支持 --profile；桌面版走上面的项目级配置层
-    #    内容与项目级配置层相同，共用 ip_switch_config_body（见上方模板说明）。
-    mkdir -p "$codex_dir"
-    cat > "$codex_dir/ip-switch.config.toml" <<EOF
-# ip-switch Profile — 独立于 config.toml 的叠加层
-# CC Switch 只管 config.toml，此文件不受影响
-# 用途：codex --profile ip-switch CLI 命令（mcp list / exec / review 等）
-# 注意：codex app 子命令不支持 --profile；桌面版走工作区内 .codex/config.toml 项目级配置
-
-${ip_switch_config_body}
-EOF
-    log_ok "已创建 Codex Profile 叠加层: ${codex_dir}/ip-switch.config.toml"
-    log_info "CC Switch 篡改 config.toml 不再影响 ip-switch（独立叠加层）"
-
-
-    # 4. 验证
-    if [ -f "${INSTALL_DIR}/.mcp.json" ]; then
-        log_ok "Codex MCP 直连配置已就绪: ${INSTALL_DIR}/.mcp.json"
-        log_info "重启 Codex 后生效（插件页发现由市场负责）"
-    else
-        log_error "MCP 配置生成失败，请检查 ${INSTALL_DIR}/.mcp.json"
-        exit 1
-    fi
+    ensure_codex_user_config "$codex_dir/config.toml"
 }
 
 # ── 确保 Codex 用户级 config.toml 注册本地市场、插件与 ip-switch MCP（全局可见） ──────
@@ -653,7 +584,8 @@ EOF
 #       - CC Switch 已写入该段 → grep 命中 → 跳过（避免 TOML 重复表）
 #       - CC Switch 未运行 → 用户级 config.toml 无此段 → 脚本补写，ip-switch 在 MCP 列表可见
 #     这样「用户级注册」不再依赖 CC Switch 是否在跑。
-#   项目级 .codex/config.toml 里的同名声明是工作区作用域，普通打开 Codex 时不加载。
+#   （若日后手动添加项目级 .codex/config.toml 声明，也仅在工作区作用域加载，普通打开 Codex 时不加载；
+#    全局可见性始终靠用户级注册。）
 # 仅检测缺失项并追加，不做备份/恢复。
 ensure_codex_user_config() {
     local codex_config="$1"
@@ -742,13 +674,14 @@ install_codex_shotcut() {
     fi
 
     # 生成 Linux/macOS 版启动脚本（等价 codex_app.vbs：启动 ip-switch 服务后启动 Codex）
-    # 桌面版无法接收 -c 覆盖（协议拉起时参数丢失），改为以 INSTALL_DIR 为工作区启动，
-    # 让 Codex 自动信任工作区并加载其 .codex/config.toml 项目级配置
+    # 桌面版无法接收 -c 覆盖（协议拉起时参数丢失），改为以 INSTALL_DIR 为工作区启动。
+    # 全局可见性由用户级 ~/.codex/config.toml（ensure_codex_user_config 写入）负责，
+    # 不再依赖工作区内的项目级 .codex/config.toml（该文件已不再生成）。
     local launcher="$INSTALL_DIR/codex_app.sh"
     cat > "$launcher" <<EOF
 #!/bin/bash
 # Codex launcher (Linux/macOS) - 启动 ip-switch 服务并以本目录为工作区启动 Codex
-# 工作区内的 .codex/config.toml 注册 ip-switch MCP/市场/插件（首次启动自动信任）
+# ip-switch 的全局可见性来自用户级 ~/.codex/config.toml（由 install 脚本注册），无需工作区内项目级配置
 cd "$INSTALL_DIR" 2>/dev/null || exit 1
 if ! pgrep -f "node .*ip-switch" >/dev/null 2>&1; then
     nohup node dist/index.js >/dev/null 2>&1 &
@@ -857,9 +790,10 @@ EOF_PLUGIN
     log_ok "已写入市场清单: ${market_dir}/.agents/plugins/marketplace.json"
     log_ok "已写入插件清单: ${market_plugin_dir}/plugin.json"
 
-    # 3. 市场注册已移至 Profile 叠加层（~/.codex/ip-switch.config.toml）
-    #    不再写 config.toml，避免 CC Switch 篡改导致丢失
-    log_ok "市场注册已在 Profile 叠加层中配置（ip-switch.config.toml）"
+    # 3. 本函数只写入插件清单文件（marketplace.json / plugin.json）。
+    #    config.toml 里的 [marketplaces.local] + [plugins."ip-switch@local"] + [mcp_servers.ip-switch]
+    #    注册由 ensure_codex_user_config（用户级，唯一稳定通道）负责，不在此处。
+    log_ok "Codex 插件清单已写入（config.toml 注册由 ensure_codex_user_config 完成）"
 
     # 5. 验证
     if [ -f "$market_dir/.agents/plugins/marketplace.json" ] && [ -f "$market_plugin_dir/plugin.json" ]; then
@@ -902,7 +836,7 @@ print_success() {
     fi
     if $DETECTED_CODEX; then
         install_locations="${install_locations}Codex 市场清单:     ${codex_market_dir}
-Codex 项目级配置:   ${INSTALL_DIR}/.codex/config.toml（桌面版加载通道）
+Codex 用户级注册:   ~/.codex/config.toml（全局可见，由 ensure_codex_user_config 写入）
 "
     fi
 
@@ -912,10 +846,7 @@ Codex 项目级配置:   ${INSTALL_DIR}/.codex/config.toml（桌面版加载通�
 "
     fi
     if $DETECTED_CODEX; then
-        local profile_file="$HOME/.codex/ip-switch.config.toml"
-        uninstall_cmds="${uninstall_cmds}  rm -f ${profile_file}     # 删除 Codex Profile 叠加层
-  rm -rf ${INSTALL_DIR}/.codex       # 删除项目级配置层
-  rm -rf ${codex_market_dir}       # 删除 Codex 市场清单
+        uninstall_cmds="${uninstall_cmds}  rm -rf ${codex_market_dir}       # 删除 Codex 市场清单
 "
     fi
 
@@ -979,7 +910,6 @@ main() {
     if $DETECTED_CODEX; then
         install_codex_mcp
         install_codex_toml
-        ensure_codex_user_config "$HOME/.codex/config.toml"
         install_codex_shotcut
         install_codex_marketplace
     fi
