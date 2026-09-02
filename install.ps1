@@ -671,9 +671,10 @@ function Install-CodexMcp {
     }
 }
 
-# -- 确保 Codex 用户级 config.toml 注册本地市场、插件与 ip-switch MCP（全局可见） ----------
-#   （若日后手动添加项目级 .codex/config.toml 声明，也仅在工作区作用域加载，普通打开 Codex 时不加载；
-#    全局可见性始终靠用户级注册。）
+# -- 确保 Codex 【用户级 config.toml】 注册本地市场、插件与 ip-switch MCP（全局可见） ---
+#  另外：Codex 【项目级.codex/config.toml】 的标准用法：（如 codex-cli-best-practice 仓库）
+#  确实把 model/sandbox_mode/approval_policy/[mcp_servers.*]/[features]/[agents]/[profiles.*] 放在项目级，
+#  而从没有任何示例把 [marketplaces.*]/[plugins.*] 放【项目级】
 function Append-CodexUserConfig {
     param(
         [Parameter(Mandatory = $true)][string]$CodexConfig
