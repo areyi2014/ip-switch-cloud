@@ -570,7 +570,7 @@ install_codex_toml() {
     # 唯一稳定通道 = 用户级 ~/.codex/config.toml 的注册（marketplaces + plugins + mcp）。
     # 桌面「插件列表 / MCP 列表」只读这里；CC Switch 不管理这些表，安全。
     local codex_dir="$HOME/.codex"
-    ensure_codex_user_config "$codex_dir/config.toml"
+    append_codex_user_config "$codex_dir/config.toml"
 }
 
 # ── 确保 Codex 用户级 config.toml 注册本地市场、插件与 ip-switch MCP（全局可见） ──────
@@ -587,7 +587,7 @@ install_codex_toml() {
 #   （若日后手动添加项目级 .codex/config.toml 声明，也仅在工作区作用域加载，普通打开 Codex 时不加载；
 #    全局可见性始终靠用户级注册。）
 # 仅检测缺失项并追加，不做备份/恢复。
-ensure_codex_user_config() {
+append_codex_user_config() {
     local codex_config="$1"
     if [ ! -f "$codex_config" ]; then
         log_info "未找到 ${codex_config}，跳过市场/插件/MCP 注册（首次运行 codex 后会自动创建）"
@@ -675,7 +675,7 @@ install_codex_shotcut() {
 
     # 生成 Linux/macOS 版启动脚本（等价 codex_app.vbs：启动 ip-switch 服务后启动 Codex）
     # 桌面版无法接收 -c 覆盖（协议拉起时参数丢失），改为以 INSTALL_DIR 为工作区启动。
-    # 全局可见性由用户级 ~/.codex/config.toml（ensure_codex_user_config 写入）负责，
+    # 全局可见性由用户级 ~/.codex/config.toml（append_codex_user_config 写入）负责，
     # 不再依赖工作区内的项目级 .codex/config.toml（该文件已不再生成）。
     local launcher="$INSTALL_DIR/codex_app.sh"
     cat > "$launcher" <<EOF
@@ -792,8 +792,8 @@ EOF_PLUGIN
 
     # 3. 本函数只写入插件清单文件（marketplace.json / plugin.json）。
     #    config.toml 里的 [marketplaces.local] + [plugins."ip-switch@local"] + [mcp_servers.ip-switch]
-    #    注册由 ensure_codex_user_config（用户级，唯一稳定通道）负责，不在此处。
-    log_ok "Codex 插件清单已写入（config.toml 注册由 ensure_codex_user_config 完成）"
+    #    注册由 append_codex_user_config（用户级，唯一稳定通道）负责，不在此处。
+    log_ok "Codex 插件清单已写入（config.toml 注册由 append_codex_user_config 完成）"
 
     # 5. 验证
     if [ -f "$market_dir/.agents/plugins/marketplace.json" ] && [ -f "$market_plugin_dir/plugin.json" ]; then
@@ -836,7 +836,7 @@ print_success() {
     fi
     if $DETECTED_CODEX; then
         install_locations="${install_locations}Codex 市场清单:     ${codex_market_dir}
-Codex 用户级注册:   ~/.codex/config.toml（全局可见，由 ensure_codex_user_config 写入）
+Codex 用户级注册:   ~/.codex/config.toml（全局可见，由 append_codex_user_config 写入）
 "
     fi
 
