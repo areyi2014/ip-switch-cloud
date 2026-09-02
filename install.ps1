@@ -672,18 +672,10 @@ function Install-CodexMcp {
 }
 
 # -- 确保 Codex 用户级 config.toml 注册本地市场、插件与 ip-switch MCP（全局可见） ----------
-#   • model 由 CC Switch 管理 → 不写用户级 config.toml（会被改写）
-#   • marketplaces / plugins 不由 CC Switch 管理（SSOT 无对应表）→ 写用户级安全，
-#     且只有写在这里，桌面版 Codex 在「任意工作区」打开时才能发现 ip-switch。
-#   • [mcp_servers.ip-switch] 虽属 CC Switch 管理的 A 档（重启会按 SSOT 重生成），
-#     但本函数用脚本已解析好的 node/dist 路径【幂等追加】该段：
-#       - 若 CC Switch 正在运行并已写入该段 → Contains 命中 → 跳过（不重复，避免 TOML 重复表）
-#       - 若 CC Switch 未运行 → 用户级 config.toml 无此段 → 脚本补写，ip-switch 在 MCP 列表可见
-#     这样「用户级注册」不再依赖 CC Switch 是否在跑。
 #   （若日后手动添加项目级 .codex/config.toml 声明，也仅在工作区作用域加载，普通打开 Codex 时不加载；
 #    全局可见性始终靠用户级注册。）
 # 仅检测缺失项并追加，不做任何备份/恢复操作（避免风险）。
-function Ensure-CodexUserConfig {
+function Append-CodexUserConfig {
     param(
         [Parameter(Mandatory = $true)][string]$CodexConfig
     )
@@ -737,7 +729,7 @@ function Install-CodexToml {
     # 唯一稳定通道 = 用户级 ~/.codex/config.toml 的注册（marketplaces + plugins + mcp）。
     # 桌面「插件列表 / MCP 列表」只读这里；CC Switch 不管理这些表，安全。
     $codexDir = "$env:USERPROFILE\.codex"
-    Ensure-CodexUserConfig -CodexConfig "$codexDir\config.toml"
+    Append-CodexUserConfig -CodexConfig "$codexDir\config.toml"
 }
 
 # -- 创建桌面快捷方式 ----------------------------------------------------------
@@ -870,8 +862,8 @@ function Install-CodexMarketplace {
 
     # 3. 本函数只写入插件清单文件（marketplace.json / plugin.json）。
     #    config.toml 里的 [marketplaces.local] + [plugins."ip-switch@local"] + [mcp_servers.ip-switch]
-    #    注册由 Ensure-CodexUserConfig（用户级，唯一稳定通道）负责，不在此处。
-    Write-OK "Codex 插件清单已写入（config.toml 注册由 Ensure-CodexUserConfig 完成）"
+    #    注册由 Append-CodexUserConfig（用户级，唯一稳定通道）负责，不在此处。
+    Write-OK "Codex 插件清单已写入（config.toml 注册由 Append-CodexUserConfig 完成）"
 
     # 5. 验证
     if ((Test-Path "$marketDir\.agents\plugins\marketplace.json") -and (Test-Path "$marketPluginDir\plugin.json")) {
@@ -1005,7 +997,7 @@ function Show-Success {
     }
     if ($script:DetectedCodex) {
         Write-Host "Codex 市场清单:     $codexMarketDir"
-        Write-Host "Codex 用户级注册:   $env:USERPROFILE\.codex\config.toml（全局可见，由 Ensure-CodexUserConfig 写入）"
+        Write-Host "Codex 用户级注册:   $env:USERPROFILE\.codex\config.toml（全局可见，由 Append-CodexUserConfig 写入）"
     }
     Write-Host "UI 服务器:  node $installDir\ui\server.cjs"
     Write-Host "UI 地址:    启动后终端会显示实际地址"
