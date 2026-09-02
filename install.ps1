@@ -647,19 +647,23 @@ function Install-CodexMcp {
     }
 }
 
-# -- 确保 Codex 用户级 config.toml 注册本地市场与插件（全局可见） ----------
-#   • model / mcp_servers 由 CC Switch 管理 → 绝不能写用户级 config.toml（会被改写）
+# -- 确保 Codex 用户级 config.toml 注册本地市场、插件与 ip-switch MCP（全局可见） ----------
+#   • model 由 CC Switch 管理 → 不写用户级 config.toml（会被改写）
 #   • marketplaces / plugins 不由 CC Switch 管理（SSOT 无对应表）→ 写用户级安全，
 #     且只有写在这里，桌面版 Codex 在「任意工作区」打开时才能发现 ip-switch。
-#   项目级 .codex/config.toml 里的同名声明是工作区作用域，普通打开 Codex 时不加载，
-#   所以插件列表看不到。
+#   • [mcp_servers.ip-switch] 虽属 CC Switch 管理的 A 档（重启会按 SSOT 重生成），
+#     但本函数用脚本已解析好的 node/dist 路径【幂等追加】该段：
+#       - 若 CC Switch 正在运行并已写入该段 → Contains 命中 → 跳过（不重复，避免 TOML 重复表）
+#       - 若 CC Switch 未运行 → 用户级 config.toml 无此段 → 脚本补写，ip-switch 在 MCP 列表可见
+#     这样「用户级注册」不再依赖 CC Switch 是否在跑。
+#   项目级 .codex/config.toml 里的同名声明是工作区作用域，普通打开 Codex 时不加载。
 # 仅检测缺失项并追加，不做任何备份/恢复操作（避免风险）。
 function Ensure-CodexUserConfig {
     param(
         [Parameter(Mandatory = $true)][string]$CodexConfig
     )
     if (-not (Test-Path $CodexConfig)) {
-        Write-Warning "未找到 $CodexConfig，跳过市场/插件注册（首次运行 codex 后会自动创建）"
+        Write-Warning "未找到 $CodexConfig，跳过市场/插件/MCP 注册（首次运行 codex 后会自动创建）"
         return
     }
 
@@ -673,21 +677,32 @@ function Ensure-CodexUserConfig {
     if (-not $content.Contains('[plugins."ip-switch@local"]')) {
         $appended += "[plugins.`"ip-switch@local`"`]`nenabled = true`n"
     }
+    # 幂等追加 [mcp_servers.ip-switch]：用脚本已解析的 node/dist 路径，CC Switch 未跑也能注册
+    if (-not $content.Contains('[mcp_servers.ip-switch]')) {
+        $mcpNode = $script:CodexMcpNode
+        $mcpDist = $script:CodexMcpDist
+        $mcpCwd  = $script:installDir
+        if ($mcpNode -and $mcpDist -and $mcpCwd) {
+            $appended += "[mcp_servers.ip-switch]`ncommand = '$mcpNode'`nargs = ['$mcpDist']`ncwd = '$mcpCwd'`nstartup_timeout_sec = 30`nenabled = true`n"
+        } else {
+            Write-Warning "缺少 Node/dist 路径（install 前置步骤未完成），跳过用户级 [mcp_servers.ip-switch] 注册"
+        }
+    }
 
     if ($appended.Count -eq 0) {
-        Write-Info "ip-switch 市场与插件已在用户级 config.toml 中，跳过"
+        Write-Info "ip-switch 市场、插件与 MCP 已在用户级 config.toml 中，跳过"
         return
     }
 
     [System.IO.File]::AppendAllText($CodexConfig, "`n" + ($appended -join "`n") + "`n", (New-Object System.Text.UTF8Encoding($false)))
-    Write-OK "已注册 ip-switch 市场与插件到用户级 config.toml（全局可见，CC Switch 不管理该表）"
+    Write-OK "已注册 ip-switch 市场、插件与 mcp_servers 到用户级 config.toml（全局可见；mcp 段由脚本写入，不再依赖 CC Switch）"
 }
 
 # -- 安装 Codex TOML 配置层（项目级 + 叠加层配置） --------------------------
 # 职责：
 #   ② 生成 installDir\.codex\config.toml（项目级配置层 —— 桌面版的主要加载通道）
 #      —— 桌面版 codex app 通过 codex:// 协议拉起，-c 参数传不进桌面进程，工作区内项目级 .codex/config.toml
-#         首次以该目录为工作区启动时 Codex 会自动信任（写入 [projects] 表），
+#         首次以该目录为工作区启动时 Codex 会自动信任（写入 [projects] 表，见codex_app.vbs），
 #         信任后本文件的 mcp_servers / marketplaces / plugins 全部生效
 #   ③ 生成 ~/.codex/ip-switch.config.toml（叠加层配置，CLI 专用）
 #      —— 用于 codex --profile ip-switch CLI 命令（mcp list / exec / review 等），会自动搜索ip-switch.config.toml
@@ -701,7 +716,7 @@ function Install-CodexToml {
 
     # 2. 生成项目级配置层（installDir\.codex\config.toml）—— 桌面版的主要加载通道
     #     桌面版 codex app 无法接收 -c 覆盖（协议拉起时参数丢失），
-    #     codex_app.vbs 已改为以 installDir 为工作区启动，首次启动自动信任。
+    #    注意codex_app.vbs 已改为以 installDir 为工作区启动，且启动自动信任。
     $codexDir = "$env:USERPROFILE\.codex"
     $projectCodexDir = "$installDir\.codex"
     $marketDir = "$codexDir\marketplaces\local"
@@ -713,7 +728,6 @@ function Install-CodexToml {
     #   ① 项目级配置层（installDir\.codex\config.toml）→ 桌面版加载通道
     #   ② Profile 叠加层（~/.codex/ip-switch.config.toml）→ CLI --profile 加载通道
     # 统一维护这一份模板，避免两份配置内容漂移；TOML 中表顺序无关紧要。
-    # 注意：这里是 PowerShell here-string，$distJs / $codexNode / $installDir / $marketDir 会被展开。
     $ipSwitchConfigBody = @"
 
 [marketplaces.local]
@@ -736,7 +750,6 @@ $ipSwitchConfigBody
     Write-Info "桌面版 Codex 以本目录为工作区启动时自动加载（首次启动自动信任）"
 
     # 2.2. 创建 Codex Profile 叠加层（~/.codex/ip-switch.config.toml）
-    #    独立于 config.toml，CC Switch 篡改 config.toml 不影响 ip-switch
     #    用途：codex --profile ip-switch CLI 命令（mcp list / exec / review 等）
     #    注意：codex app 子命令不支持 --profile；桌面版走上面的项目级配置层
     #    内容与项目级配置层相同，共用 $ipSwitchConfigBody（见上方模板说明）。
@@ -755,6 +768,7 @@ $ipSwitchConfigBody
 
     # 2.3. 全局注册本地市场与插件到用户级 config.toml：
     #      仅此处注册后，桌面版 Codex 在任意工作区打开都能发现 ip-switch（CC Switch 不管理该表，安全）
+    Write-Step "安装 Codex TOML 配置层（用户层配置）"
     Ensure-CodexUserConfig -CodexConfig "$codexDir\config.toml"
 
 

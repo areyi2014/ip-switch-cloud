@@ -597,14 +597,8 @@ EOF
     log_ok "已创建 Codex Profile 叠加层: ${codex_dir}/ip-switch.config.toml"
     log_info "CC Switch 篡改 config.toml 不再影响 ip-switch（独立叠加层）"
 
-    # 4. 清理旧版 ~/.codex/plugins/ip-switch（曾导致插件页偶发重复发现 ip-switch）
-    local legacy_dir="$HOME/.codex/plugins/ip-switch"
-    if [ -d "$legacy_dir" ]; then
-        log_info "清理旧版插件目录残留: ${legacy_dir}"
-        rm -rf "$legacy_dir"
-    fi
 
-    # 5. 验证
+    # 4. 验证
     if [ -f "${INSTALL_DIR}/.mcp.json" ]; then
         log_ok "Codex MCP 直连配置已就绪: ${INSTALL_DIR}/.mcp.json"
         log_info "重启 Codex 后生效（插件页发现由市场负责）"
@@ -614,17 +608,23 @@ EOF
     fi
 }
 
-# ── 确保 Codex 用户级 config.toml 注册本地市场与插件（全局可见） ──────
+# ── 确保 Codex 用户级 config.toml 注册本地市场、插件与 ip-switch MCP（全局可见） ──────
 # 关键区分（这是上一版"重装后插件列表看不到"的根因）：
-#   • model / mcp_servers 由 CC Switch 管理 → 绝不能写用户级 config.toml
+#   • model 由 CC Switch 管理 → 不写用户级 config.toml
 #   • marketplaces / plugins 不由 CC Switch 管理（SSOT 无对应表）→ 写用户级安全，
 #     且只有写在这里，桌面版 Codex 在「任意工作区」打开时才能发现 ip-switch。
+#   • [mcp_servers.ip-switch] 虽属 CC Switch 管理的 A 档（重启会重生成），但本函数用
+#     install_codex_mcp 已解析好的 $CODEX_MCP_NODE / $CODEX_MCP_DIST / $INSTALL_DIR
+#     【幂等追加】该段：
+#       - CC Switch 已写入该段 → grep 命中 → 跳过（避免 TOML 重复表）
+#       - CC Switch 未运行 → 用户级 config.toml 无此段 → 脚本补写，ip-switch 在 MCP 列表可见
+#     这样「用户级注册」不再依赖 CC Switch 是否在跑。
 #   项目级 .codex/config.toml 里的同名声明是工作区作用域，普通打开 Codex 时不加载。
 # 仅检测缺失项并追加，不做备份/恢复。
 ensure_codex_user_config() {
     local codex_config="$1"
     if [ ! -f "$codex_config" ]; then
-        log_info "未找到 ${codex_config}，跳过市场/插件注册（首次运行 codex 后会自动创建）"
+        log_info "未找到 ${codex_config}，跳过市场/插件/MCP 注册（首次运行 codex 后会自动创建）"
         return 0
     fi
     # 归一化市场目录为 Windows 路径（Git Bash 下 $HOME 是 /c/Users/...）
@@ -647,12 +647,28 @@ ensure_codex_user_config() {
         appended="${appended}"$'\n'"[plugins.\"ip-switch@local\"]"
         appended="${appended}"$'\n'"enabled = true"
     fi
+    # 幂等追加 [mcp_servers.ip-switch]：用 install_codex_mcp 已解析的 node/dist 路径
+    if ! grep -qF '[mcp_servers.ip-switch]' "$codex_config"; then
+        local mcp_node="$CODEX_MCP_NODE"
+        local mcp_dist="$CODEX_MCP_DIST"
+        local mcp_cwd="$INSTALL_DIR"
+        if [ -n "$mcp_node" ] && [ -n "$mcp_dist" ] && [ -n "$mcp_cwd" ]; then
+            appended="${appended}"$'\n'"[mcp_servers.ip-switch]"
+            appended="${appended}"$'\n'"command = '${mcp_node}'"
+            appended="${appended}"$'\n'"args = ['${mcp_dist}']"
+            appended="${appended}"$'\n'"cwd = '${mcp_cwd}'"
+            appended="${appended}"$'\n'"startup_timeout_sec = 30"
+            appended="${appended}"$'\n'"enabled = true"
+        else
+            log_warn "缺少 Node/dist 路径（install 前置步骤未完成），跳过用户级 [mcp_servers.ip-switch] 注册"
+        fi
+    fi
     if [ -z "$appended" ]; then
-        log_info "ip-switch 市场与插件已在用户级 config.toml 中，跳过"
+        log_info "ip-switch 市场、插件与 MCP 已在用户级 config.toml 中，跳过"
         return 0
     fi
     printf '%s\n' "$appended" >> "$codex_config"
-    log_ok "已注册 ip-switch 市场与插件到用户级 config.toml（全局可见，CC Switch 不管理该表）"
+    log_ok "已注册 ip-switch 市场、插件与 mcp_servers 到用户级 config.toml（全局可见；mcp 段由脚本写入，不再依赖 CC Switch）"
 }
 
 # ── 创建桌面快捷方式 ───────────────────────────────────────────────────────────
