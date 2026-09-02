@@ -104,36 +104,6 @@ Function RegExpTest(input, pattern)
     RegExpTest = ""
 End Function
 
-' === Ensure the ip-switch workspace is trusted (self-healing across CC Switch restarts) ===
-' Project-scoped .codex/config.toml is ONLY read when the workspace is trusted. That trust
-' entry lives in the user-level config.toml [projects] table, and CC Switch wipes hand-written
-' [projects] entries on its own restart. `codex app` does NOT reliably re-trust automatically,
-' so we (re)write the trust entry here, right before launching, to guarantee ip-switch's
-' project config is picked up this session. Idempotent: appends only if the key is absent.
-Sub EnsureWorkspaceTrust()
-    On Error Resume Next
-    Dim sh, fs, cfg, wsPath, key, txt, out
-    Set sh = CreateObject("WScript.Shell")
-    Set fs = CreateObject("Scripting.FileSystemObject")
-
-    cfg = sh.ExpandEnvironmentStrings("%USERPROFILE%") & "\.codex\config.toml"
-    If Not fs.FileExists(cfg) Then Exit Sub
-
-    wsPath = sh.ExpandEnvironmentStrings("%USERPROFILE%") & "\ip-switch"
-    ' Codex writes the key in lowercase, backslash form
-    key = "[projects.'" & LCase(wsPath) & "']"
-
-    Set out = fs.OpenTextFile(cfg, 1) ' ForReading
-    txt = LCase(out.ReadAll)
-    out.Close
-
-    If InStr(txt, LCase(key)) = 0 Then
-        Set out = fs.OpenTextFile(cfg, 8) ' ForAppending (ASCII bytes are valid UTF-8)
-        out.Write vbCrLf & key & vbCrLf & "trust_level = ""trusted""" & vbCrLf
-        out.Close
-    End If
-End Sub
-
 ' === END NEW CODE ===
 
 Set WshShell = CreateObject("WScript.Shell")
@@ -190,13 +160,10 @@ If codexPath = "" Or Not fso.FileExists(codexPath) Then
     End If
 End If
 
-' --- Ensure workspace trust BEFORE launching (so a project-scoped config, if present, loads) ---
-EnsureWorkspaceTrust
-
 ' --- Launch Codex with the ip-switch workspace ---
-' `codex app "<path>"` opens the Desktop app focused on that workspace. The trust entry written
-' above marks this workspace as trusted (so a project-scoped .codex/config.toml, if one exists,
-' would load within that session for workspace-local mcp_servers/settings).
+' `codex app "<path>"` opens the Desktop app focused on that workspace.
+' 注意：ip-switch 的插件/MCP 注册依赖 USER-LEVEL config.toml（见下方说明），
+' 项目级信任条目由 CC Switch 托管，脚本不重复写入。
 ' IMPORTANT: the Desktop app's GLOBAL Plugin list and MCP list do NOT read project-scoped config
 ' — they read ONLY the user-level config.toml. So [marketplaces.local] +
 ' [plugins."ip-switch@local"] + [mcp_servers.ip-switch] in the USER-LEVEL config are what actually
