@@ -51,7 +51,7 @@ function Write-Err($msg)   { Write-Host "[ERROR] $msg" -ForegroundColor Red }
 # 不依赖 IDE 捆绑的 node（版本目录会随升级变化，难以排查）。
 # 仅两条路径: ① 系统 PATH 有 node+npm → 直接用系统的；
 #            ② 否则从 nodejs.org 官方下载独立 Node.js 到固定目录
-#               ~\.ip-switch-node\node（路径固定、可排查，不污染系统）。
+#               ~\.nodejs\node（路径固定、可排查，不污染系统）。
 # 选定结果统一记录到 $script:NodeExe / $script:NpmCli / $script:NpmCmd，
 # 供 npm 执行与 MCP 配置共用。
 function Check-Npm {
@@ -72,7 +72,21 @@ function Check-Npm {
 # -- 从 nodejs.org 官方下载独立 Node.js(含 npm) 到固定目录 ---------------------
 function Install-NpmFromOfficial {
     Write-Warn "未找到系统 Node.js，正在从 nodejs.org 下载 Node.js 22 LTS..."
-    $final = "$env:USERPROFILE\.ip-switch-node\node"
+    $final = "$env:USERPROFILE\.nodejs\node"
+
+    # 复用优先：已装完整(含 npm)则直接使用，不再重下/删除。
+    # 否则 MCP 进程正占用 node.exe 时删除会失败，且反复重装毫无必要。
+    if ((Test-Path "$final\node.exe") -and (Test-Path "$final\node_modules\npm\bin\npm-cli.js")) {
+        Write-Info "检测到已安装的 Node.js，直接复用: $final"
+        $script:NodeExe = "$final\node.exe"
+        $script:NpmCli  = "$final\node_modules\npm\bin\npm-cli.js"
+        return
+    }
+
+    # 清理上次中断可能残留的临时解压目录（被占用时忽略，下次再清）
+    $tmp = "$env:USERPROFILE\.nodejs\.tmp"
+    Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue
+    New-Item -ItemType Directory -Path $tmp -Force | Out-Null
 
     # 解析最新 v22.x 版本号（失败时用固定 LTS 兜底）
     $ver = ""
@@ -84,9 +98,6 @@ function Install-NpmFromOfficial {
     $zipPath = Join-Path $env:TEMP "node-$ver-win-$arch.zip"
     Write-Info "下载中: $zipUrl"
     Invoke-WebRequest -Uri $zipUrl -OutFile $zipPath -TimeoutSec 300
-
-    $tmp = "$env:USERPROFILE\.ip-switch-node\.tmp"
-    if (Test-Path $tmp) { Remove-Item $tmp -Recurse -Force }
     Expand-Archive -Path $zipPath -DestinationPath $tmp -Force
 
     # zip 解压出 node-<ver>-win-<arch>/ 子目录，统一固定为 node（路径稳定，便于排查）
@@ -95,7 +106,17 @@ function Install-NpmFromOfficial {
         Write-Err "下载解压失败，请手动安装 Node.js: https://nodejs.org"
         exit 1
     }
-    if (Test-Path $final) { Remove-Item $final -Recurse -Force }
+
+    # 旧目录若存在且被 MCP 占用则无法删除——给出明确提示而不是静默失败
+    if (Test-Path $final) {
+        Remove-Item $final -Recurse -Force -ErrorAction SilentlyContinue
+        if (Test-Path $final) {
+            Write-Err "旧安装目录被占用，无法替换: $final"
+            Write-Info "请先退出 Codex / WorkBuddy 的 ip-switch MCP（或结束占用 node.exe 的进程）后重试。"
+            Write-Info "已安装版本仍可继续使用，不影响功能。"
+            exit 1
+        }
+    }
     Move-Item $dir.FullName $final
 
     $script:NodeExe = "$final\node.exe"
@@ -104,6 +125,9 @@ function Install-NpmFromOfficial {
         Write-Err "npm 安装失败，请手动安装 Node.js: https://nodejs.org"
         exit 1
     }
+    # 清理临时解压目录
+    Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue
+
     $npmVer = & $script:NodeExe $script:NpmCli --version 2>$null
     Write-OK "已安装 Node.js $ver (npm $npmVer) -> $final"
 }
