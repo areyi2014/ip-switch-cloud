@@ -680,7 +680,8 @@ function Install-CodexMcp {
 #       - 若 CC Switch 正在运行并已写入该段 → Contains 命中 → 跳过（不重复，避免 TOML 重复表）
 #       - 若 CC Switch 未运行 → 用户级 config.toml 无此段 → 脚本补写，ip-switch 在 MCP 列表可见
 #     这样「用户级注册」不再依赖 CC Switch 是否在跑。
-#   项目级 .codex/config.toml 里的同名声明是工作区作用域，普通打开 Codex 时不加载。
+#   （若日后手动添加项目级 .codex/config.toml 声明，也仅在工作区作用域加载，普通打开 Codex 时不加载；
+#    全局可见性始终靠用户级注册。）
 # 仅检测缺失项并追加，不做任何备份/恢复操作（避免风险）。
 function Ensure-CodexUserConfig {
     param(
@@ -722,79 +723,21 @@ function Ensure-CodexUserConfig {
     Write-OK "已注册 ip-switch 市场、插件与 mcp_servers 到用户级 config.toml（全局可见；mcp 段由脚本写入，不再依赖 CC Switch）"
 }
 
-# -- 安装 Codex TOML 配置层（项目级 + 叠加层配置） --------------------------
-# 职责：
-#   ② 生成 installDir\.codex\config.toml（项目级配置层 —— 桌面版的主要加载通道）
-#      —— 桌面版 codex app 通过 codex:// 协议拉起，-c 参数传不进桌面进程，工作区内项目级 .codex/config.toml
-#         首次以该目录为工作区启动时 Codex 会自动信任（写入 [projects] 表，见codex_app.vbs），
-#         信任后本文件的 mcp_servers / marketplaces / plugins 全部生效
-#   ③ 生成 ~/.codex/ip-switch.config.toml（叠加层配置，CLI 专用）
-#      —— 用于 codex --profile ip-switch CLI 命令（mcp list / exec / review 等），会自动搜索ip-switch.config.toml
-# 注：②③两份配置互为镜像；均独立于 config.toml，CC Switch 不影响。
+# -- 安装 Codex 用户级配置（全局可见的唯一稳定通道） ------------------------
+# 职责：把 ip-switch 注册到用户级 ~/.codex/config.toml
+#       （[marketplaces.local] + [plugins."ip-switch@local"] + [mcp_servers.ip-switch]）。
+# 这是桌面版 Codex「插件列表 / MCP 列表」唯一的数据源——全局 UI 只读用户级 config，
+# 不读项目级或 Profile 配置；CC Switch 不管理这些表，故安装写入安全、重启存活。
+# 旧版曾额外生成 ① 项目级 .codex/config.toml 与 ② Profile ip-switch.config.toml，
+# 但二者对实际桌面流程无增益（项目级不进全局列表且信任易被 CC Switch 清空；Profile 仅
+# codex --profile 生效、桌面不加载且独立文件机制未经实证），已移除，统一以用户级注册为单一事实来源。
 function Install-CodexToml {
-    Write-Step "安装 Codex TOML 配置层（项目级配置 + 叠加层配置）"
+    Write-Step "安装 Codex 用户级配置（全局可见的唯一稳定通道）"
 
-    # 1. 取 Install-CodexMcp 的输出（该函数在主流程先于本函数执行）
-    $distJs    = $script:CodexMcpDist
-    $codexNode = $script:CodexMcpNode
-
-    # 2. 生成项目级配置层（installDir\.codex\config.toml）—— 桌面版的主要加载通道
-    #     桌面版 codex app 无法接收 -c 覆盖（协议拉起时参数丢失），
-    #    注意codex_app.vbs 已改为以 installDir 为工作区启动，且启动自动信任。
+    # 唯一稳定通道 = 用户级 ~/.codex/config.toml 的注册（marketplaces + plugins + mcp）。
+    # 桌面「插件列表 / MCP 列表」只读这里；CC Switch 不管理这些表，安全。
     $codexDir = "$env:USERPROFILE\.codex"
-    $projectCodexDir = "$installDir\.codex"
-    $marketDir = "$codexDir\marketplaces\local"
-    New-Item -ItemType Directory -Path $projectCodexDir -Force | Out-Null
-    $projectConfigFile = "$projectCodexDir\config.toml"
-
-    # 公共配置主体的模板 —— 项目级配置层与 Profile 叠加层的内容完全一致（互为镜像），
-    # 仅文件位置、加载时机与用途不同：
-    #   ① 项目级配置层（installDir\.codex\config.toml）→ 桌面版加载通道
-    #   ② Profile 叠加层（~/.codex/ip-switch.config.toml）→ CLI --profile 加载通道
-    # 统一维护这一份模板，避免两份配置内容漂移；TOML 中表顺序无关紧要。
-    $ipSwitchConfigBody = @"
-[marketplaces.local]
-source_type = "local"
-source = '$marketDir'
-
-[plugins."ip-switch@local"]
-enabled = true
-"@
-
-    # 2.1 内容与 Profile 叠加层相同，共用 $ipSwitchConfigBody（见上方模板说明）。
-    $projectConfigContent = @"
-# ip-switch project-scoped config — layered on top of ~/.codex/config.toml
-# Independent of user config.toml (CC Switch safe).
-# Loaded by Codex when this workspace is opened and trusted.
-$ipSwitchConfigBody
-"@
-    [System.IO.File]::WriteAllText($projectConfigFile, $projectConfigContent, (New-Object System.Text.UTF8Encoding($false)))
-    Write-OK "已生成项目级配置层: $projectConfigFile"
-    Write-Info "桌面版 Codex 以本目录为工作区启动时自动加载（首次启动自动信任）"
-
-    # 2.2. 创建 Codex Profile 叠加层（~/.codex/ip-switch.config.toml）
-    #    用途：codex --profile ip-switch CLI 命令（mcp list / exec / review 等）
-    #    注意：codex app 子命令不支持 --profile；桌面版走上面的项目级配置层
-    #    内容与项目级配置层相同，共用 $ipSwitchConfigBody（见上方模板说明）。
-    New-Item -ItemType Directory -Path $codexDir -Force | Out-Null
-    $profileFile = "$codexDir\ip-switch.config.toml"
-    $profileContent = @"
-# ip-switch Profile — 独立于 config.toml 的叠加层
-# CC Switch 只管 config.toml，此文件不受影响
-# 用途：codex --profile ip-switch CLI 命令（mcp list / exec / review 等）
-# 注意：codex app 子命令不支持 --profile；桌面版走工作区内 .codex/config.toml 项目级配
-$ipSwitchConfigBody
-"@
-    [System.IO.File]::WriteAllText($profileFile, $profileContent, (New-Object System.Text.UTF8Encoding($false)))
-    Write-OK "已创建 Codex Profile 叠加层: $profileFile"
-    Write-Info "CC Switch 篡改 config.toml 不再影响 ip-switch（独立叠加层）"
-
-    # 2.3. 全局注册本地市场与插件到用户级 config.toml：
-    #      仅此处注册后，桌面版 Codex 在任意工作区打开都能发现 ip-switch（CC Switch 不管理该表，安全）
-    Write-Step "安装 Codex TOML 配置层（用户层配置）"
     Ensure-CodexUserConfig -CodexConfig "$codexDir\config.toml"
-
-
 }
 
 # -- 创建桌面快捷方式 ----------------------------------------------------------
@@ -925,9 +868,10 @@ function Install-CodexMarketplace {
     Write-OK "已写入市场清单: $marketDir\.agents\plugins\marketplace.json"
     Write-OK "已写入插件清单: $marketPluginDir\plugin.json"
 
-    # 3. 市场注册已移至 Profile 叠加层（~/.codex/ip-switch.config.toml）
-    #    不再写 config.toml，避免 CC Switch 篡改导致丢失
-    Write-OK "市场注册已在 Profile 叠加层中配置（ip-switch.config.toml）"
+    # 3. 本函数只写入插件清单文件（marketplace.json / plugin.json）。
+    #    config.toml 里的 [marketplaces.local] + [plugins."ip-switch@local"] + [mcp_servers.ip-switch]
+    #    注册由 Ensure-CodexUserConfig（用户级，唯一稳定通道）负责，不在此处。
+    Write-OK "Codex 插件清单已写入（config.toml 注册由 Ensure-CodexUserConfig 完成）"
 
     # 5. 验证
     if ((Test-Path "$marketDir\.agents\plugins\marketplace.json") -and (Test-Path "$marketPluginDir\plugin.json")) {
@@ -1061,7 +1005,7 @@ function Show-Success {
     }
     if ($script:DetectedCodex) {
         Write-Host "Codex 市场清单:     $codexMarketDir"
-        Write-Host "Codex 项目级配置:   $env:USERPROFILE\ip-switch\.codex\config.toml（桌面版加载通道）"
+        Write-Host "Codex 用户级注册:   $env:USERPROFILE\.codex\config.toml（全局可见，由 Ensure-CodexUserConfig 写入）"
     }
     Write-Host "UI 服务器:  node $installDir\ui\server.cjs"
     Write-Host "UI 地址:    启动后终端会显示实际地址"
@@ -1089,10 +1033,6 @@ function Show-Success {
         Write-Host "  Remove-Item -Force $wbConfig          # 删除 WorkBuddy MCP 配置"
     }
     if ($script:DetectedCodex) {
-        $profileFile = "$env:USERPROFILE\.codex\ip-switch.config.toml"
-        $projectCfg  = "$installDir\.codex"
-        Write-Host "  Remove-Item -Force $profileFile        # 删除 Codex Profile 叠加层"
-        Write-Host "  Remove-Item -Recurse -Force $projectCfg       # 删除项目级配置层"
         Write-Host "  Remove-Item -Recurse -Force $codexMarketDir  # 删除 Codex 市场清单"
     }
     Write-Host "  Remove-Item -Recurse -Force $installDir  # 如需同时删除源码"
