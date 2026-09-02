@@ -715,12 +715,6 @@ function Install-CodexToml {
     # 统一维护这一份模板，避免两份配置内容漂移；TOML 中表顺序无关紧要。
     # 注意：这里是 PowerShell here-string，$distJs / $codexNode / $installDir / $marketDir 会被展开。
     $ipSwitchConfigBody = @"
-[mcp_servers.ip-switch]
-args = ['$distJs']
-command = '$codexNode'
-startup_timeout_sec = 30
-cwd = '$installDir'
-enabled = true
 
 [marketplaces.local]
 source_type = "local"
