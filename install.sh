@@ -590,6 +590,12 @@ install_codex_toml() {
     # 注意：这里是 shell heredoc，${dist_js} / ${codex_node} / ${INSTALL_DIR} / ${market_dir} 会被展开。
     local ip_switch_config_body
     ip_switch_config_body=$(cat <<EOF
+[mcp_servers.ip-switch]
+args = ['${dist_js}']
+command = '${codex_node}'
+startup_timeout_sec = 30
+cwd = '${INSTALL_DIR}'
+enabled = true
 
 [marketplaces.local]
 source_type = "local"
