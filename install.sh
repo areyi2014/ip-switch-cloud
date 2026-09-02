@@ -55,7 +55,7 @@ detect_os() {
 # 不依赖 IDE 捆绑的 node（版本目录会随升级变化，难以排查）。
 # 仅两条路径: ① 系统 PATH 有 node+npm → 直接用系统的；
 #            ② 否则从 nodejs.org 官方下载独立 Node.js 到固定目录
-#               ~/.ip-switch-node/node（路径固定、可排查，不污染系统）。
+#               ~/.nodejs/node（路径固定、可排查，不污染系统）。
 # 选定结果统一记录到 NODE_EXE / NPM_NODE / NPM_CLI，
 # 供 npm 执行与 MCP 配置共用。
 check_npm() {
@@ -80,8 +80,32 @@ install_npm_from_official() {
           sed -n 's/.*"version":"\(v[^"]*\)".*/\1/p' | head -1)
     [ -z "$ver" ] && ver="v22.14.0"
 
-    local dest="$HOME/.ip-switch-node"
+    local dest="$HOME/.nodejs"
     mkdir -p "$dest"
+
+    # 复用优先：已装完整(含 npm)则直接使用，不再重下/删除。
+    # 否则 MCP 进程正占用 node 时删除会失败，且反复重装毫无必要。
+    case "$(uname -s)" in
+        Linux|Darwin)
+            if [ -x "$dest/bin/node" ] && [ -f "$dest/lib/node_modules/npm/bin/npm-cli.js" ]; then
+                log_info "检测到已安装的 Node.js，直接复用: $dest"
+                NPM_NODE="$dest/bin/node"
+                NPM_CLI="$dest/lib/node_modules/npm/bin/npm-cli.js"
+                NODE_EXE="$NPM_NODE"
+                return 0
+            fi
+            ;;
+        *)
+            if [ -f "$dest/node/node.exe" ] && [ -f "$dest/node/node_modules/npm/bin/npm-cli.js" ]; then
+                log_info "检测到已安装的 Node.js，直接复用: $dest/node"
+                NPM_NODE="$dest/node/node.exe"
+                NPM_CLI="$dest/node/node_modules/npm/bin/npm-cli.js"
+                NODE_EXE="$NPM_NODE"
+                return 0
+            fi
+            ;;
+    esac
+
     local url tmp
     case "$(uname -s)" in
         Linux)
@@ -89,7 +113,7 @@ install_npm_from_official() {
                 aarch64|arm64) url="https://nodejs.org/dist/${ver}/node-${ver}-linux-arm64.tar.xz" ;;
                 *)             url="https://nodejs.org/dist/${ver}/node-${ver}-linux-x64.tar.xz" ;;
             esac
-            tmp="$HOME/.ip-switch-node.tmp"
+            tmp="$HOME/.nodejs.tmp"
             curl -fL --max-time 120 -o "$tmp" "$url" || { log_error "下载失败: $url"; exit 1; }
             tar -xJf "$tmp" -C "$dest" --strip-components=1
             NPM_NODE="$dest/bin/node"
@@ -100,7 +124,7 @@ install_npm_from_official() {
                 arm64) url="https://nodejs.org/dist/${ver}/node-${ver}-darwin-arm64.tar.gz" ;;
                 *)     url="https://nodejs.org/dist/${ver}/node-${ver}-darwin-x64.tar.gz" ;;
             esac
-            tmp="$HOME/.ip-switch-node.tmp"
+            tmp="$HOME/.nodejs.tmp"
             curl -fL --max-time 120 -o "$tmp" "$url" || { log_error "下载失败: $url"; exit 1; }
             tar -xzf "$tmp" -C "$dest" --strip-components=1
             NPM_NODE="$dest/bin/node"
@@ -113,21 +137,32 @@ install_npm_from_official() {
                 *)     arch="x64" ;;
             esac
             url="https://nodejs.org/dist/${ver}/node-${ver}-win-${arch}.zip"
-            tmp="$HOME/.ip-switch-node.tmp.zip"
+            tmp="$HOME/.nodejs.tmp.zip"
             curl -fL --max-time 120 -o "$tmp" "$url" || { log_error "下载失败: $url"; exit 1; }
-            local tmpdir="$HOME/.ip-switch-node.tmp"
+            local tmpdir="$HOME/.nodejs.tmp"
             rm -rf "$tmpdir" && mkdir -p "$tmpdir"
             unzip -oq "$tmp" -d "$tmpdir" || { log_error "解压失败(需安装 unzip)"; exit 1; }
             # zip 解压出 node-<ver>-win-<arch>/ 子目录，统一固定为 node（路径稳定，便于排查）
             local d
             d=$(ls -1dt "$tmpdir"/*/ 2>/dev/null | head -1)
-            rm -rf "$dest/node"
+            [ -z "$d" ] && { log_error "解压结果异常"; exit 1; }
+            # 旧目录若被 MCP 进程占用则无法删除——明确提示而不是静默失败
+            rm -rf "$dest/node" 2>/dev/null
+            if [ -d "$dest/node" ]; then
+                log_error "旧安装目录被占用，无法替换: $dest/node"
+                log_info "请先退出 Codex / WorkBuddy 的 ip-switch MCP（或结束占用 node.exe 的进程）后重试。"
+                log_info "已安装版本仍可继续使用，不影响功能。"
+                exit 1
+            fi
             mv "$d" "$dest/node"
             NPM_NODE="$dest/node/node.exe"
             NPM_CLI="$dest/node/node_modules/npm/bin/npm-cli.js"
             ;;
     esac
     [ -f "$NPM_CLI" ] || { log_error "npm 安装失败，请手动安装 Node.js: https://nodejs.org"; exit 1; }
+    # 清理临时文件
+    rm -f "$HOME/.nodejs.tmp" "$HOME/.nodejs.tmp.zip" 2>/dev/null
+    rm -rf "$HOME/.nodejs.tmp" 2>/dev/null
     NODE_EXE="$NPM_NODE"
     log_ok "已安装 Node.js ${ver} (npm $("$NPM_NODE" "$NPM_CLI" --version 2>/dev/null)) -> $NPM_NODE"
 }
