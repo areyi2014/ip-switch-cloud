@@ -108,78 +108,115 @@ collect_all_nodes() {
     fi
 }
 
-# ── 检查 Node.js ─────────────────────────────────────────────────────────────
-check_node() {
-    log_step "检查 Node.js 环境"
+# ── 检查 npm 环境 ─────────────────────────────────────────────────────────
+# Node.js 由 WorkBuddy/Codex 自带，无需校验；只需保证 npm 可用。
+# npm 探测顺序: ① 捆绑 npm(WorkBuddy 完整发行版自带 npm-cli.js)
+#              ② PATH 中的 npm
+#              ③ 都没有 → 从 nodejs.org 官方下载安装
+# 同时记录自带 node 路径(供生成 MCP 配置时按平台选用)。
+check_npm() {
+    log_step "检查 npm 环境"
 
-    # 检测系统上所有可用的 Node.js（WorkBuddy / Codex 自带 + 系统 PATH 安装的）
-    local node_list
-    node_list=$(collect_all_nodes)
-
-    if [ -z "$node_list" ]; then
-        log_error "未检测到任何 Node.js，请先安装 Node.js >= ${NODE_MIN_VERSION}"
-        log_info  "安装方式:"
-        log_info  "  macOS:  brew install node@22"
-        log_info  "  Ubuntu: curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash - && sudo apt-get install -y nodejs"
-        log_info  "  通用:   访问 https://nodejs.org/ 下载安装"
-        exit 1
-    fi
-
-    echo ""
-    log_info "检测到以下 Node.js 环境:"
-    local idx=0
-    local best=""
-    local best_ver="0.0.0"
-    while IFS=$'\t' read -r src path; do
-        [ -z "$src" ] && continue
-        idx=$((idx + 1))
-        local ver
-        ver=$("$path" -v 2>/dev/null | sed 's/v//')
-        if [ -n "$ver" ]; then
-            echo "  [${idx}] ${src}: v${ver}"
-            echo "      ${path}"
-            # 记录版本号最大的 Node.js
-            if [ "$(printf '%s\n%s\n' "$ver" "$best_ver" | sort -V | tail -1)" = "$ver" ]; then
-                best="$path"
-                best_ver="$ver"
-            fi
-        else
-            echo "  [${idx}] ${src}: 版本未知"
-            echo "      ${path}"
-        fi
-    done <<< "$node_list"
-    echo ""
-
-    # 记录 WorkBuddy / Codex 自带 node（供生成 MCP 配置时按平台选用）
-    local first_node=""
+    # ① 记录 WorkBuddy / Codex 自带 node（自带即用，无需校验版本）
     WB_NODE_EXE=""
     CODEX_NODE_EXE=""
+    local node_list
+    node_list=$(collect_all_nodes)
     while IFS=$'\t' read -r src path; do
         [ -z "$src" ] && continue
-        [ -z "$first_node" ] && first_node="$path"
         case "$src" in
             "WorkBuddy 自带") WB_NODE_EXE="$path" ;;
             "Codex 自带")     CODEX_NODE_EXE="$path" ;;
         esac
     done <<< "$node_list"
 
-    # 默认使用"版本号最大"的 Node.js
-    local node_exe="${best:-$first_node}"
-    export PATH="$(dirname "$node_exe"):${PATH}"
+    # ② 捆绑 npm: WorkBuddy 完整发行版自带 npm-cli.js（npm 本质是 node 脚本）
+    local root="$HOME/.workbuddy/binaries/node/versions"
+    local d
+    for d in $(ls -1dt "$root"/*/ 2>/dev/null); do
+        if [ -f "${d}node.exe" ] && [ -f "${d}node_modules/npm/bin/npm-cli.js" ]; then
+            NPM_NODE="${d}node.exe"
+            NPM_CLI="${d}node_modules/npm/bin/npm-cli.js"
+            log_ok "使用捆绑 npm: $(basename "$d")"
+            return 0
+        fi
+    done
 
-    local node_version
-    node_version=$(node -v | sed 's/v//')
-    local major
-    major=$(echo "$node_version" | cut -d. -f1)
-
-    if [ "$major" -lt "$NODE_MIN_VERSION" ]; then
-        log_error "Node.js 版本过低: v${node_version}，需要 >= v${NODE_MIN_VERSION}"
-        log_info  "可尝试改用列表中其他版本的 Node.js，或升级当前版本"
-        exit 1
+    # ③ PATH 中的 npm
+    if command -v npm &>/dev/null; then
+        log_ok "使用 PATH npm: $(command -v npm)"
+        return 0
     fi
 
-    NODE_PATH="$node_exe"
-    log_ok "使用 Node.js v${node_version} ($NODE_PATH)"
+    # ④ 都没有 → 从官方下载并安装
+    install_npm_from_official
+}
+
+# ── 从 nodejs.org 官方下载并安装 Node.js(含 npm) ─────────────────────────
+install_npm_from_official() {
+    log_warn "未找到任何 npm，正在从 nodejs.org 下载 Node.js 22 LTS..."
+
+    # 解析最新 v22.x 版本号（失败时用固定 LTS 兜底）
+    local ver=""
+    ver=$(curl -fsSL --max-time 30 https://nodejs.org/dist/latest-v22.x/index.json 2>/dev/null |
+          sed -n 's/.*"version":"\(v[^"]*\)".*/\1/p' | head -1)
+    [ -z "$ver" ] && ver="v22.14.0"
+
+    local dest="$HOME/.ip-switch-node"
+    mkdir -p "$dest"
+    local url tmp
+    case "$(uname -s)" in
+        Linux)
+            case "$(uname -m)" in
+                aarch64|arm64) url="https://nodejs.org/dist/${ver}/node-${ver}-linux-arm64.tar.xz" ;;
+                *)             url="https://nodejs.org/dist/${ver}/node-${ver}-linux-x64.tar.xz" ;;
+            esac
+            tmp="$HOME/.ip-switch-node.tmp"
+            curl -fL --max-time 120 -o "$tmp" "$url" || { log_error "下载失败: $url"; exit 1; }
+            tar -xJf "$tmp" -C "$dest" --strip-components=1
+            NPM_NODE="$dest/bin/node"
+            NPM_CLI="$dest/lib/node_modules/npm/bin/npm-cli.js"
+            ;;
+        Darwin)
+            case "$(uname -m)" in
+                arm64) url="https://nodejs.org/dist/${ver}/node-${ver}-darwin-arm64.tar.gz" ;;
+                *)     url="https://nodejs.org/dist/${ver}/node-${ver}-darwin-x64.tar.gz" ;;
+            esac
+            tmp="$HOME/.ip-switch-node.tmp"
+            curl -fL --max-time 120 -o "$tmp" "$url" || { log_error "下载失败: $url"; exit 1; }
+            tar -xzf "$tmp" -C "$dest" --strip-components=1
+            NPM_NODE="$dest/bin/node"
+            NPM_CLI="$dest/lib/node_modules/npm/bin/npm-cli.js"
+            ;;
+        *)  # Windows(Git Bash): zip
+            local arch
+            case "$PROCESSOR_ARCHITECTURE" in
+                ARM64) arch="arm64" ;;
+                *)     arch="x64" ;;
+            esac
+            url="https://nodejs.org/dist/${ver}/node-${ver}-win-${arch}.zip"
+            tmp="$HOME/.ip-switch-node.tmp.zip"
+            curl -fL --max-time 120 -o "$tmp" "$url" || { log_error "下载失败: $url"; exit 1; }
+            unzip -oq "$tmp" -d "$dest" || { log_error "解压失败(需安装 unzip)"; exit 1; }
+            local d
+            d=$(ls -1dt "$dest"/*/ 2>/dev/null | head -1)
+            NPM_NODE="${d}node.exe"
+            NPM_CLI="${d}node_modules/npm/bin/npm-cli.js"
+            ;;
+    esac
+    [ -f "$NPM_CLI" ] || { log_error "npm 安装失败，请手动安装 Node.js: https://nodejs.org"; exit 1; }
+    [ -z "$WB_NODE_EXE" ] && WB_NODE_EXE="$NPM_NODE"
+    [ -z "$CODEX_NODE_EXE" ] && CODEX_NODE_EXE="$NPM_NODE"
+    log_ok "已安装 Node.js ${ver} (npm $("$NPM_NODE" "$NPM_CLI" --version 2>/dev/null))"
+}
+
+# 执行 npm 命令: 优先捆绑(node <npm-cli.js>),回退 PATH npm
+run_npm() {
+    if [ -n "$NPM_CLI" ]; then
+        "$NPM_NODE" "$NPM_CLI" "$@"
+    else
+        npm "$@"
+    fi
 }
 
 # ── 检查 git ─────────────────────────────────────────────────────────────────
@@ -351,7 +388,7 @@ install_deps() {
     fi
 
     log_info "正在安装依赖，请稍候..."
-    if npm install --loglevel=error; then
+    if run_npm install --loglevel=error; then
         log_ok "依赖安装完成"
     else
         log_error "依赖安装失败"
@@ -374,7 +411,7 @@ build_project() {
     fi
 
     log_info "正在编译..."
-    if $env_prefix npm run build 2>&1; then
+    if $env_prefix run_npm run build 2>&1; then
         log_ok "编译完成"
     else
         log_error "编译失败"
@@ -953,7 +990,7 @@ main() {
     echo ""
 
     detect_os
-    check_node
+    check_npm
     check_git
     detect_mcp_platform
     clone_repo

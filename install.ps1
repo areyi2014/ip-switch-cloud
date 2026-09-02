@@ -131,69 +131,88 @@ function Get-AllNodeExes {
     return $result
 }
 
-# -- 检查 Node.js ------------------------------------------------------------
-function Check-Node {
-    Write-Step "检查 Node.js 环境"
+# -- 检查 npm 环境 ------------------------------------------------------------
+# Node.js 由 WorkBuddy/Codex 自带，无需校验；只需保证 npm 可用。
+# npm 探测顺序: ① 捆绑 npm(WorkBuddy 完整发行版自带 npm-cli.js)
+#              ② PATH 中的 npm
+#              ③ 都没有 → 从 nodejs.org 官方下载安装
+# 同时记录自带 node 路径(供生成 MCP 配置时按平台选用)。
+function Check-Npm {
+    Write-Step "检查 npm 环境"
 
-    # 检测系统上所有可用的 Node.js（WorkBuddy / Codex 自带 + 系统 PATH 安装的）
+    # ① 记录 WorkBuddy / Codex 自带 node（自带即用，无需校验版本）
     $allNodes = @(Get-AllNodeExes)
-
-    if ($allNodes.Count -eq 0) {
-        Write-Err "未检测到任何 Node.js，请先安装 Node.js >= $NodeMinVersion"
-        Write-Info "访问 https://nodejs.org 进行下载安装/卸载重装"
-        Write-Info "推荐安装 Node.js 22 LTS 版本"
-        exit 1
-    }
-
-    Write-Host ""
-    Write-Info "检测到以下 Node.js 环境:"
-    $nodeIndex = 0
-    $maxNode = $null
-    $maxVersion = [version]"0.0.0"
-    foreach ($n in $allNodes) {
-        $nodeIndex++
-        $ver = ""
-        try { $ver = (& $n.Path -v).Trim() } catch { $ver = "" }
-        $ver = $ver.TrimStart('v')
-        if (-not $ver) {
-            Write-Host ("  [{0}] {1,-16} 版本未知" -f $nodeIndex, $n.Source) -ForegroundColor Gray
-            Write-Host ("      {0}" -f $n.Path) -ForegroundColor DarkGray
-            continue
-        }
-        Write-Host ("  [{0}] {1,-16} v{2}" -f $nodeIndex, $n.Source, $ver) -ForegroundColor Gray
-        Write-Host ("      {0}" -f $n.Path) -ForegroundColor DarkGray
-
-        try {
-            $v = [version]$ver
-            if ($v -gt $maxVersion) {
-                $maxVersion = $v
-                $maxNode = $n
-            }
-        } catch { }
-    }
-    Write-Host ""
-
-    # 记录 WorkBuddy / Codex 自带 node（供生成 MCP 配置时按平台选用）
     $script:WBNodeExe = ($allNodes | Where-Object { $_.Source -eq "WorkBuddy 自带" } | Select-Object -First 1).Path
     $script:CodexNodeExe = ($allNodes | Where-Object { $_.Source -eq "Codex 自带" } | Select-Object -First 1).Path
 
-    # 默认使用"版本号最大"的 Node.js
-    $nodeExe = $maxNode.Path
-    $nodeBinDir = Split-Path $nodeExe -Parent
-    if ($env:PATH -notlike "*$nodeBinDir*") {
-        $env:PATH = "$nodeBinDir;$env:PATH"
+    # ② 捆绑 npm: WorkBuddy 完整发行版自带 npm-cli.js（npm 本质是 node 脚本）
+    $root = "$env:USERPROFILE\.workbuddy\binaries\node\versions"
+    $dir = Get-ChildItem $root -Directory -ErrorAction SilentlyContinue |
+        Where-Object { (Test-Path "$($_.FullName)\node.exe") -and (Test-Path "$($_.FullName)\node_modules\npm\bin\npm-cli.js") } |
+        Sort-Object LastWriteTime -Descending | Select-Object -First 1
+    if ($dir) {
+        $script:NpmExe = "$($dir.FullName)\node.exe"
+        $script:NpmCli = "$($dir.FullName)\node_modules\npm\bin\npm-cli.js"
+        Write-OK "使用捆绑 npm: $($dir.Name)"
+        return
     }
 
-    $nodeVersion = & $nodeExe -v
-    $major = [int]($nodeVersion -replace 'v', '').Split('.')[0]
+    # ③ PATH 中的 npm
+    $cmd = Get-Command npm -ErrorAction SilentlyContinue
+    if ($cmd) {
+        $script:NpmCmd = $cmd.Source
+        Write-OK "使用 PATH npm: $($cmd.Source)"
+        return
+    }
 
-    if ($major -lt $NodeMinVersion) {
-        Write-Err "Node.js 版本过低: $nodeVersion，需要 >= v$NodeMinVersion"
-        Write-Info "可尝试改用列表中其他版本的 Node.js，或升级当前版本"
+    # ④ 都没有 → 从官方下载并安装
+    Install-NpmFromOfficial
+}
+
+# -- 从 nodejs.org 官方下载并安装 Node.js(含 npm) -----------------------------
+function Install-NpmFromOfficial {
+    Write-Warn "未找到任何 npm，正在从 nodejs.org 下载 Node.js 22 LTS..."
+    $destRoot = "$env:USERPROFILE\.ip-switch-node"
+    New-Item -ItemType Directory -Path $destRoot -Force | Out-Null
+
+    # 解析最新 v22.x 版本号（失败时用固定 LTS 兜底）
+    $ver = ""
+    try { $ver = (Invoke-RestMethod "https://nodejs.org/dist/latest-v22.x/index.json" -TimeoutSec 30)[0].version } catch { }
+    if (-not $ver) { $ver = "v22.14.0" }
+
+    $arch = if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') { 'arm64' } else { 'x64' }
+    $zipUrl = "https://nodejs.org/dist/$ver/node-$ver-win-$arch.zip"
+    $zipPath = Join-Path $env:TEMP "node-$ver-win-$arch.zip"
+    Write-Info "下载中: $zipUrl"
+    Invoke-WebRequest -Uri $zipUrl -OutFile $zipPath -TimeoutSec 300
+    Expand-Archive -Path $zipPath -DestinationPath $destRoot -Force
+
+    $dir = Get-ChildItem $destRoot -Directory | Where-Object { Test-Path "$($_.FullName)\node.exe" } | Select-Object -First 1
+    if (-not $dir) {
+        Write-Err "下载解压失败，请手动安装 Node.js: https://nodejs.org"
         exit 1
     }
+    $script:NpmExe = "$($dir.FullName)\node.exe"
+    $script:NpmCli = "$($dir.FullName)\node_modules\npm\bin\npm-cli.js"
+    if (-not $script:WBNodeExe)    { $script:WBNodeExe = $script:NpmExe }
+    if (-not $script:CodexNodeExe) { $script:CodexNodeExe = $script:NpmExe }
+    $npmVer = & $script:NpmExe $script:NpmCli --version 2>$null
+    Write-OK "已安装 Node.js $ver (npm $npmVer)"
+}
 
-    Write-OK "使用 Node.js $nodeVersion ($nodeExe)"
+# -- 执行 npm 命令 -------------------------------------------------------------
+# npm 本质是 node 运行的 JS 脚本(npm-cli.js)，直接用捆绑 node 执行，绕开 PATH。
+function Invoke-Npm {
+    param([Parameter(Mandatory = $true)][string]$SubCommand, [string[]]$ExtraArgs)
+    if ($script:NpmCli) {
+        & $script:NpmExe $script:NpmCli $SubCommand @ExtraArgs 2>&1 | Out-Host
+        return ($LASTEXITCODE -eq 0)
+    }
+    if ($script:NpmCmd) {
+        & $script:NpmCmd $SubCommand @ExtraArgs 2>&1 | Out-Host
+        return ($LASTEXITCODE -eq 0)
+    }
+    return $false
 }
 
 # -- 检查 git -----------------------------------------------------------------
@@ -479,10 +498,9 @@ function Install-Deps {
     }
 
     Write-Info "正在安装依赖，请稍候..."
-    try {
-        $null = npm install --loglevel=error 2>&1
+    if (Invoke-Npm -SubCommand "install" -ExtraArgs @("--loglevel=error")) {
         Write-OK "依赖安装完成"
-    } catch {
+    } else {
         Write-Err "依赖安装失败"
         Write-Info "尝试清除缓存后重试: cd $installDir; Remove-Item -Recurse -Force node_modules; npm install"
         Pop-Location
@@ -506,7 +524,7 @@ function Build-Project {
 
     try {
         Write-Info "正在编译..."
-        $output = npm run build 2>&1
+        if (-not (Invoke-Npm -SubCommand "run" -ExtraArgs @("build"))) { throw "npm run build 失败" }
         Write-OK "编译完成"
     } catch {
         Write-Err "编译失败: $_"
@@ -1130,7 +1148,7 @@ function Main {
     Write-Host "+============================================================+" -ForegroundColor Green
     Write-Host ""
 
-    Check-Node
+    Check-Npm
     Check-Git
     Detect-MCPPlatform
     Clone-Repo
