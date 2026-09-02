@@ -753,13 +753,6 @@ function Install-CodexToml {
     #   ② Profile 叠加层（~/.codex/ip-switch.config.toml）→ CLI --profile 加载通道
     # 统一维护这一份模板，避免两份配置内容漂移；TOML 中表顺序无关紧要。
     $ipSwitchConfigBody = @"
-[mcp_servers.ip-switch]
-args = ['$distJs']
-command = '$codexNode'
-startup_timeout_sec = 30
-cwd = '$installDir'
-enabled = true
-
 [marketplaces.local]
 source_type = "local"
 source = '$marketDir'
