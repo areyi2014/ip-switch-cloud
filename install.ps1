@@ -722,7 +722,6 @@ function Install-CodexToml {
     Write-Step "安装 Codex 用户级配置（全局可见的唯一稳定通道）"
 
     # 唯一稳定通道 = 用户级 ~/.codex/config.toml 的注册（marketplaces + plugins + mcp）。
-    # 桌面「插件列表 / MCP 列表」只读这里；CC Switch 不管理这些表，安全。
     $codexDir = "$env:USERPROFILE\.codex"
     Append-CodexUserConfig -CodexConfig "$codexDir\config.toml"
 }
