@@ -51,110 +51,28 @@ detect_os() {
     log_ok "检测到操作系统: ${OS}"
 }
 
-# ── 查找 WorkBuddy/CodeBuddy 自带 Node.js ─────────────────────────────────────
-find_workbuddy_node() {
-    # 优先使用 CodeBuddy 注入的环境变量（运行时自动指向最新版本）
-    if [ -n "${CODEBUDDY_NODE_BIN:-}" ] && [ -x "$CODEBUDDY_NODE_BIN" ]; then
-        echo "$CODEBUDDY_NODE_BIN"
-        return 0
-    fi
-
-    local versions_root="$HOME/.workbuddy/binaries/node/versions"
-    [ -d "$versions_root" ] || return 1
-
-    # 取版本号最大的目录（sort -V 按版本排序，取最后一个）
-    local latest
-    latest=$(ls -1 "$versions_root" 2>/dev/null | sort -V 2>/dev/null | tail -1)
-    [ -n "$latest" ] || return 1
-
-    # Unix 布局: bin/node；部分版本直接放在版本目录下
-    for f in "$versions_root/$latest/bin/node" "$versions_root/$latest/node"; do
-        if [ -x "$f" ]; then
-            echo "$f"
-            return 0
-        fi
-    done
-    return 1
-}
-
-# ── 查找 Codex 自带 Node.js ─────────────────────────────────────────────────
-find_codex_node() {
-    local codex_node
-    codex_node="$HOME/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node"
-    if [ -x "$codex_node" ]; then
-        echo "$codex_node"
-        return 0
-    fi
-    # 兜底：查找其他 runtime
-    for f in "$HOME"/.cache/codex-runtimes/*/dependencies/node/bin/node; do
-        if [ -x "$f" ]; then
-            echo "$f"
-            return 0
-        fi
-    done
-    return 1
-}
-
-# ── 检测系统上所有可用的 Node.js ─────────────────────────────────────────────
-# 输出格式: 来源<TAB>路径，每行一个
-collect_all_nodes() {
-    local wb codex
-
-    wb=$(find_workbuddy_node) && printf 'WorkBuddy 自带\t%s\n' "$wb"
-    codex=$(find_codex_node) && printf 'Codex 自带\t%s\n' "$codex"
-
-    if command -v node &>/dev/null; then
-        printf '系统 PATH\t%s\n' "$(command -v node)"
-    fi
-}
-
 # ── 检查 npm 环境 ─────────────────────────────────────────────────────────
-# Node.js 由 WorkBuddy/Codex 自带，无需校验；只需保证 npm 可用。
-# npm 探测顺序: ① 捆绑 npm(WorkBuddy 完整发行版自带 npm-cli.js)
-#              ② PATH 中的 npm
-#              ③ 都没有 → 从 nodejs.org 官方下载安装
-# 同时记录自带 node 路径(供生成 MCP 配置时按平台选用)。
+# 不依赖 IDE 捆绑的 node（版本目录会随升级变化，难以排查）。
+# 仅两条路径: ① 系统 PATH 有 node+npm → 直接用系统的；
+#            ② 否则从 nodejs.org 官方下载独立 Node.js 到固定目录
+#               ~/.ip-switch-node/node（路径固定、可排查，不污染系统）。
+# 选定结果统一记录到 NODE_EXE / NPM_NODE / NPM_CLI，
+# 供 npm 执行与 MCP 配置共用。
 check_npm() {
     log_step "检查 npm 环境"
 
-    # ① 记录 WorkBuddy / Codex 自带 node（自带即用，无需校验版本）
-    WB_NODE_EXE=""
-    CODEX_NODE_EXE=""
-    local node_list
-    node_list=$(collect_all_nodes)
-    while IFS=$'\t' read -r src path; do
-        [ -z "$src" ] && continue
-        case "$src" in
-            "WorkBuddy 自带") WB_NODE_EXE="$path" ;;
-            "Codex 自带")     CODEX_NODE_EXE="$path" ;;
-        esac
-    done <<< "$node_list"
-
-    # ② 捆绑 npm: WorkBuddy 完整发行版自带 npm-cli.js（npm 本质是 node 脚本）
-    local root="$HOME/.workbuddy/binaries/node/versions"
-    local d
-    for d in $(ls -1dt "$root"/*/ 2>/dev/null); do
-        if [ -f "${d}node.exe" ] && [ -f "${d}node_modules/npm/bin/npm-cli.js" ]; then
-            NPM_NODE="${d}node.exe"
-            NPM_CLI="${d}node_modules/npm/bin/npm-cli.js"
-            log_ok "使用捆绑 npm: $(basename "$d")"
-            return 0
-        fi
-    done
-
-    # ③ PATH 中的 npm
-    if command -v npm &>/dev/null; then
-        log_ok "使用 PATH npm: $(command -v npm)"
+    if command -v node &>/dev/null && command -v npm &>/dev/null; then
+        NODE_EXE="$(command -v node)"
+        log_ok "使用系统 Node.js: ${NODE_EXE}"
         return 0
     fi
 
-    # ④ 都没有 → 从官方下载并安装
     install_npm_from_official
 }
 
-# ── 从 nodejs.org 官方下载并安装 Node.js(含 npm) ─────────────────────────
+# ── 从 nodejs.org 官方下载独立 Node.js(含 npm) 到固定目录 ────────────────
 install_npm_from_official() {
-    log_warn "未找到任何 npm，正在从 nodejs.org 下载 Node.js 22 LTS..."
+    log_warn "未找到系统 Node.js，正在从 nodejs.org 下载 Node.js 22 LTS..."
 
     # 解析最新 v22.x 版本号（失败时用固定 LTS 兜底）
     local ver=""
@@ -197,22 +115,34 @@ install_npm_from_official() {
             url="https://nodejs.org/dist/${ver}/node-${ver}-win-${arch}.zip"
             tmp="$HOME/.ip-switch-node.tmp.zip"
             curl -fL --max-time 120 -o "$tmp" "$url" || { log_error "下载失败: $url"; exit 1; }
-            unzip -oq "$tmp" -d "$dest" || { log_error "解压失败(需安装 unzip)"; exit 1; }
+            local tmpdir="$HOME/.ip-switch-node.tmp"
+            rm -rf "$tmpdir" && mkdir -p "$tmpdir"
+            unzip -oq "$tmp" -d "$tmpdir" || { log_error "解压失败(需安装 unzip)"; exit 1; }
+            # zip 解压出 node-<ver>-win-<arch>/ 子目录，统一固定为 node（路径稳定，便于排查）
             local d
-            d=$(ls -1dt "$dest"/*/ 2>/dev/null | head -1)
-            NPM_NODE="${d}node.exe"
-            NPM_CLI="${d}node_modules/npm/bin/npm-cli.js"
+            d=$(ls -1dt "$tmpdir"/*/ 2>/dev/null | head -1)
+            rm -rf "$dest/node"
+            mv "$d" "$dest/node"
+            NPM_NODE="$dest/node/node.exe"
+            NPM_CLI="$dest/node/node_modules/npm/bin/npm-cli.js"
             ;;
     esac
     [ -f "$NPM_CLI" ] || { log_error "npm 安装失败，请手动安装 Node.js: https://nodejs.org"; exit 1; }
-    [ -z "$WB_NODE_EXE" ] && WB_NODE_EXE="$NPM_NODE"
-    [ -z "$CODEX_NODE_EXE" ] && CODEX_NODE_EXE="$NPM_NODE"
-    log_ok "已安装 Node.js ${ver} (npm $("$NPM_NODE" "$NPM_CLI" --version 2>/dev/null))"
+    NODE_EXE="$NPM_NODE"
+    log_ok "已安装 Node.js ${ver} (npm $("$NPM_NODE" "$NPM_CLI" --version 2>/dev/null)) -> $NPM_NODE"
 }
 
-# 执行 npm 命令: 优先捆绑(node <npm-cli.js>),回退 PATH npm
+# 执行 npm 命令: 优先官方下载(node <npm-cli.js>),回退 PATH npm
+# 注意: npm run 的 lifecycle 脚本(node_modules/.bin/*)由 sh/cmd 执行并从 PATH
+# 查找 node，因此把官方下载 node 目录临时置顶 PATH，避免系统 PATH 无 node 时报错。
 run_npm() {
     if [ -n "$NPM_CLI" ]; then
+        local node_dir
+        node_dir=$(dirname "$NPM_NODE")
+        case ":$PATH:" in
+            *":$node_dir:"*) ;;
+            *) export PATH="${node_dir}:${PATH}" ;;
+        esac
         "$NPM_NODE" "$NPM_CLI" "$@"
     else
         npm "$@"
@@ -415,7 +345,11 @@ build_project() {
         log_ok "编译完成"
     else
         log_error "编译失败"
-        log_info  "手动编译: cd ${INSTALL_DIR} && env -u ELECTRON_RUN_AS_NODE npm run build"
+        if [ -n "$NPM_CLI" ]; then
+            log_info "手动编译: cd ${INSTALL_DIR} && env -u ELECTRON_RUN_AS_NODE \"$NPM_NODE\" \"$NPM_CLI\" run build"
+        else
+            log_info "手动编译: cd ${INSTALL_DIR} && env -u ELECTRON_RUN_AS_NODE npm run build"
+        fi
         exit 1
     fi
 
@@ -490,31 +424,30 @@ fs.writeFileSync(target, JSON.stringify(config, null, 2) + "\n", "utf8");
 generate_wb_config() {
     log_step "生成 Workbuddy 配置"
 
-    # 各平台优先使用其自带 Node.js（用户可能只装了 IDE，没有独立 Node）
-    local default_node wb_node codex_node
-    default_node=$(command -v node)
-    if [ -z "$default_node" ]; then
+    # 统一使用选定 Node.js（系统或官方下载，均非 IDE 捆绑、路径固定可排查）
+    local default_node node_exe
+    node_exe="${NODE_EXE:-}"
+    [ -z "$node_exe" ] && node_exe="$(command -v node 2>/dev/null)"
+    if [ -z "$node_exe" ]; then
         # 尝试常见路径
         for p in /usr/local/bin/node /opt/homebrew/bin/node /usr/bin/node; do
-            if [ -x "$p" ]; then default_node="$p"; break; fi
+            if [ -x "$p" ]; then node_exe="$p"; break; fi
         done
     fi
-    wb_node="${WB_NODE_EXE:-$default_node}"
-    codex_node="${CODEX_NODE_EXE:-$default_node}"
 
     local dist_js="${INSTALL_DIR}/dist/index.js"
     local written=false
 
-    # 直接写入对应平台的 mcp.json（各自优先用自带 Node.js）
+    # 直接写入对应平台的 mcp.json（统一使用选定 Node.js）
     if $DETECTED_WB; then
-        write_mcp_config_file "$HOME/.workbuddy" "$wb_node" "$dist_js"
+        write_mcp_config_file "$HOME/.workbuddy" "$node_exe" "$dist_js"
         log_ok "已写入 MCP 配置: ~/.workbuddy/mcp.json"
         log_info "WorkBuddy 连接器管理页面点击「信任」ip-switch 即可使用"
         written=true
     fi
 
     if $DETECTED_CODEX; then
-        write_mcp_config_file "$HOME/.codex" "$codex_node" "$dist_js"
+        write_mcp_config_file "$HOME/.codex" "$node_exe" "$dist_js"
         log_ok "已写入 MCP 配置: ~/.codex/mcp.json"
         log_info "重启 Codex 使配置生效"
         written=true
@@ -526,7 +459,7 @@ generate_wb_config() {
 {
   "mcpServers": {
     "ip-switch": {
-      "command": "${wb_node}",
+      "command": "${node_exe}",
       "args": ["${dist_js}"]
     }
   }
@@ -546,7 +479,7 @@ EOF_CONFIG
 
 # ── 生成 Codex MCP 直连配置（INSTALL_DIR/.mcp.json） ───────────────────────────
 # 从 install_codex_toml 拆出的独立函数：
-#   ① 探测/校验 Node.js（优先 $CODEX_NODE_EXE，回退 PATH 中的 node）
+#   ① 探测/校验 Node.js（优先 $NODE_EXE，回退 PATH 中的 node）
 #   ② 校验编译产物 INSTALL_DIR/dist/index.js 存在
 #   ③ 生成 INSTALL_DIR/.mcp.json（全路径写法，覆盖仓库自带的 command:"node" 脆弱版本）
 # 并把最终选定的 node / dist 路径写入全局变量供 install_codex_toml 复用。
@@ -554,7 +487,7 @@ install_codex_mcp() {
     log_step "生成 Codex MCP 直连配置（.mcp.json）"
 
     local dist_js="${INSTALL_DIR}/dist/index.js"
-    local codex_node="${CODEX_NODE_EXE:-}"
+    local codex_node="${NODE_EXE:-}"
     [ -z "$codex_node" ] && codex_node="$(command -v node 2>/dev/null)"
     if [ -z "$codex_node" ]; then
         log_error "未找到 Node.js，无法生成 Codex MCP 配置"

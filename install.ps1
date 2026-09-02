@@ -47,133 +47,32 @@ function Write-OK($msg)    { Write-Host "[ OK ]  $msg" -ForegroundColor Green }
 function Write-Warn($msg)  { Write-Host "[WARN]  $msg" -ForegroundColor Yellow }
 function Write-Err($msg)   { Write-Host "[ERROR] $msg" -ForegroundColor Red }
 
-# -- 查找 WorkBuddy/CodeBuddy 自带 Node.js -------------------------------------
-function Get-WorkBuddyNodeExe {
-    # 优先使用 CodeBuddy 注入的环境变量（运行时自动指向最新版本）
-    if ($env:CODEBUDDY_NODE_BIN -and (Test-Path $env:CODEBUDDY_NODE_BIN)) {
-        return $env:CODEBUDDY_NODE_BIN
-    }
-
-    # 兜底: 扫描 ~/.workbuddy/binaries/node/versions/<版本>/node.exe
-    $versionsDir = "$env:USERPROFILE\.workbuddy\binaries\node\versions"
-    if (-not (Test-Path $versionsDir)) { return $null }
-
-    # 按修改时间取最新版本目录
-    $versions = Get-ChildItem -Path $versionsDir -Directory -ErrorAction SilentlyContinue |
-        Sort-Object LastWriteTime -Descending
-
-    foreach ($v in $versions) {
-        $nodeExe = Join-Path $v.FullName "node.exe"
-        if (Test-Path $nodeExe) { return $nodeExe }
-    }
-    return $null
-}
-
-# -- 查找 Codex 自带 Node.js --------------------------------------------------
-function Get-CodexNodeExe {
-    $cacheRoot = "$env:USERPROFILE\.cache\codex-runtimes"
-    if (-not (Test-Path $cacheRoot)) { return $null }
-
-    # 优先 codex-primary-runtime，其次其他 runtime
-    $primary = "$cacheRoot\codex-primary-runtime\dependencies\node\bin\node.exe"
-    if (Test-Path $primary) { return $primary }
-
-    $others = Get-ChildItem -Path $cacheRoot -Directory -ErrorAction SilentlyContinue |
-        Where-Object { $_.Name -ne 'codex-primary-runtime' } |
-        ForEach-Object { "$($_.FullName)\dependencies\node\bin\node.exe" } |
-        Where-Object { Test-Path $_ }
-
-    if ($others.Count -gt 0) { return $others[0] }
-    return $null
-}
-
-# -- 检测系统上所有可用的 Node.js ---------------------------------------------
-function Get-AllNodeExes {
-    $nodes = @()
-
-    # 1. WorkBuddy 自带
-    $wb = Get-WorkBuddyNodeExe
-    if ($wb) {
-        $nodes += [pscustomobject]@{
-            Source = "WorkBuddy 自带"
-            Path   = $wb
-        }
-    }
-
-    # 2. Codex 自带
-    $codex = Get-CodexNodeExe
-    if ($codex) {
-        $nodes += [pscustomobject]@{
-            Source = "Codex 自带"
-            Path   = $codex
-        }
-    }
-
-    # 3. 系统 PATH 中的 node
-    $sys = Get-Command node -ErrorAction SilentlyContinue
-    if ($sys -and $sys.Source) {
-        $nodes += [pscustomobject]@{
-            Source = "系统 PATH"
-            Path   = $sys.Source
-        }
-    }
-
-    # 去重（同一路径可能被多种来源命中）
-    $seen = @{}
-    $result = @()
-    foreach ($n in $nodes) {
-        $key = $n.Path.ToLowerInvariant()
-        if (-not $seen.ContainsKey($key)) {
-            $seen[$key] = $true
-            $result += $n
-        }
-    }
-    return $result
-}
-
 # -- 检查 npm 环境 ------------------------------------------------------------
-# Node.js 由 WorkBuddy/Codex 自带，无需校验；只需保证 npm 可用。
-# npm 探测顺序: ① 捆绑 npm(WorkBuddy 完整发行版自带 npm-cli.js)
-#              ② PATH 中的 npm
-#              ③ 都没有 → 从 nodejs.org 官方下载安装
-# 同时记录自带 node 路径(供生成 MCP 配置时按平台选用)。
+# 不依赖 IDE 捆绑的 node（版本目录会随升级变化，难以排查）。
+# 仅两条路径: ① 系统 PATH 有 node+npm → 直接用系统的；
+#            ② 否则从 nodejs.org 官方下载独立 Node.js 到固定目录
+#               ~\.ip-switch-node\node（路径固定、可排查，不污染系统）。
+# 选定结果统一记录到 $script:NodeExe / $script:NpmCli / $script:NpmCmd，
+# 供 npm 执行与 MCP 配置共用。
 function Check-Npm {
     Write-Step "检查 npm 环境"
 
-    # ① 记录 WorkBuddy / Codex 自带 node（自带即用，无需校验版本）
-    $allNodes = @(Get-AllNodeExes)
-    $script:WBNodeExe = ($allNodes | Where-Object { $_.Source -eq "WorkBuddy 自带" } | Select-Object -First 1).Path
-    $script:CodexNodeExe = ($allNodes | Where-Object { $_.Source -eq "Codex 自带" } | Select-Object -First 1).Path
-
-    # ② 捆绑 npm: WorkBuddy 完整发行版自带 npm-cli.js（npm 本质是 node 脚本）
-    $root = "$env:USERPROFILE\.workbuddy\binaries\node\versions"
-    $dir = Get-ChildItem $root -Directory -ErrorAction SilentlyContinue |
-        Where-Object { (Test-Path "$($_.FullName)\node.exe") -and (Test-Path "$($_.FullName)\node_modules\npm\bin\npm-cli.js") } |
-        Sort-Object LastWriteTime -Descending | Select-Object -First 1
-    if ($dir) {
-        $script:NpmExe = "$($dir.FullName)\node.exe"
-        $script:NpmCli = "$($dir.FullName)\node_modules\npm\bin\npm-cli.js"
-        Write-OK "使用捆绑 npm: $($dir.Name)"
+    $node = Get-Command node -ErrorAction SilentlyContinue
+    $npm  = Get-Command npm -ErrorAction SilentlyContinue
+    if ($node -and $npm) {
+        $script:NodeExe = $node.Source
+        $script:NpmCmd  = $npm.Source
+        Write-OK "使用系统 Node.js: $($node.Source)"
         return
     }
 
-    # ③ PATH 中的 npm
-    $cmd = Get-Command npm -ErrorAction SilentlyContinue
-    if ($cmd) {
-        $script:NpmCmd = $cmd.Source
-        Write-OK "使用 PATH npm: $($cmd.Source)"
-        return
-    }
-
-    # ④ 都没有 → 从官方下载并安装
     Install-NpmFromOfficial
 }
 
-# -- 从 nodejs.org 官方下载并安装 Node.js(含 npm) -----------------------------
+# -- 从 nodejs.org 官方下载独立 Node.js(含 npm) 到固定目录 ---------------------
 function Install-NpmFromOfficial {
-    Write-Warn "未找到任何 npm，正在从 nodejs.org 下载 Node.js 22 LTS..."
-    $destRoot = "$env:USERPROFILE\.ip-switch-node"
-    New-Item -ItemType Directory -Path $destRoot -Force | Out-Null
+    Write-Warn "未找到系统 Node.js，正在从 nodejs.org 下载 Node.js 22 LTS..."
+    $final = "$env:USERPROFILE\.ip-switch-node\node"
 
     # 解析最新 v22.x 版本号（失败时用固定 LTS 兜底）
     $ver = ""
@@ -185,34 +84,63 @@ function Install-NpmFromOfficial {
     $zipPath = Join-Path $env:TEMP "node-$ver-win-$arch.zip"
     Write-Info "下载中: $zipUrl"
     Invoke-WebRequest -Uri $zipUrl -OutFile $zipPath -TimeoutSec 300
-    Expand-Archive -Path $zipPath -DestinationPath $destRoot -Force
 
-    $dir = Get-ChildItem $destRoot -Directory | Where-Object { Test-Path "$($_.FullName)\node.exe" } | Select-Object -First 1
+    $tmp = "$env:USERPROFILE\.ip-switch-node\.tmp"
+    if (Test-Path $tmp) { Remove-Item $tmp -Recurse -Force }
+    Expand-Archive -Path $zipPath -DestinationPath $tmp -Force
+
+    # zip 解压出 node-<ver>-win-<arch>/ 子目录，统一固定为 node（路径稳定，便于排查）
+    $dir = Get-ChildItem $tmp -Directory | Where-Object { Test-Path "$($_.FullName)\node.exe" } | Select-Object -First 1
     if (-not $dir) {
         Write-Err "下载解压失败，请手动安装 Node.js: https://nodejs.org"
         exit 1
     }
-    $script:NpmExe = "$($dir.FullName)\node.exe"
-    $script:NpmCli = "$($dir.FullName)\node_modules\npm\bin\npm-cli.js"
-    if (-not $script:WBNodeExe)    { $script:WBNodeExe = $script:NpmExe }
-    if (-not $script:CodexNodeExe) { $script:CodexNodeExe = $script:NpmExe }
-    $npmVer = & $script:NpmExe $script:NpmCli --version 2>$null
-    Write-OK "已安装 Node.js $ver (npm $npmVer)"
+    if (Test-Path $final) { Remove-Item $final -Recurse -Force }
+    Move-Item $dir.FullName $final
+
+    $script:NodeExe = "$final\node.exe"
+    $script:NpmCli  = "$final\node_modules\npm\bin\npm-cli.js"
+    if (-not (Test-Path $script:NpmCli)) {
+        Write-Err "npm 安装失败，请手动安装 Node.js: https://nodejs.org"
+        exit 1
+    }
+    $npmVer = & $script:NodeExe $script:NpmCli --version 2>$null
+    Write-OK "已安装 Node.js $ver (npm $npmVer) -> $final"
 }
 
 # -- 执行 npm 命令 -------------------------------------------------------------
-# npm 本质是 node 运行的 JS 脚本(npm-cli.js)，直接用捆绑 node 执行，绕开 PATH。
+# npm 本质是 node 运行的 JS 脚本(npm-cli.js)。官方下载的 node 不在系统 PATH，
+# 而 npm run 在 Windows 上通过 cmd.exe 执行 node_modules/.bin/*.cmd（如 tsc.cmd），
+# 这些 cmd 脚本从 PATH 查找 node —— 因此执行前把 node 目录临时置顶进程内 PATH
+# （不改系统配置，退出即还原）。
 function Invoke-Npm {
     param([Parameter(Mandatory = $true)][string]$SubCommand, [string[]]$ExtraArgs)
-    if ($script:NpmCli) {
-        & $script:NpmExe $script:NpmCli $SubCommand @ExtraArgs 2>&1 | Out-Host
-        return ($LASTEXITCODE -eq 0)
+    if (-not $script:NpmCli -and -not $script:NpmCmd) { return $false }
+
+    $oldPath = $env:Path
+    $oldEAP  = $ErrorActionPreference
+    try {
+        if ($script:NpmCli) {
+            $nodeDir = Split-Path $script:NodeExe -Parent
+            if ($nodeDir -and $env:Path -notlike "*$nodeDir*") {
+                $env:Path = "$nodeDir;$env:Path"
+            }
+            # EAP 临时放宽：native 命令写 stderr 在 EAP=Stop 下会抛 NativeCommandError，
+            # 导致 build 失败时误报；统一以 $LASTEXITCODE 判断成败，错误文本由 npm 输出。
+            $ErrorActionPreference = "Continue"
+            & $script:NodeExe $script:NpmCli $SubCommand @ExtraArgs 2>&1 | Out-Host
+            return ($LASTEXITCODE -eq 0)
+        }
+        if ($script:NpmCmd) {
+            $ErrorActionPreference = "Continue"
+            & $script:NpmCmd $SubCommand @ExtraArgs 2>&1 | Out-Host
+            return ($LASTEXITCODE -eq 0)
+        }
+        return $false
+    } finally {
+        $env:Path = $oldPath
+        $ErrorActionPreference = $oldEAP
     }
-    if ($script:NpmCmd) {
-        & $script:NpmCmd $SubCommand @ExtraArgs 2>&1 | Out-Host
-        return ($LASTEXITCODE -eq 0)
-    }
-    return $false
 }
 
 # -- 检查 git -----------------------------------------------------------------
@@ -528,7 +456,8 @@ function Build-Project {
         Write-OK "编译完成"
     } catch {
         Write-Err "编译失败: $_"
-        Write-Info "手动编译: cd $installDir; `$env:ELECTRON_RUN_AS_NODE=''; npm run build"
+        $manualBuild = if ($script:NpmCli) { "& `"$($script:NodeExe)`" `"$($script:NpmCli)`" run build" } else { "npm run build" }
+        Write-Info "手动编译: cd $installDir; `$env:ELECTRON_RUN_AS_NODE=''; $manualBuild"
         Pop-Location
         exit 1
     } finally {
@@ -615,21 +544,20 @@ fs.writeFileSync(target, JSON.stringify(config, null, 2) + '\n', 'utf8');
 function Generate-WbConfig {
     Write-Step "生成 Workbuddy 配置"
 
-    # 各平台优先使用其自带 Node.js（用户可能只装了 IDE，没有独立 Node）
-    $defaultNode = (Get-Command node).Source
-    $wbNodeExe    = if ($script:WBNodeExe)    { $script:WBNodeExe }    else { $defaultNode }
-    $codexNodeExe = if ($script:CodexNodeExe) { $script:CodexNodeExe } else { $defaultNode }
+    # 统一使用选定 Node.js（系统或官方下载，均非 IDE 捆绑、路径固定可排查）
+    $defaultNode = (Get-Command node -ErrorAction SilentlyContinue).Source
+    $nodeExe     = if ($script:NodeExe) { $script:NodeExe } else { $defaultNode }
     $distJs  = "$installDir\dist\index.js"
 
     # Windows 路径在 JSON 中需将反斜杠转义为 \\（仅用于终端提示展示）
-    $wbNodeExeEscaped = $wbNodeExe.Replace('\', '\\')
+    $nodeExeEscaped = $nodeExe.Replace('\', '\\')
     $distJsEscaped  = $distJs.Replace('\', '\\')
 
     $configJson = @"
 {
   "mcpServers": {
     "ip-switch": {
-      "command": "$wbNodeExeEscaped",
+      "command": "$nodeExeEscaped",
       "args": ["$distJsEscaped"]
     }
   }
@@ -638,13 +566,13 @@ function Generate-WbConfig {
 
     $written = $false
 
-    # 直接写入对应平台的 mcp.json（各自优先用自带 Node.js）
+    # 直接写入对应平台的 mcp.json（统一使用选定 Node.js）
     if ($script:DetectedWB) {
         $wbDir = "$env:USERPROFILE\.workbuddy"
         if (-not (Test-Path $wbDir)) {
             New-Item -ItemType Directory -Path $wbDir -Force | Out-Null
         }
-        Write-MCPConfig -PlatformDir $wbDir -NodeExe $wbNodeExe -DistJs $distJs
+        Write-MCPConfig -PlatformDir $wbDir -NodeExe $nodeExe -DistJs $distJs
         Write-OK "已写入 MCP 配置: $wbDir\mcp.json"
         Write-Info "WorkBuddy 连接器管理页面点击「信任」ip-switch 即可使用"
         $written = $true
@@ -663,7 +591,7 @@ function Generate-WbConfig {
 
 
 # -- 生成 Codex MCP 直连配置（installDir\.mcp.json） ---------------------------
-#   ① 探测/校验 Node.js（优先 $script:CodexNodeExe，回退 PATH 中的 node）
+#   ① 探测/校验 Node.js（优先 $script:NodeExe，回退 PATH 中的 node）
 #   ② 校验编译产物 installDir\dist\index.js 存在
 #   ③ 生成 installDir\.mcp.json（全路径写法，覆盖仓库自带的 command:"node" 脆弱版本）
 # 并把最终选定的 node / dist 路径写入脚本级变量供 Install-CodexToml 复用。
@@ -671,7 +599,7 @@ function Install-CodexMcp {
     Write-Step "生成 Codex MCP 直连配置（.mcp.json）"
 
     $distJs    = "$installDir\dist\index.js"
-    $codexNode = if ($script:CodexNodeExe) { $script:CodexNodeExe } else { (Get-Command node -ErrorAction SilentlyContinue).Source }
+    $codexNode = if ($script:NodeExe) { $script:NodeExe } else { (Get-Command node -ErrorAction SilentlyContinue).Source }
     if (-not $codexNode) {
         Write-Err "未找到 Node.js，无法生成 Codex MCP 配置"
         exit 1
