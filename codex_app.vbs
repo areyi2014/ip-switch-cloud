@@ -190,15 +190,19 @@ If codexPath = "" Or Not fso.FileExists(codexPath) Then
     End If
 End If
 
-' --- Ensure workspace trust BEFORE launching (so project-scoped config loads) ---
+' --- Ensure workspace trust BEFORE launching (so a project-scoped config, if present, loads) ---
 EnsureWorkspaceTrust
 
 ' --- Launch Codex with the ip-switch workspace ---
-' `codex app "<path>"` opens the Desktop app focused on that workspace. The workspace must be
-' trusted (above) for its .codex/config.toml to register mcp_servers/marketplaces/plugins.
-' User-level [marketplaces.local] + [plugins."ip-switch@local"] are preserved by CC Switch,
-' but the mcp_servers.ip-switch block lives in the project-scoped config, so trust is what
-' makes it visible in the Desktop app's MCP list.
+' `codex app "<path>"` opens the Desktop app focused on that workspace. The trust entry written
+' above marks this workspace as trusted (so a project-scoped .codex/config.toml, if one exists,
+' would load within that session for workspace-local mcp_servers/settings).
+' IMPORTANT: the Desktop app's GLOBAL Plugin list and MCP list do NOT read project-scoped config
+' — they read ONLY the user-level config.toml. So [marketplaces.local] +
+' [plugins."ip-switch@local"] + [mcp_servers.ip-switch] in the USER-LEVEL config are what actually
+' make ip-switch appear in those global lists. Deleting those user-level blocks hides ip-switch from
+' the global lists — which is exactly what you observed. Restore them by re-running install.ps1
+' (Ensure-CodexUserConfig, which writes only the user-level config).
 ipSwitchWorkspace = WshShell.ExpandEnvironmentStrings("%USERPROFILE%") & "\ip-switch"
 
 If codexPath <> "" And fso.FileExists(codexPath) Then
