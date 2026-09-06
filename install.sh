@@ -841,11 +841,20 @@ install_skill() {
     log_ok "已写入 install-dir 标记: ~/.ip-switch/install-dir.txt -> ${marker_dir_unix}"
 
     # 2. 复制到目标位置（WorkBuddy 读 ~/.workbuddy/skills/<name>/ 平铺发现）
-    #    源分两块：项目根的 SKILL.md / skill.json + scripts/ 下的图标与脚本
+    #    源分两块：项目根的 SKILL.md / skill.json + scripts/ 整个子目录
+    #    目标布局：
+    #       ~/.workbuddy/skills/ip-switch/
+    #       ├── SKILL.md
+    #       ├── skill.json
+    #       └── scripts/                 ← 保留作为子目录（不展平）
+    #           ├── _icon.svg
+    #           ├── open-ui.mjs
+    #           ├── open-ui.sh
+    #           └── open-ui.ps1
     local dest="$HOME/.workbuddy/skills/ip-switch"
-    mkdir -p "$dest"
+    mkdir -p "$dest/scripts"
 
-    # 2a. 根目录的 skill 元数据（SKILL.md / skill.json）
+    # 2a. 根目录的 skill 元数据（SKILL.md / skill.json）→ 目标根目录
     for f in SKILL.md skill.json; do
         if [ -f "$INSTALL_DIR/$f" ]; then
             if ! cp -f "$INSTALL_DIR/$f" "$dest/" 2>/dev/null; then
@@ -857,34 +866,34 @@ install_skill() {
         fi
     done
 
-    # 2b. scripts/ 下的图标与脚本平铺到 skill 目录
-    if cp -R "$scripts_src/." "$dest/" 2>/dev/null; then
-        log_ok "已安装 skill: ${dest}"
+    # 2b. scripts/ 整个子目录 → 目标的 scripts/ 子目录（保留目录名）
+    if cp -R "$scripts_src/." "$dest/scripts/" 2>/dev/null; then
+        log_ok "已安装 skill: ${dest}（含 scripts/ 子目录）"
     else
-        log_error "复制 scripts 失败: $scripts_src → $dest"
+        log_error "复制 scripts 失败: $scripts_src → $dest/scripts"
         return 1
     fi
 
-    # 3. 给所有脚本赋可执行位（macOS/Linux/Git Bash 必需）
-    find "$dest" -maxdepth 1 -type f \( -name "*.sh" -o -name "*.mjs" -o -name "*.ps1" \) -exec chmod +x {} \;
-    log_ok "已设置脚本可执行位: ${dest}"
+    # 3. 给 scripts/ 里的脚本赋可执行位（macOS/Linux/Git Bash 必需）
+    find "$dest/scripts" -maxdepth 1 -type f \( -name "*.sh" -o -name "*.mjs" -o -name "*.ps1" \) -exec chmod +x {} \;
+    log_ok "已设置脚本可执行位: ${dest}/scripts/"
 
     # 4. 如果 ~/.codex/skills 目录已存在（Codex 后续可能支持 skill），也复制一份
     #    仅在该目录已存在时复制，避免给非 Codex 用户凭空创建
     if [ -d "$HOME/.codex/skills" ]; then
         local codex_dest="$HOME/.codex/skills/ip-switch"
-        mkdir -p "$codex_dest"
+        mkdir -p "$codex_dest/scripts"
         for f in SKILL.md skill.json; do
             [ -f "$INSTALL_DIR/$f" ] && cp -f "$INSTALL_DIR/$f" "$codex_dest/" 2>/dev/null
         done
-        cp -R "$scripts_src/." "$codex_dest/" 2>/dev/null
-        find "$codex_dest" -maxdepth 1 -type f \( -name "*.sh" -o -name "*.mjs" -o -name "*.ps1" \) -exec chmod +x {} \; 2>/dev/null
-        log_ok "已镜像到 Codex: ${codex_dest}（如 Codex 启用 skill 即生效）"
+        cp -R "$scripts_src/." "$codex_dest/scripts/" 2>/dev/null
+        find "$codex_dest/scripts" -maxdepth 1 -type f \( -name "*.sh" -o -name "*.mjs" -o -name "*.ps1" \) -exec chmod +x {} \; 2>/dev/null
+        log_ok "已镜像到 Codex: ${codex_dest}/scripts/（如 Codex 启用 skill 即生效）"
     fi
 
     log_info "AI Agent 唤起方式:"
     log_info "  WorkBuddy: 在对话里说「打开 ip-switch 配置」「添加 AWS 配置」等"
-    log_info "  任意终端: node ~/.workbuddy/skills/ip-switch/open-ui.mjs [aws|azure|oci|vultr]"
+    log_info "  任意终端: node ~/.workbuddy/skills/ip-switch/scripts/open-ui.mjs [aws|azure|oci|vultr]"
 }
 
 # ── 安装完成后提示 ───────────────────────────────────────────────────────────
@@ -934,7 +943,7 @@ Codex 用户级注册:   ~/.codex/config.toml（全局可见，由 append_codex_
         *) skill_path_win="$skill_path_unix" ;;
     esac
     install_locations="${install_locations}ip-switch skill: ${skill_path_unix}
-                       (WorkBuddy 自动发现；任意终端: node ${skill_path_unix}/open-ui.mjs)
+                       (WorkBuddy 自动发现；任意终端: node ${skill_path_unix}/scripts/open-ui.mjs)
 "
 
     local uninstall_cmds=""

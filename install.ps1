@@ -896,11 +896,22 @@ function Install-Skill {
     Write-OK "已写入 install-dir 标记: $markerPath -> $installDir"
 
     # 2. 复制到目标位置（WorkBuddy 读 ~/.workbuddy/skills/<name>/ 平铺发现）
-    #    源分两块：项目根的 SKILL.md / skill.json + scripts/ 下的图标与脚本
+    #    源分两块：项目根的 SKILL.md / skill.json + scripts/ 整个子目录
+    #    目标布局：
+    #       $env:USERPROFILE\.workbuddy\skills\ip-switch\
+    #       ├── SKILL.md
+    #       ├── skill.json
+    #       └── scripts\                  ← 保留作为子目录（不展平）
+    #           ├── _icon.svg
+    #           ├── open-ui.mjs
+    #           ├── open-ui.sh
+    #           └── open-ui.ps1
     $workbuddyDest = Join-Path $env:USERPROFILE ".workbuddy\skills\ip-switch"
+    $workbuddyScriptsDest = Join-Path $workbuddyDest "scripts"
     New-Item -ItemType Directory -Path $workbuddyDest -Force | Out-Null
+    New-Item -ItemType Directory -Path $workbuddyScriptsDest -Force | Out-Null
     try {
-        # 2a. 根目录的 skill 元数据
+        # 2a. 根目录的 skill 元数据 → 目标根目录
         foreach ($f in @("SKILL.md", "skill.json")) {
             $srcFile = Join-Path $installDir $f
             if (Test-Path $srcFile) {
@@ -910,11 +921,11 @@ function Install-Skill {
             }
         }
 
-        # 2b. scripts/ 下的图标与脚本平铺到 skill 目录
-        Copy-Item -Path "$scriptsSrc\*" -Destination $workbuddyDest -Recurse -Force
-        Write-OK "已安装 skill: $workbuddyDest"
+        # 2b. scripts/ 整个子目录 → 目标的 scripts\ 子目录（保留目录名）
+        Copy-Item -Path "$scriptsSrc\*" -Destination $workbuddyScriptsDest -Recurse -Force
+        Write-OK "已安装 skill: $workbuddyDest（含 scripts\ 子目录）"
     } catch {
-        Write-Err "复制 skill 失败: $scriptsSrc → $workbuddyDest ($_)"
+        Write-Err "复制 skill 失败: $scriptsSrc → $workbuddyScriptsDest ($_)"
         return
     }
 
@@ -922,7 +933,9 @@ function Install-Skill {
     $codexSkillsDir = Join-Path $env:USERPROFILE ".codex\skills"
     if (Test-Path $codexSkillsDir) {
         $codexDest = Join-Path $codexSkillsDir "ip-switch"
+        $codexScriptsDest = Join-Path $codexDest "scripts"
         New-Item -ItemType Directory -Path $codexDest -Force | Out-Null
+        New-Item -ItemType Directory -Path $codexScriptsDest -Force | Out-Null
         try {
             foreach ($f in @("SKILL.md", "skill.json")) {
                 $srcFile = Join-Path $installDir $f
@@ -930,8 +943,8 @@ function Install-Skill {
                     Copy-Item -Path $srcFile -Destination $codexDest -Force
                 }
             }
-            Copy-Item -Path "$scriptsSrc\*" -Destination $codexDest -Recurse -Force
-            Write-OK "已镜像到 Codex: $codexDest（如 Codex 启用 skill 即生效）"
+            Copy-Item -Path "$scriptsSrc\*" -Destination $codexScriptsDest -Recurse -Force
+            Write-OK "已镜像到 Codex: $codexScriptsDest（如 Codex 启用 skill 即生效）"
         } catch {
             Write-Warn "镜像到 Codex 失败: $_"
         }
@@ -939,9 +952,9 @@ function Install-Skill {
 
     Write-Info "AI Agent 唤起方式:"
     Write-Info "  WorkBuddy: 在对话里说「打开 ip-switch 配置」「添加 AWS 配置」等"
-    Write-Info "  任意终端: node $workbuddyDest\open-ui.mjs [aws|azure|oci|vultr]"
+    Write-Info "  任意终端: node $workbuddyScriptsDest\open-ui.mjs [aws|azure|oci|vultr]"
     Write-Info "  Codex: 在对话里说「打开 ip-switch 配置」「添加 AWS 配置」等"
-    Write-Info "  任意终端: node $codexDest\open-ui.mjs [aws|azure|oci|vultr]"
+    Write-Info "  任意终端: node $codexScriptsDest\open-ui.mjs [aws|azure|oci|vultr]"
 }
 
 # -- 重启客户端应用（WorkBuddy/Codex），使 MCP 配置立即生效 -------------------

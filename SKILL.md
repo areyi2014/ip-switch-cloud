@@ -21,15 +21,15 @@ ip-switch 是一个多云公网 IP 轮换的 MCP 服务器。本 skill **不提�
 
 - 用户对话里提到「添加/编辑/打开 ip-switch 配置」时，AI 应自动触发本 skill
 - 用户可以手动在 WorkBuddy 输入 `/ip-switch` 直接调用
-- Codex CLI 用户可直接运行 `node ~/.workbuddy/skills/ip-switch/open-ui.mjs`
+- Codex CLI 用户可直接运行 `node ~/.workbuddy/skills/ip-switch/scripts/open-ui.mjs`
 
 ## 何时调用本 skill
 
 | 用户意图 | 调用方式 |
 |---------|---------|
-| 「我要添加一个 AWS 配置」 | `node ~/.workbuddy/skills/ip-switch/open-ui.mjs aws` |
-| 「添加 Azure / OCI / Vultr 配置」 | `node ~/.workbuddy/skills/ip-switch/open-ui.mjs azure`（oci / vultr 同理） |
-| 「打开 ip-switch 配置页面」 | `node ~/.workbuddy/skills/ip-switch/open-ui.mjs` |
+| 「我要添加一个 AWS 配置」 | `node ~/.workbuddy/skills/ip-switch/scripts/open-ui.mjs aws` |
+| 「添加 Azure / OCI / Vultr 配置」 | `node ~/.workbuddy/skills/ip-switch/scripts/open-ui.mjs azure`（oci / vultr 同理） |
+| 「打开 ip-switch 配置页面」 | `node ~/.workbuddy/skills/ip-switch/scripts/open-ui.mjs` |
 | 「我想编辑 ip-switch 配置」 | 同上（打开主配置页即可编辑任意 profile） |
 | 用户说「ip-switch 设置」/「ip-switch 凭据」 | 同上 |
 
@@ -39,16 +39,16 @@ ip-switch 是一个多云公网 IP 轮换的 MCP 服务器。本 skill **不提�
 
 ### 步骤 1：定位脚本
 
-本 skill 安装到 `~/.workbuddy/skills/ip-switch/open-ui.mjs`。
+本 skill 安装到 `~/.workbuddy/skills/ip-switch/scripts/open-ui.mjs`。
 
 **AI 不要假设它一定在那个目录**——优先按以下顺序查找：
 
 ```bash
 # 1. 标准安装位置
-ls -la "$HOME/.workbuddy/skills/ip-switch/open-ui.mjs" 2>/dev/null
+ls -la "$HOME/.workbuddy/skills/ip-switch/scripts/open-ui.mjs" 2>/dev/null
 
 # 2. Codex 用户偶尔会装到 ~/.codex/skills/
-ls -la "$HOME/.codex/skills/ip-switch/open-ui.mjs" 2>/dev/null
+ls -la "$HOME/.codex/skills/ip-switch/scripts/open-ui.mjs" 2>/dev/null
 
 # 3. 用户级任意位置（兜底模糊查找）
 find "$HOME/.workbuddy/skills" "$HOME/.codex/skills" -maxdepth 3 -name "open-ui.mjs" -path "*ip-switch*" 2>/dev/null | head -1
@@ -57,8 +57,8 @@ find "$HOME/.workbuddy/skills" "$HOME/.codex/skills" -maxdepth 3 -name "open-ui.
 **Windows PowerShell**：
 ```powershell
 $paths = @(
-  "$env:USERPROFILE\.workbuddy\skills\ip-switch\open-ui.mjs",
-  "$env:USERPROFILE\.codex\skills\ip-switch\open-ui.mjs"
+  "$env:USERPROFILE\.workbuddy\skills\ip-switch\scripts\open-ui.mjs",
+  "$env:USERPROFILE\.codex\skills\ip-switch\scripts\open-ui.mjs"
 )
 $script = $paths | Where-Object { Test-Path $_ } | Select-Object -First 1
 ```
@@ -71,12 +71,12 @@ $script = $paths | Where-Object { Test-Path $_ } | Select-Object -First 1
 
 ```bash
 # macOS / Linux / Git Bash
-node "$HOME/.workbuddy/skills/ip-switch/open-ui.mjs" [aws|azure|oci|vultr]
+node "$HOME/.workbuddy/skills/ip-switch/scripts/open-ui.mjs" [aws|azure|oci|vultr]
 ```
 
 ```powershell
 # Windows PowerShell
-& "$env:USERPROFILE\.workbuddy\skills\ip-switch\open-ui.mjs" aws
+& "$env:USERPROFILE\.workbuddy\skills\ip-switch\scripts\open-ui.mjs" aws
 ```
 
 脚本会自动：
@@ -87,7 +87,7 @@ node "$HOME/.workbuddy/skills/ip-switch/open-ui.mjs" [aws|azure|oci|vultr]
 
 #### 只想拿 URL、不打开浏览器（CI / 调试）
 
-下列命令假设 `cd` 到 open-ui.mjs 所在目录（即 `~/.workbuddy/skills/ip-switch/` 用户级，或项目内 `<root>/scripts/`）；推荐写法是用绝对路径。
+下列命令假设 `cd` 到 open-ui.mjs 所在目录（即 `~/.workbuddy/skills/ip-switch/scripts/` 用户级，或项目内 `<root>/scripts/`）；推荐写法是用绝对路径。
 
 ```bash
 node open-ui.mjs --port       # 只 stdout 输出 URL，不调用 start/open/xdg-open
@@ -109,7 +109,7 @@ node open-ui.mjs --stop       # 关闭后台 UI server
 |-------|-----------------|---------|
 | WorkBuddy（桌面） | ✅ 读 `~/.workbuddy/skills/` | AI 按上述规则调脚本 / 用户输入 `/ip-switch` |
 | WorkBuddy（CLI） | ✅ 同上 | 同上 |
-| Codex 桌面版 | ❌（无 skill 系统） | 让用户在终端跑 `node ~/.workbuddy/skills/ip-switch/open-ui.mjs` |
+| Codex 桌面版 | ❌（无 skill 系统） | 让用户在终端跑 `node ~/.workbuddy/skills/ip-switch/scripts/open-ui.mjs` |
 | Codex CLI | ❌ | 同上 |
 | 任意能执行命令的 Agent | ❌ | 同上（只要能 shell out 就能用） |
 
@@ -186,6 +186,16 @@ node open-ui.mjs --stop       # 关闭后台 UI server
 ### 用户级路径（install 后）
 
 - **目标目录**：`~/.workbuddy/skills/ip-switch/`
-- **install 流程**：`install.sh` / `install.ps1` 从项目根拷 `SKILL.md`、`skill.json` 到目标，再 `cp -R scripts/` 合并，所有文件平铺到目标目录下。
-- **装好后目标平铺 6 个文件**：`SKILL.md`、`skill.json`、`_icon.svg`、`open-ui.mjs`、`open-ui.sh`、`open-ui.ps1`，与 `<root>/scripts/` 内容一致。
+- **目标布局**（install 后）：
+  ```
+  ~/.workbuddy/skills/ip-switch/
+  ├── SKILL.md
+  ├── skill.json
+  └── scripts/                       ← 保留为子目录（不展平）
+      ├── _icon.svg
+      ├── open-ui.mjs                 ← 调用入口：node ~/.workbuddy/skills/ip-switch/scripts/open-ui.mjs
+      ├── open-ui.sh
+      └── open-ui.ps1
+  ```
+- **install 流程**：`install.sh` / `install.ps1` 从项目根拷 `SKILL.md`、`skill.json` 到目标根目录，再把整个 `scripts/` 子目录拷到目标的 `scripts/`。
 - **MCP 运行时数据**：`~/.ip-switch/` 下保存 `config.json`、`install-dir.txt`、`server-port.txt`、`server.pid`、`ui-server.out.log`、`ui-server.err.log`。
