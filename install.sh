@@ -809,8 +809,10 @@ EOF_PLUGIN
 # 职责：
 #   1. 把 SKILL.md / skill.json（项目根） + scripts/（图标+脚本）合并平铺到
 #      ~/.workbuddy/skills/ip-switch/（WorkBuddy 自动发现）
-#   2. 写 ~/.ip-switch/install-dir.txt 标记文件，让 skill 脚本能定位到 ui/server.cjs
-#   3. 脚本赋可执行位（.sh / .mjs / .ps1 都标 +x，避免 Codex CLI 调不到）
+#   2. 创建 <install-dir>/data/ 运行时目录（取代之前的 ~/.ip-switch/）
+#   3. 把 INSTALL_DIR 写入用户级副本的 scripts/.install-path.txt（bootstrap 锚点）
+#   4. 写 <install-dir>/data/install-dir.txt（运行时配置，给 --status 查询用）
+#   5. 脚本赋可执行位（.sh / .mjs / .ps1 都标 +x，避免 Codex CLI 调不到）
 # 设计：
 #   - 幂等：已存在则覆盖更新（git pull 后再跑即可拿到新版）
 #   - 无条件安装：即使没检测到 WB 也装，让用户能手动从终端跑（Codex 无 skill 机制）
@@ -824,8 +826,8 @@ install_skill() {
         return 0
     fi
 
-    # 1. 写 install-dir 标记（open-ui.mjs 靠它定位 ui/server.cjs）
-    mkdir -p "$HOME/.ip-switch"
+    # 1. 创建 <install-dir>/data/ 运行时目录（取代之前的 ~/.ip-switch/）
+    mkdir -p "$INSTALL_DIR/data"
     # Git Bash 下 /c/Users/foo → C:\Users\foo（更稳定的 Windows 路径，便于排查）
     local marker_dir_unix="$INSTALL_DIR"
     case "$marker_dir_unix" in
@@ -837,8 +839,8 @@ install_skill() {
             marker_dir_unix="${_drive}:${_rest}"
             ;;
     esac
-    printf '%s\n' "$marker_dir_unix" > "$HOME/.ip-switch/install-dir.txt"
-    log_ok "已写入 install-dir 标记: ~/.ip-switch/install-dir.txt -> ${marker_dir_unix}"
+    printf '%s\n' "$marker_dir_unix" > "$INSTALL_DIR/data/install-dir.txt"
+    log_ok "已写入 install-dir 标记: ${INSTALL_DIR}/data/install-dir.txt -> ${marker_dir_unix}"
 
     # 2. 复制到目标位置（WorkBuddy 读 ~/.workbuddy/skills/<name>/ 平铺发现）
     #    源分两块：项目根的 SKILL.md / skill.json + scripts/ 整个子目录
@@ -846,6 +848,7 @@ install_skill() {
     #       ~/.workbuddy/skills/ip-switch/
     #       ├── SKILL.md
     #       ├── skill.json
+    #       ├── .install-path.txt        ← bootstrap 锚点（内容为 INSTALL_DIR 绝对路径）
     #       └── scripts/                 ← 保留作为子目录（不展平）
     #           ├── _icon.svg
     #           ├── open-ui.mjs
@@ -874,6 +877,12 @@ install_skill() {
         return 1
     fi
 
+    # 2c. bootstrap 锚点：把 INSTALL_DIR 绝对路径写到用户级副本的 scripts/ 下
+    #    open-ui.mjs 启动时第一优先级读这个文件来定位 ip-switch 项目位置
+    #    放在 scripts/ 下（跟 open-ui.mjs 同目录）避免混淆
+    printf '%s\n' "$marker_dir_unix" > "$dest/scripts/.install-path.txt"
+    log_ok "已写入 bootstrap 锚点: ${dest}/scripts/.install-path.txt"
+
     # 3. 给 scripts/ 里的脚本赋可执行位（macOS/Linux/Git Bash 必需）
     find "$dest/scripts" -maxdepth 1 -type f \( -name "*.sh" -o -name "*.mjs" -o -name "*.ps1" \) -exec chmod +x {} \;
     log_ok "已设置脚本可执行位: ${dest}/scripts/"
@@ -886,9 +895,11 @@ install_skill() {
         for f in SKILL.md skill.json; do
             [ -f "$INSTALL_DIR/$f" ] && cp -f "$INSTALL_DIR/$f" "$codex_dest/" 2>/dev/null
         done
-        cp -R "$scripts_src/." "$codex_dest/scripts/" 2>/dev/null
-        find "$codex_dest/scripts" -maxdepth 1 -type f \( -name "*.sh" -o -name "*.mjs" -o -name "*.ps1" \) -exec chmod +x {} \; 2>/dev/null
-        log_ok "已镜像到 Codex: ${codex_dest}/scripts/（如 Codex 启用 skill 即生效）"
+cp -R "$scripts_src/." "$codex_dest/scripts/" 2>/dev/null
+            # Codex 镜像副本同样需要 bootstrap 锚点（放在 scripts/ 下）
+            printf '%s\n' "$marker_dir_unix" > "$codex_dest/scripts/.install-path.txt"
+            find "$codex_dest/scripts" -maxdepth 1 -type f \( -name "*.sh" -o -name "*.mjs" -o -name "*.ps1" \) -exec chmod +x {} \; 2>/dev/null
+            log_ok "已镜像到 Codex: ${codex_dest}/scripts/（如 Codex 启用 skill 即生效）"
     fi
 
     log_info "AI Agent 唤起方式:"
@@ -984,8 +995,8 @@ ${YELLOW}手动更新:${NC}
   cd ${INSTALL_DIR} && git pull && npm install && npm run build
 
 ${YELLOW}卸载:${NC}
-${uninstall_cmds}  rm -rf ${INSTALL_DIR}      # 删除源码（可选）
-  rm -rf ~/.ip-switch
+${uninstall_cmds}  rm -rf ${INSTALL_DIR}      # 删除源码（可选，会同时清 data/ 子目录）
+  rm -rf ${INSTALL_DIR}/data         # 单独删除运行时数据（保留源码时用）
 
 ${YELLOW}重启客户端:${NC}
 EOF

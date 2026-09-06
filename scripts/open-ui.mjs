@@ -3,10 +3,15 @@
  * ip-switch Skill Launcher (跨平台)
  *
  * 职责：
- *   1. 定位 ip-switch 安装目录（读 ~/.ip-switch/install-dir.txt，回退到默认路径）
- *   2. 检查 UI server.cjs 是否已在运行（读 ~/.ip-switch/server-port.txt 并 TCP 健康检查）
- *   3. 未运行则后台启动 node ui/server.cjs，等待端口文件落地（最长 15 秒）
+ *   1. 定位 ip-switch 安装目录（用户级副本读 .install-path.txt，项目内副本用 __dirname/..）
+ *   2. 检查 UI server.cjs 是否已在运行（读 <install-dir>/data/server-port.txt 并 TCP 健康检查）
+ *   3. 未运行则后台启动 node ui/server.cjs（cwd=<install-dir>），等待端口文件落地（最长 15 秒）
  *   4. 拼装 URL 并跨平台打开默认浏览器
+ *
+ * 运行时目录约定：
+ *   - 所有运行时文件（config.json / server-port.txt / server.pid / 日志）都在
+ *     <install-dir>/data/ 下，由 install 脚本创建
+ *   - 不再有 ~/.ip-switch/ 目录
  *
  * 用法：
  *   node open-ui.mjs                  # 打开默认全功能表单 config-form.html
@@ -24,23 +29,32 @@
  *   Linux:   xdg-open "<url>"
  *
  * 设计原则：
- *   - 零依赖：只用 Node.js 内置模块（fs/child_process/http/path/os）
+ *   - 零依赖：只用 Node.js 内置模块（fs/child_process/http/path/os/url）
  *   - 幂等：可重复执行，已在跑的 server 直接复用端口
- *   - 失败安全：任何异常都给出可读错误并退出码 1，不抛堆栈
+ *   - 失败安全：任何异常都给出可读错误并退出码 1，不抛堆堆
  */
 
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import http from 'node:http';
+import url from 'node:url';
 import { spawn } from 'node:child_process';
 import process from 'node:process';
 
+const { fileURLToPath } = url;
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 // ── 常量 ──────────────────────────────────────────────────────────────────────
-const IP_SWITCH_HOME = path.join(os.homedir(), '.ip-switch');
-const INSTALL_DIR_MARKER = path.join(IP_SWITCH_HOME, 'install-dir.txt');
-const PORT_FILE = path.join(IP_SWITCH_HOME, 'server-port.txt');
-const PID_FILE = path.join(IP_SWITCH_HOME, 'server.pid');
+// 运行时数据子目录（相对于 ip-switch 项目根）：<install-dir>/data/
+const RUNTIME_SUBDIR = 'data';
+
+// 脚本自身所在目录（用于 bootstrap 锚点查找）
+const SCRIPT_DIR = __dirname;
+
+// bootstrap 锚点文件名（install 脚本在用户级副本里写入）
+const INSTALL_PATH_MARKER = '.install-path.txt';
 
 const SUPPORTED_PAGES = new Set(['aws', 'azure', 'oci', 'vultr']);
 const PAGE_PATHS = {
@@ -97,14 +111,22 @@ function printHelp() {
 
 // ── 定位 ip-switch 安装目录 ───────────────────────────────────────────────────
 function findInstallDir() {
-  // 优先读 marker（install 脚本写入）
-  if (fs.existsSync(INSTALL_DIR_MARKER)) {
-    const p = fs.readFileSync(INSTALL_DIR_MARKER, 'utf8').trim();
+  // 1. 用户级副本模式：读同目录下的 .install-path.txt（install 脚本写入）
+  const userMarker = path.join(SCRIPT_DIR, INSTALL_PATH_MARKER);
+  if (fs.existsSync(userMarker)) {
+    const p = fs.readFileSync(userMarker, 'utf8').trim();
     if (p && fs.existsSync(path.join(p, 'ui', 'server.cjs'))) {
       return path.resolve(p);
     }
   }
-  // 回退：常见位置
+
+  // 2. 项目内副本模式：脚本在 <root>/scripts/open-ui.mjs，INSTALL_DIR = ../..
+  const parent = path.dirname(SCRIPT_DIR);
+  if (fs.existsSync(path.join(parent, 'ui', 'server.cjs'))) {
+    return parent;
+  }
+
+  // 3. 回退：常见位置
   const candidates = [
     path.join(os.homedir(), 'ip-switch'),
     path.join(os.homedir(), 'tools', 'ip-switch'),
@@ -115,6 +137,11 @@ function findInstallDir() {
     if (fs.existsSync(path.join(c, 'ui', 'server.cjs'))) return c;
   }
   return null;
+}
+
+// ── 运行时数据目录（基于 INSTALL_DIR） ────────────────────────────────────────
+function runtimeDir(installDir) {
+  return path.join(installDir, RUNTIME_SUBDIR);
 }
 
 // ── TCP 健康检查（端口是否真的在监听） ───────────────────────────────────────
@@ -131,9 +158,10 @@ function checkPort(port) {
 }
 
 // ── 读端口文件并验证 ──────────────────────────────────────────────────────────
-async function readActivePort() {
-  if (!fs.existsSync(PORT_FILE)) return null;
-  const raw = fs.readFileSync(PORT_FILE, 'utf8').trim();
+async function readActivePort(dataDir) {
+  const portFile = path.join(dataDir, 'server-port.txt');
+  if (!fs.existsSync(portFile)) return null;
+  const raw = fs.readFileSync(portFile, 'utf8').trim();
   const port = parseInt(raw, 10);
   if (!port || port < 1 || port > 65535) return null;
   return (await checkPort(port)) ? port : null;
@@ -148,11 +176,12 @@ async function startServer(installDir) {
     return null;
   }
 
-  fs.mkdirSync(IP_SWITCH_HOME, { recursive: true });
+  const dataDir = runtimeDir(installDir);
+  fs.mkdirSync(dataDir, { recursive: true });
 
   // 写日志到固定位置，便于排查
-  const outLog = path.join(IP_SWITCH_HOME, 'ui-server.out.log');
-  const errLog = path.join(IP_SWITCH_HOME, 'ui-server.err.log');
+  const outLog = path.join(dataDir, 'ui-server.out.log');
+  const errLog = path.join(dataDir, 'ui-server.err.log');
   const out = fs.openSync(outLog, 'a');
   const err = fs.openSync(errLog, 'a');
 
@@ -162,6 +191,7 @@ async function startServer(installDir) {
     //   上仍可能因 job 对象被父终端回收）。start /B 不开新窗口，但仍完全后台。
     child = spawn('cmd.exe', ['/c', 'start', '/B', process.execPath, serverJs], {
       cwd: installDir,
+      env: { ...process.env, IP_SWITCH_DATA_DIR: dataDir },
       detached: true,
       stdio: ['ignore', out, err],
       windowsHide: true,
@@ -170,6 +200,7 @@ async function startServer(installDir) {
     // macOS / Linux：detached + unref 即可（POSIX setsid 等价）
     child = spawn(process.execPath, [serverJs], {
       cwd: installDir,
+      env: { ...process.env, IP_SWITCH_DATA_DIR: dataDir },
       detached: true,
       stdio: ['ignore', out, err],
     });
@@ -177,14 +208,14 @@ async function startServer(installDir) {
   child.unref();
 
   // 写 PID（供 --stop 使用；Windows 下 cmd.exe 立即退出，PID 不准，仅做记录用）
-  try { fs.writeFileSync(PID_FILE, String(child.pid)); } catch { /* ignore */ }
+  try { fs.writeFileSync(path.join(dataDir, 'server.pid'), String(child.pid)); } catch { /* ignore */ }
 
   log.info(`已后台启动 UI server，等待端口文件...`);
 
   // 等待端口文件落地（最长 15 秒）
   const deadline = Date.now() + 15000;
   while (Date.now() < deadline) {
-    const port = await readActivePort();
+    const port = await readActivePort(dataDir);
     if (port) {
       log.ok(`UI server 已就绪: http://127.0.0.1:${port}`);
       return port;
@@ -198,15 +229,17 @@ async function startServer(installDir) {
 }
 
 // ── 关闭后台 UI server ────────────────────────────────────────────────────────
-async function stopServer() {
-  if (!fs.existsSync(PID_FILE)) {
+async function stopServer(dataDir) {
+  const pidFile = path.join(dataDir, 'server.pid');
+  const portFile = path.join(dataDir, 'server-port.txt');
+  if (!fs.existsSync(pidFile)) {
     log.info('未找到 PID 文件，UI server 可能未在运行');
     return true;
   }
-  const pid = parseInt(fs.readFileSync(PID_FILE, 'utf8').trim(), 10);
+  const pid = parseInt(fs.readFileSync(pidFile, 'utf8').trim(), 10);
   if (!pid) {
     log.info('PID 文件无效');
-    try { fs.unlinkSync(PID_FILE); } catch { /* ignore */ }
+    try { fs.unlinkSync(pidFile); } catch { /* ignore */ }
     return true;
   }
   try {
@@ -215,8 +248,8 @@ async function stopServer() {
   } catch (e) {
     log.warn(`结束进程 ${pid} 失败: ${e.message}（可能已退出）`);
   }
-  try { fs.unlinkSync(PID_FILE); } catch { /* ignore */ }
-  try { fs.unlinkSync(PORT_FILE); } catch { /* ignore */ }
+  try { fs.unlinkSync(pidFile); } catch { /* ignore */ }
+  try { fs.unlinkSync(portFile); } catch { /* ignore */ }
   return true;
 }
 
@@ -260,37 +293,41 @@ async function main() {
 
   if (args.help) { printHelp(); return; }
 
+  // 1. 定位安装目录（任何命令都需要）
+  const installDir = findInstallDir();
+  if (!installDir) {
+    log.err('未找到 ip-switch 安装目录');
+    log.err('已尝试:');
+    log.err(`  - 用户级副本标记文件: ${path.join(SCRIPT_DIR, INSTALL_PATH_MARKER)}`);
+    log.err(`  - 脚本同级的父目录: ${path.dirname(SCRIPT_DIR)}`);
+    log.err('  - 默认路径: ~/ip-switch、~/tools/ip-switch、C:\\ip-switch、/opt/ip-switch');
+    log.err('请确认 ip-switch 已安装（跑 bash install.sh 或 install.ps1）');
+    process.exit(1);
+  }
+  const dataDir = runtimeDir(installDir);
+  log.info(`ip-switch 安装目录: ${installDir}`);
+  log.info(`运行时数据目录: ${dataDir}`);
+
   if (args.status) {
-    const port = await readActivePort();
+    const port = await readActivePort(dataDir);
     const running = !!port;
     console.log(JSON.stringify({
       running,
       url: running ? `http://127.0.0.1:${port}` : null,
-      installDir: findInstallDir(),
-      pidFileExists: fs.existsSync(PID_FILE),
+      installDir,
+      dataDir,
+      pidFileExists: fs.existsSync(path.join(dataDir, 'server.pid')),
     }, null, 2));
     return;
   }
 
   if (args.stop) {
-    await stopServer();
+    await stopServer(dataDir);
     return;
   }
 
-  // 1. 定位安装目录
-  const installDir = findInstallDir();
-  if (!installDir) {
-    log.err('未找到 ip-switch 安装目录');
-    log.err(`已尝试:`);
-    log.err(`  - 标记文件: ${INSTALL_DIR_MARKER}`);
-    log.err(`  - 默认路径: ~/ip-switch`);
-    log.err(`请确认 ip-switch 已安装，或重新运行 install.sh / install.ps1`);
-    process.exit(1);
-  }
-  log.info(`ip-switch 安装目录: ${installDir}`);
-
   // 2. 检查端口（已在跑就直接复用）
-  let port = await readActivePort();
+  let port = await readActivePort(dataDir);
 
   // 3. 未在跑则启动
   if (!port) {
@@ -301,8 +338,8 @@ async function main() {
   }
 
   // 4. 拼装 URL
-  const path = PAGE_PATHS[args.page] || PAGE_PATHS[''];
-  const url = `http://127.0.0.1:${port}${path}`;
+  const pagePath = PAGE_PATHS[args.page] || PAGE_PATHS[''];
+  const url = `http://127.0.0.1:${port}${pagePath}`;
 
   if (args.portOnly) {
     // 只输出 URL 到 stdout（供其他脚本/AI 调用）
