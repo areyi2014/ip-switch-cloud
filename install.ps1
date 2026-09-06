@@ -874,8 +874,10 @@ function Install-CodexMarketplace {
 # 职责：
 #   1. 把 SKILL.md / skill.json（项目根） + scripts/（图标+脚本）合并平铺到
 #      $env:USERPROFILE\.workbuddy\skills\ip-switch\（WorkBuddy 自动发现）
-#   2. 写 $env:USERPROFILE\.ip-switch\install-dir.txt，让 skill 脚本能定位 ui/server.cjs
-#   3. 镜像到 $env:USERPROFILE\.codex\skills\ip-switch\（若该目录已存在）
+#   2. 创建 <install-dir>\data\ 运行时目录（取代之前的 $env:USERPROFILE\.ip-switch\）
+#   3. 把 INSTALL_DIR 写入用户级副本根目录的 .install-path.txt（bootstrap 锚点）
+#   4. 写 <install-dir>\data\install-dir.txt（运行时配置，给 --status 查询用）
+#   5. 镜像到 $env:USERPROFILE\.codex\skills\ip-switch\（若该目录已存在）
 # 设计：
 #   - 幂等：已存在则覆盖更新（git pull 后再跑即可拿到新版）
 #   - 无条件安装：即使没检测到 WB 也装，让用户能手动从终端跑（Codex 无 skill 机制）
@@ -888,10 +890,10 @@ function Install-Skill {
         return
     }
 
-    # 1. 写 install-dir 标记（open-ui.mjs 靠它定位 ui/server.cjs）
-    $ipSwitchHome = Join-Path $env:USERPROFILE ".ip-switch"
-    New-Item -ItemType Directory -Path $ipSwitchHome -Force | Out-Null
-    $markerPath = Join-Path $ipSwitchHome "install-dir.txt"
+    # 1. 创建 <install-dir>\data\ 运行时目录（取代之前的 $env:USERPROFILE\.ip-switch\）
+    $dataDir = Join-Path $installDir "data"
+    New-Item -ItemType Directory -Path $dataDir -Force | Out-Null
+    $markerPath = Join-Path $dataDir "install-dir.txt"
     [System.IO.File]::WriteAllText($markerPath, $installDir, (New-Object System.Text.UTF8Encoding($false)))
     Write-OK "已写入 install-dir 标记: $markerPath -> $installDir"
 
@@ -901,6 +903,7 @@ function Install-Skill {
     #       $env:USERPROFILE\.workbuddy\skills\ip-switch\
     #       ├── SKILL.md
     #       ├── skill.json
+    #       ├── .install-path.txt        ← bootstrap 锚点（内容为 INSTALL_DIR 绝对路径）
     #       └── scripts\                  ← 保留作为子目录（不展平）
     #           ├── _icon.svg
     #           ├── open-ui.mjs
@@ -924,6 +927,13 @@ function Install-Skill {
         # 2b. scripts/ 整个子目录 → 目标的 scripts\ 子目录（保留目录名）
         Copy-Item -Path "$scriptsSrc\*" -Destination $workbuddyScriptsDest -Recurse -Force
         Write-OK "已安装 skill: $workbuddyDest（含 scripts\ 子目录）"
+
+        # 2c. bootstrap 锚点：把 INSTALL_DIR 绝对路径写到用户级副本的 scripts\ 下
+        #    open-ui.mjs 启动时第一优先级读这个文件来定位 ip-switch 项目位置
+        #    放在 scripts\ 下（跟 open-ui.mjs 同目录）避免混淆
+        $userMarker = Join-Path $workbuddyScriptsDest ".install-path.txt"
+        [System.IO.File]::WriteAllText($userMarker, $installDir, (New-Object System.Text.UTF8Encoding($false)))
+        Write-OK "已写入 bootstrap 锚点: $userMarker"
     } catch {
         Write-Err "复制 skill 失败: $scriptsSrc → $workbuddyScriptsDest ($_)"
         return
@@ -944,6 +954,9 @@ function Install-Skill {
                 }
             }
             Copy-Item -Path "$scriptsSrc\*" -Destination $codexScriptsDest -Recurse -Force
+            # Codex 镜像副本同样需要 bootstrap 锚点（放在 scripts\ 下）
+            $codexMarker = Join-Path $codexScriptsDest ".install-path.txt"
+            [System.IO.File]::WriteAllText($codexMarker, $installDir, (New-Object System.Text.UTF8Encoding($false)))
             Write-OK "已镜像到 Codex: $codexScriptsDest（如 Codex 启用 skill 即生效）"
         } catch {
             Write-Warn "镜像到 Codex 失败: $_"
@@ -1113,7 +1126,8 @@ function Show-Success {
         Write-Host "  Remove-Item -Recurse -Force $codexMarketDir  # 删除 Codex 市场清单"
     }
     Write-Host "  Remove-Item -Recurse -Force $skillDir        # 删除 ip-switch skill"
-    Write-Host "  Remove-Item -Recurse -Force $installDir  # 如需同时删除源码"
+    Write-Host "  Remove-Item -Recurse -Force (Join-Path $installDir 'data')  # 删除运行时数据（保留源码时用）"
+    Write-Host "  Remove-Item -Recurse -Force $installDir  # 如需同时删除源码（会一并清 data/ 子目录）"
     Write-Host ""
 }
 

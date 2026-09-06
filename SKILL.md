@@ -30,7 +30,7 @@ ip-switch 是一个多云公网 IP 轮换的 MCP 服务器。本 skill **不提�
 如果用户没跑过 install：
 - WorkBuddy 端的 skill 列表里看不到「IP Switch · 配置面板」
 - `node ~/.workbuddy/skills/ip-switch/scripts/open-ui.mjs` 会报「路径不存在」
-- 但 `node <项目目录>/scripts/open-ui.mjs` 仍可运行（脚本会自己从 `~/.ip-switch/install-dir.txt` 找到项目）
+- 但 `node <项目目录>/scripts/open-ui.mjs` 仍可运行（脚本会自动用 `__dirname/..` 推断项目位置）
 
 如果用户不确定是否跑过 install，让用户重跑一次即可（幂等、可重复执行）。
 
@@ -98,9 +98,9 @@ node "$HOME/.workbuddy/skills/ip-switch/scripts/open-ui.mjs" [aws|azure|oci|vult
 ```
 
 脚本会自动：
-1. 读 `~/.ip-switch/install-dir.txt`（install 脚本写入的标记文件）→ 找到 ip-switch 项目安装位置
-2. 读 `~/.ip-switch/server-port.txt` + TCP 健康检查 → 看 UI server 是否已在跑
-3. 没跑就后台启动 `<ip-switch 项目目录>/ui/server.cjs`（进程 cwd 即该目录），等 `~/.ip-switch/server-port.txt` 端口文件落地（最长 15 秒）
+1. 定位 ip-switch 项目目录（顺序）：① 读 `~/.workbuddy/skills/ip-switch/scripts/.install-path.txt`（用户级副本 bootstrap 锚点）→ ② 用脚本自身目录的父目录推断（项目内副本）→ ③ fallback 到常见路径
+2. 读 `<install-dir>/data/server-port.txt` + TCP 健康检查 → 看 UI server 是否已在跑
+3. 没跑就后台启动 `<ip-switch 项目目录>/ui/server.cjs`（进程 cwd 即该目录 + 环境变量 `IP_SWITCH_DATA_DIR` 传入 `<install-dir>/data`），等 `<install-dir>/data/server-port.txt` 端口文件落地（最长 15 秒）
 4. 跨平台打开默认浏览器：`cmd /c start`（Win）/ `open`（macOS）/ `xdg-open`（Linux）
 5. 把控制台 URL 输出到 stderr，AI 可读到并向用户回显
 
@@ -147,7 +147,7 @@ node open-ui.mjs --stop       # 关闭后台 UI server
 | 一键轮换 IP + 更新 DNS | MCP 工具 `rotate_ip_and_update_dns` |
 | 列出云厂商实例 | MCP 工具 `list_instances` |
 
-凭据保存在 `~/.ip-switch/config.json`，**必须由用户在浏览器表单里填**，绝不在对话里直接索取 accessKeyId / secretAccessKey 等明文（参考用户偏好）。
+凭据保存在 `<install-dir>/data/config.json`，**必须由用户在浏览器表单里填**，绝不在对话里直接索取 accessKeyId / secretAccessKey 等明文（参考用户偏好）。
 
 ## install 脚本实际做了什么
 
@@ -172,13 +172,14 @@ node open-ui.mjs --stop       # 关闭后台 UI server
 
 ```
 ~/.workbuddy/skills/ip-switch/                    ← mkdir -p 自动建
-├── SKILL.md         ← cp -f 从 <root>/SKILL.md
-├── skill.json       ← cp -f 从 <root>/skill.json
-└── scripts/         ← mkdir -p 显式创建（保留目录名，不展平）
+├── SKILL.md              ← cp -f 从 <root>/SKILL.md
+├── skill.json            ← cp -f 从 <root>/skill.json
+└── scripts/              ← mkdir -p 显式创建（保留目录名，不展平）
     ├── _icon.svg
-    ├── open-ui.mjs  ← cp -R 从 <root>/scripts/
+    ├── open-ui.mjs       ← cp -R 从 <root>/scripts/
     ├── open-ui.sh
-    └── open-ui.ps1
+    ├── open-ui.ps1
+    └── .install-path.txt ← bootstrap 锚点（install 写入；放在 scripts/ 下跟 open-ui.mjs 同目录）
 ```
 
 **Codex 镜像目录**（仅当 `~/.codex/skills/` 已存在时才复制）：
@@ -188,20 +189,30 @@ node open-ui.mjs --stop       # 关闭后台 UI server
 ├── SKILL.md
 ├── skill.json
 └── scripts/
-    └── ...
+    ├── ...
+    └── .install-path.txt ← bootstrap 锚点（Codex 副本同样需要）
 ```
 
-**`install-dir.txt` 标记**（让 `open-ui.mjs` 知道 ip-switch 项目本身装在哪里）：
+**`<install-dir>/data/` 运行时目录**（由 install 脚本创建，所有运行时数据都在这里）：
 
 ```
-~/.ip-switch/
-└── install-dir.txt   ← 内容是 ip-switch 项目的绝对路径
-                       ← Windows 下用 UTF-8 (no BOM)
-                       ← Git Bash 下自动把 /c/Users/foo 转成 C:\Users\foo
+<install-dir>/                          ← ip-switch 项目根目录
+└── data/                                ← install 脚本 mkdir -p 创建
+    ├── install-dir.txt                   ← 运行时配置（内容是 ip-switch 项目绝对路径，给 --status 查询用）
+    │                                     Windows 下 UTF-8 (no BOM)
+    │                                     Git Bash 下自动把 /c/Users/foo 转成 C:\Users\foo
+    ├── config.json                     ← ui/server.cjs 写入的凭据配置
+    ├── server-port.txt                 ← ui/server.cjs 启动时写入的端口（open-ui.mjs 读它）
+    ├── server.pid                      ← open-ui.mjs 写入的进程 PID（给 --stop 用）
+    ├── ui-server.out.log               ← UI server stdout 日志（open-ui.mjs 启动时打开）
+    └── ui-server.err.log               ← UI server stderr 日志（排查问题用）
 ```
+
+**关键约定：不再有 `~/.ip-switch/` 目录**。所有运行时数据都在 `<install-dir>/data/` 下。
 
 ### install 不做的事
 
+- ❌ 不创建 `~/.ip-switch/`（已被 `<install-dir>/data/` 取代）
 - ❌ 不创建 `~/.codex/skills/`（避免污染未启用 skill 的 Codex 安装）
 - ❌ 不动 `~/.codex/config.toml`（Codex MCP 注册由 install 脚本其他函数处理，与本 skill 无关）
 - ❌ 不依赖 `dist/`（`open-ui.mjs` 只调 `ui/server.cjs`，不调 MCP 主进程）
@@ -220,29 +231,29 @@ node open-ui.mjs --stop       # 关闭后台 UI server
 ```bash
 # Linux / macOS / Git Bash
 rm -rf ~/.workbuddy/skills/ip-switch      # 删除本 skill（含 scripts/ 子目录）
-rm -rf ~/.ip-switch                       # 删除 install-dir.txt 等运行时标记
-rm -rf <ip-switch 项目目录>               # 删除源码（可选，会同时清 MCP 配置）
+rm -rf <ip-switch 项目目录>/data          # 删除运行时数据（保留源码时用）
+rm -rf <ip-switch 项目目录>               # 删除源码（可选，会同时清 data/ 子目录和 MCP 配置）
 ```
 
 ```powershell
 # Windows PowerShell
 Remove-Item -Recurse -Force "$env:USERPROFILE\.workbuddy\skills\ip-switch"
-Remove-Item -Recurse -Force "$env:USERPROFILE\.ip-switch"
+Remove-Item -Recurse -Force "<ip-switch 项目目录>\data"
 Remove-Item -Recurse -Force "<ip-switch 项目目录>"
 ```
 
-> 注意：`rm -rf <项目目录>` 会同时删除源码和 install 时配好的 MCP 注册（WorkBuddy 的 `mcp.json`、Codex 的 `marketplaces/local` 等）。如果只想卸 skill 不卸 MCP，**只删 `~/.workbuddy/skills/ip-switch/`** 即可。
+> 注意：`rm -rf <项目目录>` 会同时删除源码 + 项目内的 `data/` 子目录 + install 时配好的 MCP 注册（WorkBuddy 的 `mcp.json`、Codex 的 `marketplaces/local` 等）。如果只想卸 skill 不卸 MCP，**只删 `~/.workbuddy/skills/ip-switch/`** 即可。如果只想清凭据不动其它，**只删 `<项目目录>/data/config.json`**。
 
 ## 失败排查
 
 | 现象 | 原因 / 解决 |
 |------|------------|
 | `node ~/.workbuddy/skills/ip-switch/scripts/open-ui.mjs` 报「路径不存在」 | install 没跑过。跑 `bash install.sh` 或 `install.ps1` |
-| 脚本提示「未找到 ip-switch 安装目录」 | `~/.ip-switch/install-dir.txt` 缺失。重跑 install 脚本 |
-| 脚本提示「UI server 启动超时」 | 看 `~/.ip-switch/ui-server.err.log` 找原因，常见是 dist 缺失或端口被占 |
+| 脚本提示「未找到 ip-switch 安装目录」 | 用户级副本缺 `.install-path.txt`、项目内副本被移走。重跑 install 脚本 |
+| 脚本提示「UI server 启动超时」 | 看 `<install-dir>/data/ui-server.err.log` 找原因，常见是 dist 缺失或端口被占 |
 | 浏览器没自动弹 | 看终端 stderr 是否输出 URL，复制手动访问；Linux 缺 xdg-open 时 `apt install xdg-utils` |
 | 表单保存按钮无反应 | 确认**在浏览器**里打开（不是 WorkBuddy 内嵌 widget） |
-| 端口冲突 | server.cjs 用 `PORT=0` 系统分配，正常不应冲突；若冲突，删 `~/.ip-switch/server-port.txt` 重试 |
+| 端口冲突 | server.cjs 用 `PORT=0` 系统分配，正常不应冲突；若冲突，删 `<install-dir>/data/server-port.txt` 重试 |
 | Codex 端跑不了 skill | `~/.codex/skills/` 目录不存在 → install 不会主动创建。先手动建该目录再重跑 install |
 
 ## 文件清单
@@ -281,6 +292,8 @@ Remove-Item -Recurse -Force "<ip-switch 项目目录>"
 │   └── vultr-config.html    ← Vultr 凭据编辑页
 ├── dist/                    ← src/ 的 TypeScript 编译产物（npm run build 后生成）
 │   └── index.js             ← MCP 启动入口，install.sh 配置到 mcp.json 里就是它
+├── data/                    ← install 脚本创建的运行时目录（取代 ~/.ip-switch/）
+│                              install 时自动 mkdir -p；运行时被 open-ui.mjs / ui/server.cjs 读写
 └── scripts/                 ← skill 脚本与图标（install 拷贝到用户级路径的 scripts/ 子目录）
     ├── _icon.svg            ← skill 图标
     ├── open-ui.mjs          ← 主脚本（跨平台零依赖，启动 ui/server.cjs 并打开浏览器）
@@ -302,6 +315,6 @@ Remove-Item -Recurse -Force "<ip-switch 项目目录>"
       ├── open-ui.sh
       └── open-ui.ps1
   ```
-- **install 流程**：`install.sh` / `install.ps1` 的 `install_skill` / `Install-Skill` 函数：从项目根拷 `SKILL.md`、`skill.json` 到目标根目录，再把整个 `scripts/` 子目录拷到目标的 `scripts/`。
+- **install 流程**：`install.sh` / `install.ps1` 的 `install_skill` / `Install-Skill` 函数：从项目根拷 `SKILL.md`、`skill.json` 到目标根目录，再把整个 `scripts/` 子目录拷到目标的 `scripts/`，并写入 `.install-path.txt` bootstrap 锚点。
 - **Codex 镜像**：`~/.codex/skills/ip-switch/`（仅当 `~/.codex/skills/` 已存在时才复制）。
-- **MCP 运行时数据**：`~/.ip-switch/` 下保存 `config.json`、`install-dir.txt`、`server-port.txt`、`server.pid`、`ui-server.out.log`、`ui-server.err.log`。
+- **运行时数据**（取代之前的 `~/.ip-switch/`）：`<ip-switch 项目目录>/data/` 下保存 `install-dir.txt`、`config.json`、`server-port.txt`、`server.pid`、`ui-server.out.log`、`ui-server.err.log`。
