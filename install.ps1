@@ -870,6 +870,80 @@ function Install-CodexMarketplace {
     }
 }
 
+# -- 安装 ip-switch skill（WorkBuddy / Codex / 任意 AI Agent 可直接唤起配置页） ----
+# 职责：
+#   1. 把 SKILL.md / skill.json（项目根） + scripts/（图标+脚本）合并平铺到
+#      $env:USERPROFILE\.workbuddy\skills\ip-switch\（WorkBuddy 自动发现）
+#   2. 写 $env:USERPROFILE\.ip-switch\install-dir.txt，让 skill 脚本能定位 ui/server.cjs
+#   3. 镜像到 $env:USERPROFILE\.codex\skills\ip-switch\（若该目录已存在）
+# 设计：
+#   - 幂等：已存在则覆盖更新（git pull 后再跑即可拿到新版）
+#   - 无条件安装：即使没检测到 WB 也装，让用户能手动从终端跑（Codex 无 skill 机制）
+function Install-Skill {
+    Write-Step "安装 ip-switch skill（AI Agent 唤起配置页）"
+
+    $scriptsSrc = Join-Path $installDir "scripts"
+    if (-not (Test-Path $scriptsSrc)) {
+        Write-Warn "未找到 skill 脚本目录: $scriptsSrc（跳过 skill 安装）"
+        return
+    }
+
+    # 1. 写 install-dir 标记（open-ui.mjs 靠它定位 ui/server.cjs）
+    $ipSwitchHome = Join-Path $env:USERPROFILE ".ip-switch"
+    New-Item -ItemType Directory -Path $ipSwitchHome -Force | Out-Null
+    $markerPath = Join-Path $ipSwitchHome "install-dir.txt"
+    [System.IO.File]::WriteAllText($markerPath, $installDir, (New-Object System.Text.UTF8Encoding($false)))
+    Write-OK "已写入 install-dir 标记: $markerPath -> $installDir"
+
+    # 2. 复制到目标位置（WorkBuddy 读 ~/.workbuddy/skills/<name>/ 平铺发现）
+    #    源分两块：项目根的 SKILL.md / skill.json + scripts/ 下的图标与脚本
+    $workbuddyDest = Join-Path $env:USERPROFILE ".workbuddy\skills\ip-switch"
+    New-Item -ItemType Directory -Path $workbuddyDest -Force | Out-Null
+    try {
+        # 2a. 根目录的 skill 元数据
+        foreach ($f in @("SKILL.md", "skill.json")) {
+            $srcFile = Join-Path $installDir $f
+            if (Test-Path $srcFile) {
+                Copy-Item -Path $srcFile -Destination $workbuddyDest -Force
+            } else {
+                Write-Warn "未找到根目录文件: $srcFile（跳过）"
+            }
+        }
+
+        # 2b. scripts/ 下的图标与脚本平铺到 skill 目录
+        Copy-Item -Path "$scriptsSrc\*" -Destination $workbuddyDest -Recurse -Force
+        Write-OK "已安装 skill: $workbuddyDest"
+    } catch {
+        Write-Err "复制 skill 失败: $scriptsSrc → $workbuddyDest ($_)"
+        return
+    }
+
+    # 3. 如 ~/.codex/skills 已存在（Codex 后续若启用 skill 即生效），镜像一份
+    $codexSkillsDir = Join-Path $env:USERPROFILE ".codex\skills"
+    if (Test-Path $codexSkillsDir) {
+        $codexDest = Join-Path $codexSkillsDir "ip-switch"
+        New-Item -ItemType Directory -Path $codexDest -Force | Out-Null
+        try {
+            foreach ($f in @("SKILL.md", "skill.json")) {
+                $srcFile = Join-Path $installDir $f
+                if (Test-Path $srcFile) {
+                    Copy-Item -Path $srcFile -Destination $codexDest -Force
+                }
+            }
+            Copy-Item -Path "$scriptsSrc\*" -Destination $codexDest -Recurse -Force
+            Write-OK "已镜像到 Codex: $codexDest（如 Codex 启用 skill 即生效）"
+        } catch {
+            Write-Warn "镜像到 Codex 失败: $_"
+        }
+    }
+
+    Write-Info "AI Agent 唤起方式:"
+    Write-Info "  WorkBuddy: 在对话里说「打开 ip-switch 配置」「添加 AWS 配置」等"
+    Write-Info "  任意终端: node $workbuddyDest\open-ui.mjs [aws|azure|oci|vultr]"
+    Write-Info "  Codex: 在对话里说「打开 ip-switch 配置」「添加 AWS 配置」等"
+    Write-Info "  任意终端: node $codexDest\open-ui.mjs [aws|azure|oci|vultr]"
+}
+
 # -- 重启客户端应用（WorkBuddy/Codex），使 MCP 配置立即生效 -------------------
 function Restart-ClientApp {
     param(
@@ -986,6 +1060,7 @@ function Show-Success {
     # 按实际安装的平台显示路径（WorkBuddy 无插件目录，只有 mcp.json）
     $wbConfig       = "$env:USERPROFILE\.workbuddy\mcp.json"
     $codexMarketDir = "$env:USERPROFILE\.codex\marketplaces\local"
+    $skillDir       = "$env:USERPROFILE\.workbuddy\skills\ip-switch"
 
     if ($script:DetectedWB) {
         Write-Host "WorkBuddy MCP 配置: $wbConfig"
@@ -994,6 +1069,8 @@ function Show-Success {
         Write-Host "Codex 市场清单:     $codexMarketDir"
         Write-Host "Codex 用户级注册:   $env:USERPROFILE\.codex\config.toml（全局可见，由 Append-CodexUserConfig 写入）"
     }
+    Write-Host "ip-switch skill: $skillDir"
+    Write-Host "                   (WorkBuddy 自动发现；任意终端可: node $skillDir\scripts\open-ui.mjs [aws|azure|oci|vultr])"
     Write-Host "UI 服务器:  node $installDir\ui\server.cjs"
     Write-Host "UI 地址:    启动后终端会显示实际地址"
     Write-Host ""
@@ -1022,6 +1099,7 @@ function Show-Success {
     if ($script:DetectedCodex) {
         Write-Host "  Remove-Item -Recurse -Force $codexMarketDir  # 删除 Codex 市场清单"
     }
+    Write-Host "  Remove-Item -Recurse -Force $skillDir        # 删除 ip-switch skill"
     Write-Host "  Remove-Item -Recurse -Force $installDir  # 如需同时删除源码"
     Write-Host ""
 }
@@ -1051,6 +1129,9 @@ function Main {
         Install-CodexShotcut
         Install-CodexMarketplace
     }
+    # skill 安装：跨 WorkBuddy / Codex / 任意 AI Agent 的统一配置页唤起入口
+    # 无条件安装（即使没检测到 WB 也装，用户可手动从终端跑）
+    Install-Skill
     Show-Success
 
     Write-OK "部署完成!"

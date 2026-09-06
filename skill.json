@@ -1,0 +1,6 @@
+{
+  "display_name": "IP Switch 配置面板",
+  "display_name_en": "IP Switch UI",
+  "description_zh": "一键打开 ip-switch 多云 IP 轮换 MCP 的可视化配置页面（AWS / Azure / OCI / Vultr / Cloudflare DNS），跨 Windows / macOS / Linux",
+  "description_en": "One-click launch of the ip-switch multi-cloud IP rotation MCP config UI (AWS / Azure / OCI / Vultr / Cloudflare DNS), cross-platform"
+}

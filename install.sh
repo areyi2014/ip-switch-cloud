@@ -805,6 +805,88 @@ EOF_PLUGIN
     fi
 }
 
+# ── 安装 ip-switch skill（WorkBuddy / Codex / 任意 AI Agent 可直接唤起配置页） ──
+# 职责：
+#   1. 把 SKILL.md / skill.json（项目根） + scripts/（图标+脚本）合并平铺到
+#      ~/.workbuddy/skills/ip-switch/（WorkBuddy 自动发现）
+#   2. 写 ~/.ip-switch/install-dir.txt 标记文件，让 skill 脚本能定位到 ui/server.cjs
+#   3. 脚本赋可执行位（.sh / .mjs / .ps1 都标 +x，避免 Codex CLI 调不到）
+# 设计：
+#   - 幂等：已存在则覆盖更新（git pull 后再跑即可拿到新版）
+#   - 无条件安装：即使没检测到 WB 也装，让用户能手动从终端跑（Codex 无 skill 机制）
+#   - 也写到 ~/.codex/skills/（如果该目录存在）—— Codex 后续若支持 skill 也可即用
+install_skill() {
+    log_step "安装 ip-switch skill（AI Agent 唤起配置页）"
+
+    local scripts_src="$INSTALL_DIR/scripts"
+    if [ ! -d "$scripts_src" ]; then
+        log_warn "未找到 skill 脚本目录: ${scripts_src}（跳过 skill 安装）"
+        return 0
+    fi
+
+    # 1. 写 install-dir 标记（open-ui.mjs 靠它定位 ui/server.cjs）
+    mkdir -p "$HOME/.ip-switch"
+    # Git Bash 下 /c/Users/foo → C:\Users\foo（更稳定的 Windows 路径，便于排查）
+    local marker_dir_unix="$INSTALL_DIR"
+    case "$marker_dir_unix" in
+        /[a-z]/*)
+            local _drive _rest
+            _drive="${marker_dir_unix:1:1}"
+            _rest="${marker_dir_unix:2}"
+            _rest="${_rest//\//\\}"
+            marker_dir_unix="${_drive}:${_rest}"
+            ;;
+    esac
+    printf '%s\n' "$marker_dir_unix" > "$HOME/.ip-switch/install-dir.txt"
+    log_ok "已写入 install-dir 标记: ~/.ip-switch/install-dir.txt -> ${marker_dir_unix}"
+
+    # 2. 复制到目标位置（WorkBuddy 读 ~/.workbuddy/skills/<name>/ 平铺发现）
+    #    源分两块：项目根的 SKILL.md / skill.json + scripts/ 下的图标与脚本
+    local dest="$HOME/.workbuddy/skills/ip-switch"
+    mkdir -p "$dest"
+
+    # 2a. 根目录的 skill 元数据（SKILL.md / skill.json）
+    for f in SKILL.md skill.json; do
+        if [ -f "$INSTALL_DIR/$f" ]; then
+            if ! cp -f "$INSTALL_DIR/$f" "$dest/" 2>/dev/null; then
+                log_error "复制 $f 失败: $INSTALL_DIR/$f → $dest"
+                return 1
+            fi
+        else
+            log_warn "未找到根目录文件: $INSTALL_DIR/$f（跳过）"
+        fi
+    done
+
+    # 2b. scripts/ 下的图标与脚本平铺到 skill 目录
+    if cp -R "$scripts_src/." "$dest/" 2>/dev/null; then
+        log_ok "已安装 skill: ${dest}"
+    else
+        log_error "复制 scripts 失败: $scripts_src → $dest"
+        return 1
+    fi
+
+    # 3. 给所有脚本赋可执行位（macOS/Linux/Git Bash 必需）
+    find "$dest" -maxdepth 1 -type f \( -name "*.sh" -o -name "*.mjs" -o -name "*.ps1" \) -exec chmod +x {} \;
+    log_ok "已设置脚本可执行位: ${dest}"
+
+    # 4. 如果 ~/.codex/skills 目录已存在（Codex 后续可能支持 skill），也复制一份
+    #    仅在该目录已存在时复制，避免给非 Codex 用户凭空创建
+    if [ -d "$HOME/.codex/skills" ]; then
+        local codex_dest="$HOME/.codex/skills/ip-switch"
+        mkdir -p "$codex_dest"
+        for f in SKILL.md skill.json; do
+            [ -f "$INSTALL_DIR/$f" ] && cp -f "$INSTALL_DIR/$f" "$codex_dest/" 2>/dev/null
+        done
+        cp -R "$scripts_src/." "$codex_dest/" 2>/dev/null
+        find "$codex_dest" -maxdepth 1 -type f \( -name "*.sh" -o -name "*.mjs" -o -name "*.ps1" \) -exec chmod +x {} \; 2>/dev/null
+        log_ok "已镜像到 Codex: ${codex_dest}（如 Codex 启用 skill 即生效）"
+    fi
+
+    log_info "AI Agent 唤起方式:"
+    log_info "  WorkBuddy: 在对话里说「打开 ip-switch 配置」「添加 AWS 配置」等"
+    log_info "  任意终端: node ~/.workbuddy/skills/ip-switch/open-ui.mjs [aws|azure|oci|vultr]"
+}
+
 # ── 安装完成后提示 ───────────────────────────────────────────────────────────
 print_success() {
     # 按实际安装的平台显示路径（WorkBuddy 无插件目录，只有 mcp.json）
@@ -839,6 +921,21 @@ print_success() {
 Codex 用户级注册:   ~/.codex/config.toml（全局可见，由 append_codex_user_config 写入）
 "
     fi
+    # skill 路径（无条件安装；显示成当前 OS 的原生格式）
+    local skill_path_win skill_path_unix
+    skill_path_unix="$HOME/.workbuddy/skills/ip-switch"
+    case "$skill_path_unix" in
+        /[a-z]/*)
+            local _drive="${skill_path_unix:1:1}"
+            local _rest="${skill_path_unix:2}"
+            _rest="${_rest//\//\\}"
+            skill_path_win="${_drive}:${_rest}"
+            ;;
+        *) skill_path_win="$skill_path_unix" ;;
+    esac
+    install_locations="${install_locations}ip-switch skill: ${skill_path_unix}
+                       (WorkBuddy 自动发现；任意终端: node ${skill_path_unix}/open-ui.mjs)
+"
 
     local uninstall_cmds=""
     if $DETECTED_WB; then
@@ -849,6 +946,9 @@ Codex 用户级注册:   ~/.codex/config.toml（全局可见，由 append_codex_
         uninstall_cmds="${uninstall_cmds}  rm -rf ${codex_market_dir}       # 删除 Codex 市场清单
 "
     fi
+    # skill 卸载命令
+    uninstall_cmds="${uninstall_cmds}  rm -rf ${skill_path_unix}      # 删除 ip-switch skill
+"
 
     cat <<EOF
 
@@ -913,6 +1013,9 @@ main() {
         install_codex_shotcut
         install_codex_marketplace
     fi
+    # skill 安装：跨 WorkBuddy / Codex / 任意 AI Agent 的统一配置页唤起入口
+    # 无条件安装（即使没检测到 WB 也装，用户可手动从终端跑）
+    install_skill
     print_success
 
     log_ok "部署完成!"
