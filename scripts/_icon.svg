@@ -1,0 +1,24 @@
+<svg fill="none" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+  <!-- IP Switch icon: cloud + swap arrows + globe dots -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#4F8AF7"/>
+      <stop offset="100%" stop-color="#2563EB"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="url(#bg)"/>
+  <!-- Cloud body -->
+  <path d="M18 36c-4.4 0-8-3.4-8-7.6 0-3.6 2.6-6.7 6.1-7.4.9-4.7 5-8.2 10-8.2 4.7 0 8.7 3.2 9.8 7.6.5-.1 1-.1 1.5-.1 4.6 0 8.4 3.4 8.4 7.6S41.9 35.6 37.4 35.6H18z"
+        fill="#fff" opacity="0.95"/>
+  <!-- Swap arrows (curved) -->
+  <path d="M22 44c2 2 5 3 8 3 4.5 0 8.3-2.5 9.5-6"
+        stroke="#FBBF24" stroke-width="3" stroke-linecap="round" fill="none"/>
+  <path d="M38 39l3 4-4 2"
+        stroke="#FBBF24" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <path d="M44 48c-2-2-5-3-8-3-4.5 0-8.3 2.5-9.5 6"
+        stroke="#fff" stroke-width="3" stroke-linecap="round" fill="none"/>
+  <path d="M28 53l-3-4 4-2"
+        stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <!-- IP dot indicator -->
+  <circle cx="50" cy="14" r="3" fill="#FBBF24"/>
+</svg>
