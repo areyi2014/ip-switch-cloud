@@ -2,319 +2,206 @@
 name: ip-switch
 license: MIT
 github: https://github.com/areyi2014/ip-switch
-description: ip-switch MCP 的可视化配置页唤起器。把 ip-switch 多云 IP 轮换 MCP 的配置界面（AWS / Azure / OCI / Vultr）直接唤起到浏览器。跨 WorkBuddy / Codex / 任何 AI Agent。零依赖 Node.js。
+description: ip-switch MCP 服务使用手册。指导 AI 唤起 MCP 的 13 个工具（多云公网 IP 轮换 / Cloudflare DNS / profile 管理）；凭据未配置时唤起浏览器配置页。跨 WorkBuddy / Codex / 任意支持 MCP 的 Agent。
 metadata:
   author: areyi2014
   version: 1.0.0
   display_name: "IP Switch · 配置面板"
   display_name_en: "IP Switch · UI"
-  description_zh: "打开 ip-switch MCP 的浏览器配置页（云平台凭据 / Cloudflare DNS / 子域名绑定），不替代 MCP 工具"
-  description_en: "Launch the ip-switch MCP config UI (cloud credentials, Cloudflare DNS, subdomain bindings) in the browser. Does NOT replace the MCP tools."
+  description_zh: "ip-switch MCP 使用指南：何时直接调 MCP 工具（rotate_ip_and_update_dns 等 13 个）、何时开浏览器配置页填凭据、工具不可见时如何排障"
+  description_en: "ip-switch MCP usage guide: when to invoke the 13 MCP tools (rotate_ip_and_update_dns, etc.), when to launch the browser config UI for credentials, and how to troubleshoot missing tools."
   visibility: "public"
 ---
 
-# ip-switch Skill
+# ip-switch — 多云 IP 轮换 MCP 服务使用手册
 
-## 这是什么
+## 1. 这是什么
 
-ip-switch 是一个多云公网 IP 轮换的 MCP 服务器。本 skill **不提供新的 MCP 工具**，而是把 MCP 的「可视化配置界面」直接唤起到浏览器：
+ip-switch 是一个 **MCP（Model Context Protocol）服务**，安装后被注册到本 Agent（WorkBuddy / Codex），为 AI 提供 13 个工具：轮换云实例公网 IP、查实例/弹性 IP、把子域名绑定到实例 IP 的 Cloudflare DNS、保存/管理云账号 profile。
 
-- 用户对话里提到「添加/编辑/打开 ip-switch 配置」时，AI 应自动触发本 skill
-- 用户可以手动在 WorkBuddy 输入 `/ip-switch` 直接调用
-- 任意终端可手动执行 `node ~/.workbuddy/skills/ip-switch/scripts/open-ui.mjs`
+本 skill 承担两个职责（**不要混淆**）：
 
-## ⚠️ 前置条件（必读）
+| 场景 | 用哪个 |
+|------|--------|
+| 用户想做**操作**（轮换 IP、查 IP、更新 DNS、管理 profile） | **直接唤起 MCP 工具**（见 §3–§5），不需要本 skill 的脚本 |
+| 用户要**配置凭据**（首次添加云账号 / 编辑凭据） | 用本 skill 自带的脚本打开浏览器表单（见 §6），由用户亲手填凭据并保存到 profile |
 
-**必须先跑过 `bash install.sh` 或 `install.ps1`**，这条 skill 才会被实际安装到用户级目录。install 之后才能调脚本，否则 `open-ui.mjs` 路径不存在。
+> 核心原则：**MCP 工具轮不到本 skill 脚本上场；只有「填凭据/看配置表单」才需要开 UI。**
 
-如果用户没跑过 install：
-- WorkBuddy 端的 skill 列表里看不到「IP Switch · 配置面板」
-- `node ~/.workbuddy/skills/ip-switch/scripts/open-ui.mjs` 会报「路径不存在」
-- 但 `node <项目目录>/scripts/open-ui.mjs` 仍可运行（脚本会自动用 `__dirname/..` 推断项目位置）
+## 2. 前置条件（必读）
 
-如果用户不确定是否跑过 install，让用户重跑一次即可（幂等、可重复执行）。
+**必须先跑过 `bash install.sh` 或 `install.ps1`**。install 做了三件事：
+1. 编译并注册 MCP 服务 → 本 Agent 工具列表里出现 `ip-switch` 的 13 个工具（重点）
+2. 把本 skill 装到用户级目录 → AI 能读到这份手册、能调用开 UI 的脚本
+3. 创建运行时数据目录 `<install-dir>/data/`
 
-## 何时调用本 skill
+若 Agent 的工具列表里**看不到** ip-switch 工具，跳到 §7 排障。
 
-| 用户意图 | 调用方式 |
-|---------|---------|
-| 「我要添加一个 AWS 配置」 | `node ~/.workbuddy/skills/ip-switch/scripts/open-ui.mjs aws` |
-| 「添加 Azure / OCI / Vultr 配置」 | `node ~/.workbuddy/skills/ip-switch/scripts/open-ui.mjs azure`（oci / vultr 同理） |
-| 「打开 ip-switch 配置页面」 | `node ~/.workbuddy/skills/ip-switch/scripts/open-ui.mjs` |
-| 「我想编辑 ip-switch 配置」 | 同上（打开主配置页即可编辑任意 profile） |
-| 用户说「ip-switch 设置」/「ip-switch 凭据」 | 同上 |
+## 3. 快速决策：唤起 MCP 工具，还是开 UI？
 
-> **触发判断**：凡是用户提到 *ip-switch + (配置 / 凭据 / 添加 / 编辑 / 打开 / 启动 UI / 设置)* 的组合，都应直接调用本 skill，**不要**改用 MCP 工具（save_profile 仍需用户先在表单填好凭据）。
-
-## 调用方式（AI Agent 必须遵守的步骤）
-
-### 步骤 1：定位脚本
-
-**先确认 install 已跑过**——见上方「前置条件」。如果未跑，让用户跑 install 脚本。
-
-install 脚本（`install_skill()` / `Install-Skill`）会创建以下两个用户级目录：
-
-| 路径 | 是否一定有 | 说明 |
-|------|-----------|------|
-| `~/.workbuddy/skills/ip-switch/scripts/open-ui.mjs` | ✅ 一定有 | install.sh/install.ps1 无条件创建（`mkdir -p` 自动建父目录） |
-| `~/.codex/skills/ip-switch/scripts/open-ui.mjs` | ⚠️ 仅当 `~/.codex/skills/` 已存在 | install 不会主动创建 `~/.codex/skills/`（避免污染未启用 skill 的 Codex），所以只有用户**之前已经创建过 `~/.codex/skills/`** 的情况下才会有 Codex 镜像 |
-
-按以下顺序查找：
-
-```bash
-# 1. WorkBuddy 标准安装位置（一定存在）
-ls -la "$HOME/.workbuddy/skills/ip-switch/scripts/open-ui.mjs" 2>/dev/null
-
-# 2. Codex 镜像位置（仅在 ~/.codex/skills/ 已存在时才有）
-ls -la "$HOME/.codex/skills/ip-switch/scripts/open-ui.mjs" 2>/dev/null
-
-# 3. 用户级任意位置（兜底模糊查找）
-find "$HOME/.workbuddy/skills" "$HOME/.codex/skills" -maxdepth 4 -name "open-ui.mjs" -path "*ip-switch*" 2>/dev/null | head -1
+```text
+用户意图
+├─ 涉及「添加 / 编辑 / 设置 / 填写 云账号、凭据、AccessKey、子域名」→ 开 UI 配置页（§6）
+├─ 涉及「轮换 / 更换 公网 IP」且已提子域名 → 一键工具 rotate_ip_and_update_dns(profileName)
+├─ 涉及「轮换 / 更换 IP / 分配 / 释放 / 绑定」→ 凭据即时工具组（§5.1）
+├─ 涉及「列出 / 查看 已配置、我的账号」→ list_profiles（不泄露凭据明文）
+├─ 涉及「为什么没生效 / DNS 没更新」→ list_profiles + get_instance_public_ip 查证
+└─ 兜底：先 list_profiles 看现有配置，再决定
 ```
 
-**Windows PowerShell**：
-```powershell
-$paths = @(
-  "$env:USERPROFILE\.workbuddy\skills\ip-switch\scripts\open-ui.mjs",
-  "$env:USERPROFILE\.codex\skills\ip-switch\scripts\open-ui.mjs"
-)
-$script = $paths | Where-Object { Test-Path $_ } | Select-Object -First 1
+**执行前必须探活**：先调 `list_profiles` 确认服务在线、确认有没有可用的 profile（如果工具调用失败/返回空，见 §7）。
+
+## 4. MCP 服务总览（13 个工具）
+
+| 组 | 工具 | 一句话 | 依赖已保存的 profile？ |
+|----|------|--------|----------------------|
+| **一键** | `rotate_ip_and_update_dns` | 轮换 profile 实例 IP + 自动更新绑定子域名的 Cloudflare DNS | ✅ 必需（且 profile 内须带 Cloudflare 凭据） |
+| **云操作** | `rotate_instance_ip` | 轮换实例公网 IP（AWS stop/start、Azure 换 NIC IP、OCI 删建、Vultr 换保留 IP） | ❌ 凭据实时传 |
+| | `get_instance_info` | 查实例详情（当前公/私网 IP、状态） | ❌ |
+| | `list_instances` | 列出区域内实例 | ❌ |
+| | `allocate_ip` | 分配新公网 IP | ❌ |
+| | `associate_ip` | 把已分配 IP 绑到实例 | ❌ |
+| | `release_ip` | 释放/删除公网 IP | ❌ |
+| | `list_ips` | 列出区域内已分配 IP | ❌ |
+| | `get_instance_public_ip` | 查实例当前公网 IP | ❌ |
+| **配置管理** | `save_profile` | 保存 profile（含可选 Cloudflare 凭据） | —（写数据） |
+| | `list_profiles` | 列出所有 profile（含是否带 Cloudflare） | — |
+| | `delete_profile` | 按名字删除 profile | — |
+| **DNS** | `update_dns` | 把子域名 A 记录指向指定 IP（需显式传 Cloudflare Token/Zone） | ❌ 显式传参 |
+
+- 服务进程：`node <install-dir>/dist/index.js`（stdio），由 MCP 客户端按需拉起，AI 无需手动启动；桌面快捷方式（`codex_app.vbs` / `codex_app.sh`）会常驻后台一份。
+- 数据文件：profile 与凭据存于 **`<install-dir>/data/config.json`**（与 MCP server、UI server 三方共享，已 gitignore）。
+
+## 5. 如何唤起 MCP 服务（重点）
+
+### 5.1 凭据即时工具（不依赖 profile）
+
+参数通用形态（zod 已注册，AI 按 schema 填空即可）：
+
+```text
+provider:    aws | azure | oci | vultr
+region:      AWS: us-east-1…；Azure: eastus…；OCI: us-ord-1…；Vultr: ewr…
+instanceId:  AWS: i-xxx；Azure: rg/vmName；OCI: ocid1.instance…；Vultr: 实例 UUID
+credentials: { …按 provider 的键填… }
 ```
 
-### 步骤 2：调用（必须先查状态再决定是否启动）
+`credentials` 的键随 provider 变化（**不要把键混着填**）：
 
-> **重要约定**：**永远用浏览器打开**，不要使用 WorkBuddy 内嵌 widget（`show_widget`）。原因：widget 沙箱的 CSP 会拦截 `fetch`，保存按钮写不进去。
+| provider | credentials 键 |
+|----------|----------------|
+| aws | `accessKeyId`, `secretAccessKey`, `[sessionToken]` |
+| azure | `subscriptionId`, `clientId`, `clientSecret`, `tenantId`, `[resourceGroupName]` |
+| oci | `tenancy`, `user`, `fingerprint`, `privateKey` |
+| vultr | `apiKey` |
 
-#### 推荐：直接调脚本（WorkBuddy / Codex 通吃）
+例（用户要求直接轮换某台 AWS 实例，且愿意在对话中给凭据——一般更推荐走 profile）：
 
-```bash
-# macOS / Linux / Git Bash
-node "$HOME/.workbuddy/skills/ip-switch/scripts/open-ui.mjs" [aws|azure|oci|vultr]
+```json
+rotate_instance_ip({
+  "provider": "aws", "instanceId": "i-0abc…", "region": "ap-southeast-1",
+  "credentials": { "accessKeyId": "…", "secretAccessKey": "…" }
+})
 ```
 
-```powershell
-# Windows PowerShell
-& "$env:USERPROFILE\.workbuddy\skills\ip-switch\scripts\open-ui.mjs" aws
+### 5.2 profile 一键工具（日常主力）
+
+先 `list_profiles` 看有哪些 profile：
+
+```text
+{ profileCount: 2, profiles: [ { name: "aws-sg", provider: "aws", region: "ap-southeast-1",
+  instanceId: "i-…", subdomain: "sg.example.com", proxied: false, cloudflareConfigured: true }, … ] }
 ```
 
-脚本会自动：
-1. 定位 ip-switch 项目目录（顺序）：① 读 `~/.workbuddy/skills/ip-switch/scripts/.install-path.txt`（用户级副本 bootstrap 锚点）→ ② 用脚本自身目录的父目录推断（项目内副本）→ ③ fallback 到常见路径
-2. 读 `<install-dir>/data/server-port.txt` + TCP 健康检查 → 看 UI server 是否已在跑
-3. 没跑就后台启动 `<ip-switch 项目目录>/ui/server.cjs`（进程 cwd 即该目录 + 环境变量 `IP_SWITCH_DATA_DIR` 传入 `<install-dir>/data`），等 `<install-dir>/data/server-port.txt` 端口文件落地（最长 15 秒）
-4. 跨平台打开默认浏览器：`cmd /c start`（Win）/ `open`（macOS）/ `xdg-open`（Linux）
-5. 把控制台 URL 输出到 stderr，AI 可读到并向用户回显
+- **轮换并同步 DNS（一次完成）**：`rotate_ip_and_update_dns({ "profileName": "aws-sg" })` → 返回 `oldIp / newIp / dnsUpdated / message`。
+- 若该 profile 的 `cloudflareConfigured: false`，此工具会报错——需要先补 Cloudflare 凭据（见 5.3）。
+- 用户说「轮换所有服务器 / 全部 IP」时，没有批量工具，正确做法是：`list_profiles` → 对每个 profile 依次调 `rotate_ip_and_update_dns`，逐个向用户汇报结果。
 
-#### 只想拿 URL、不打开浏览器（CI / 调试）
+### 5.3 首次使用 / 添加账号（UI → profile 闭环）
 
-下列命令假设 `cd` 到 open-ui.mjs 所在目录（即 `~/.workbuddy/skills/ip-switch/scripts/` 用户级，或项目内 `<root>/scripts/`）；推荐写法是用绝对路径。
+**凭据属于敏感信息：绝不在对话里向用户索取或复述明文**。首次添加账号的流程：
 
-```bash
-node open-ui.mjs --port       # 只 stdout 输出 URL，不调用 start/open/xdg-open
-node open-ui.mjs --status     # 输出 JSON 状态（{running, url, installDir, pidFileExists}）
-node open-ui.mjs --stop       # 关闭后台 UI server
+1. 开 UI 表单（§6），让用户**在浏览器里亲手填** provider / 凭据 / 实例 / 子域名 / Cloudflare Token 与 Zone，点保存（保存写 `save_profile` 同款数据到 `data/config.json`）。
+2. 回对话后用 `list_profiles` 确认 profile 已出现、`cloudflareConfigured` 为 true（绑定 DNS 需要）。
+3. 之后一切操作都走 §5.2 的一键工具，无需再碰凭据。
+
+> 用户坚持「用我给的 AccessKey 直接加一个配置」且不想开浏览器时，可代调 `save_profile`（schema 里带 `cfApiToken`/`cfZoneId` 可选），但保存前要把明文凭据展示给用户确认，并提示数据明文落盘于 `data/config.json`。
+
+### 5.4 唤起前 Checklist（每轮都过一遍）
+
+- [ ] 工具列表里有没有 `ip-switch` 的 13 个工具？（没有 → §7）
+- [ ] 涉及 profile 的工具先 `list_profiles` 探活 + 确认 profile 存在
+- [ ] `rotate_ip_and_update_dns` 前确认该 profile `cloudflareConfigured: true`，否则先引导补凭据（§5.3）
+- [ ] 涉及删除/释放（`delete_profile` / `release_ip`）先跟用户确认目标
+- [ ] 结果必须结构化回显：old IP → new IP、DNS 是否更新、失败原因
+
+## 6. UI 配置页（本 skill 脚本，填凭据专用）
+
+只有当用户要**配置/编辑凭据**时才调用。脚本位于用户级副本（install 已装好）：
+
+| 场景 | 命令 |
+|------|------|
+| 默认全功能表单（增删改所有云账号） | `node ~/.workbuddy/skills/ip-switch/scripts/open-ui.mjs` |
+| 只加 AWS | `node ~/.workbuddy/skills/ip-switch/scripts/open-ui.mjs aws` |
+| 只加 Azure / OCI / Vultr | `… open-ui.mjs azure`（`oci` / `vultr` 同理） |
+| Windows PowerShell | `& "$env:USERPROFILE\.workbuddy\skills\ip-switch\scripts\open-ui.mjs" aws` |
+| 项目内原件（skill 未装时兜底） | `node <install-dir>/scripts/open-ui.mjs aws` |
+
+脚本行为：
+1. 自动定位 `<install-dir>`（用户级副本读旁侧的 `.install-path.txt`；项目内原件按自身路径推导）
+2. 后台拉起 `ui/server.cjs`，浏览器打开表单；URL 也会打到 stderr 供回显
+3. 辅助参数：`--port`（只输出 URL 不开浏览器）、`--status`（JSON 状态）、`--stop`（关掉后台 UI server）
+
+**浏览器约定**：一定要让用户用**真实浏览器**访问 URL 填表，不要用 Agent 内嵌 widget（其沙箱 CSP 会拦 fetch，保存写不进去）。表单保存后让用户「回到对话」，AI 用 `list_profiles` 验证。
+
+## 7. 排障：MCP 工具不可见 / 调用报错
+
+### 7.1 Agent 工具列表里没有 ip-switch
+
+按顺序排查，**每一项都让用户配合做**：
+
+1. **install 是否跑过**：没跑过 → 重跑 `bash install.sh` / `install.ps1`（幂等，可重复执行，会自动重启客户端）。
+2. **WorkBuddy**：`~/.workbuddy/mcp.json` 里应有 `mcpServers.ip-switch`（command=node 绝对路径，args=[<install-dir>\dist\index.js]）。连接器管理页对 ip-switch 点「信任」，然后重启 WorkBuddy。
+3. **Codex**：重启 Codex 使 `~/.codex/config.toml` 的 `[mcp_servers.ip-switch]` / 插件市场生效；插件页应能看到 "IP Switch" 并已启用。
+4. **手动兜底**：把下面片段并入对应客户端的 mcp.json（`<install-dir>` 换成实际路径）：
+
+```json
+{
+  "mcpServers": {
+    "ip-switch": {
+      "command": "<node 绝对路径>",
+      "args": ["<install-dir>/dist/index.js"],
+      "cwd": "<install-dir>"
+    }
+  }
+}
 ```
 
-### 步骤 3：向用户回显
+5. **验证服务本体**：终端跑 `node <install-dir>/dist/index.js` 应输出 `[ip-switch] Starting MCP server (providers: aws, azure, oci, vultr)` 并等 stdin（stdio 连接），而不是立刻退出报错。报错多为 `dist/` 缺失 → `cd <install-dir> && npm install && npm run build`。
 
-脚本启动后，AI 必须告诉用户：
+### 7.2 调用工具报错
 
-- 打开了哪个平台（aws / azure / oci / vultr / 默认全功能）
-- 浏览器实际访问的 URL（让用户在浏览器没自动弹起时手动复制）
-- 「保存后回到这里继续对话即可」
+| 现象 | 处理 |
+|------|------|
+| `Profile "x" not found` | 先 `list_profiles` 看真实名字/大小写；没有就用 §5.3 建 |
+| `Profile has no Cloudflare credentials` | UI 或 `save_profile` 补 `cfApiToken` + `cfZoneId` 重新保存该 profile |
+| 云厂商鉴权错误（InvalidAccessKeyId / AuthFailure / 401…） | 凭据错或失效 → 引导用户去 UI 表单更新凭据，绝不让用户在对话里重新粘贴 |
+| 权限不足（UnauthorizedOperation / …） | 云账号 IAM 缺 EC2/VNet/Network 权限 → 让用户在云控制台加权限 |
+| 轮换成功但无新 IP / DNS 未更新 | 回显 `rotateResult` / `dnsResult` 原样给用户，检查 Cloudflare Token 的 Zone 权限与 `proxied` 设置 |
 
-## 平台 / Agent 兼容性矩阵
-
-| Agent | skill 自动发现？ | 调起方式 |
-|-------|-----------------|---------|
-| WorkBuddy（桌面） | ✅ 读 `~/.workbuddy/skills/` | AI 按上述规则调脚本 / 用户输入 `/ip-switch` |
-| WorkBuddy（CLI） | ✅ 同上 | 同上 |
-| Codex 桌面版 | ❌（无 skill 系统） | 让用户在终端跑 `node ~/.workbuddy/skills/ip-switch/scripts/open-ui.mjs` |
-| Codex CLI | ❌ | 同上 |
-| 任意能执行命令的 Agent | ❌ | 同上（只要能 shell out 就能用） |
-
-> Codex 没有 skill 机制，但 ip-switch 的 install 脚本在 `~/.codex/skills/` 已存在时会镜像一份过去，所以 Codex 用户只要装过 ip-switch 就能直接跑该脚本。
->
-> 如果 Codex 后续支持 `~/.codex/skills/`，install 脚本已预留扩展位（详见 install 脚本注释）。
-
-## 与 MCP 工具的关系
-
-**不要混淆**：
-
-| 用途 | 用什么 |
-|------|-------|
-| 添加 / 编辑云账号凭据 | **本 skill**（开浏览器表单） |
-| 查看已配置列表 | MCP 工具 `list_profiles` |
-| 一键轮换 IP + 更新 DNS | MCP 工具 `rotate_ip_and_update_dns` |
-| 列出云厂商实例 | MCP 工具 `list_instances` |
-
-凭据保存在 `<install-dir>/data/config.json`，**必须由用户在浏览器表单里填**，绝不在对话里直接索取 accessKeyId / secretAccessKey 等明文（参考用户偏好）。
-
-## install 脚本实际做了什么
-
-以下事实来自 `install.sh` 的 `install_skill()` 与 `install.ps1` 的 `Install-Skill`（行为完全一致）：
-
-### install 之前（项目仓库根目录）
+## 8. 附录：路径速查
 
 ```
-<root>/
-├── SKILL.md             ← 本文件
-├── skill.json
-└── scripts/
-    ├── _icon.svg
-    ├── open-ui.mjs      ← 本 skill 的入口脚本
-    ├── open-ui.sh       ← Bash 包装器
-    └── open-ui.ps1      ← PowerShell 包装器
+<install-dir>/                        ← ip-switch 项目（install 的目标）
+├── dist/index.js                     ← MCP 服务入口（注册到各客户端的就是它）
+├── data/config.json                  ← 凭据/profile（MCP 与 UI 共享，gitignore）
+├── .mcp.json                         ← Codex 项目级直连配置
+├── ui/server.cjs                     ← 配置页 HTTP server（open-ui.mjs 拉起）
+├── scripts/open-ui.mjs               ← 本 skill 脚本原件
+└── SKILL.md                          ← 本文件
+~/.workbuddy/skills/ip-switch/        ← WorkBuddy skill 副本（install 创建）
+~/.codex/skills/ip-switch/            ← Codex 镜像（仅当 ~/.codex/skills 已存在）
+~/.workbuddy/mcp.json                 ← WorkBuddy MCP 注册
+~/.codex/config.toml + ~/.codex/mcp.json + ~/.codex/marketplaces/local/  ← Codex MCP/插件注册
 ```
 
-### install 之后（用户级目录，由 install 脚本创建）
-
-**WorkBuddy 目录**（无条件创建）：
-
-```
-~/.workbuddy/skills/ip-switch/                    ← mkdir -p 自动建
-├── SKILL.md              ← cp -f 从 <root>/SKILL.md
-├── skill.json            ← cp -f 从 <root>/skill.json
-└── scripts/              ← mkdir -p 显式创建（保留目录名，不展平）
-    ├── _icon.svg
-    ├── open-ui.mjs       ← cp -R 从 <root>/scripts/
-    ├── open-ui.sh
-    ├── open-ui.ps1
-    └── .install-path.txt ← bootstrap 锚点（install 写入；放在 scripts/ 下跟 open-ui.mjs 同目录）
-```
-
-**Codex 镜像目录**（仅当 `~/.codex/skills/` 已存在时才复制）：
-
-```
-~/.codex/skills/ip-switch/                    ← 仅在 ~/.codex/skills 已存在时
-├── SKILL.md
-├── skill.json
-└── scripts/
-    ├── ...
-    └── .install-path.txt ← bootstrap 锚点（Codex 副本同样需要）
-```
-
-**`<install-dir>/data/` 运行时目录**（由 install 脚本创建，所有运行时数据都在这里）：
-
-```
-<install-dir>/                          ← ip-switch 项目根目录
-└── data/                                ← install 脚本 mkdir -p 创建
-    ├── install-dir.txt                   ← 运行时配置（内容是 ip-switch 项目绝对路径，给 --status 查询用）
-    │                                     Windows 下 UTF-8 (no BOM)
-    │                                     Git Bash 下自动把 /c/Users/foo 转成 C:\Users\foo
-    ├── config.json                     ← ui/server.cjs 写入的凭据配置
-    ├── server-port.txt                 ← ui/server.cjs 启动时写入的端口（open-ui.mjs 读它）
-    ├── server.pid                      ← open-ui.mjs 写入的进程 PID（给 --stop 用）
-    ├── ui-server.out.log               ← UI server stdout 日志（open-ui.mjs 启动时打开）
-    └── ui-server.err.log               ← UI server stderr 日志（排查问题用）
-```
-
-**关键约定：不再有 `~/.ip-switch/` 目录**。所有运行时数据都在 `<install-dir>/data/` 下。
-
-### install 不做的事
-
-- ❌ 不创建 `~/.ip-switch/`（已被 `<install-dir>/data/` 取代）
-- ❌ 不创建 `~/.codex/skills/`（避免污染未启用 skill 的 Codex 安装）
-- ❌ 不动 `~/.codex/config.toml`（Codex MCP 注册由 install 脚本其他函数处理，与本 skill 无关）
-- ❌ 不依赖 `dist/`（`open-ui.mjs` 只调 `ui/server.cjs`，不调 MCP 主进程）
-- ❌ 不启动 UI server（`open-ui.mjs` 是 lazy 启动，install 完成后不立刻跑）
-
-### install 可重复执行（幂等）
-
-- `mkdir -p` / `New-Item -Force` 是幂等的
-- `cp -f` / `Copy-Item -Force` 是覆盖式的，git pull 后再跑即可拿到新版脚本
-- `find ... -exec chmod +x` 反复赋执行位无害
-
-## 卸载（install 脚本给出的命令）
-
-按 install 脚本 `print_success` / `Show-Success` 的卸载段：
-
-```bash
-# Linux / macOS / Git Bash
-rm -rf ~/.workbuddy/skills/ip-switch      # 删除本 skill（含 scripts/ 子目录）
-rm -rf <ip-switch 项目目录>/data          # 删除运行时数据（保留源码时用）
-rm -rf <ip-switch 项目目录>               # 删除源码（可选，会同时清 data/ 子目录和 MCP 配置）
-```
-
-```powershell
-# Windows PowerShell
-Remove-Item -Recurse -Force "$env:USERPROFILE\.workbuddy\skills\ip-switch"
-Remove-Item -Recurse -Force "<ip-switch 项目目录>\data"
-Remove-Item -Recurse -Force "<ip-switch 项目目录>"
-```
-
-> 注意：`rm -rf <项目目录>` 会同时删除源码 + 项目内的 `data/` 子目录 + install 时配好的 MCP 注册（WorkBuddy 的 `mcp.json`、Codex 的 `marketplaces/local` 等）。如果只想卸 skill 不卸 MCP，**只删 `~/.workbuddy/skills/ip-switch/`** 即可。如果只想清凭据不动其它，**只删 `<项目目录>/data/config.json`**。
-
-## 失败排查
-
-| 现象 | 原因 / 解决 |
-|------|------------|
-| `node ~/.workbuddy/skills/ip-switch/scripts/open-ui.mjs` 报「路径不存在」 | install 没跑过。跑 `bash install.sh` 或 `install.ps1` |
-| 脚本提示「未找到 ip-switch 安装目录」 | 用户级副本缺 `.install-path.txt`、项目内副本被移走。重跑 install 脚本 |
-| 脚本提示「UI server 启动超时」 | 看 `<install-dir>/data/ui-server.err.log` 找原因，常见是 dist 缺失或端口被占 |
-| 浏览器没自动弹 | 看终端 stderr 是否输出 URL，复制手动访问；Linux 缺 xdg-open 时 `apt install xdg-utils` |
-| 表单保存按钮无反应 | 确认**在浏览器**里打开（不是 WorkBuddy 内嵌 widget） |
-| 端口冲突 | server.cjs 用 `PORT=0` 系统分配，正常不应冲突；若冲突，删 `<install-dir>/data/server-port.txt` 重试 |
-| Codex 端跑不了 skill | `~/.codex/skills/` 目录不存在 → install 不会主动创建。先手动建该目录再重跑 install |
-
-## 文件清单
-
-### 项目内布局（仓库根目录 `<root>/`）
-
-```
-<root>/
-├── SKILL.md                 ← 本文件（skill 元数据）
-├── skill.json               ← skill 平台元数据（display_name 等）
-├── README.md                ← 项目总览
-├── INSTALL.md               ← 安装详细指南
-├── package.json             ← npm 入口（依赖、scripts）
-├── tsconfig.json            ← TypeScript 配置
-├── install.sh               ← macOS / Linux 安装脚本（含 install_skill 函数）
-├── install.ps1              ← Windows 安装脚本（含 Install-Skill 函数）
-├── src/                     ← MCP 服务器 TypeScript 源码
-│   ├── index.ts
-│   ├── router.ts
-│   ├── tools.ts             ← MCP 工具定义（list_profiles / rotate_ip_and_update_dns 等）
-│   ├── config-store.ts
-│   ├── types.ts
-│   └── adapters/            ← 云厂商适配器
-│       ├── base.ts
-│       ├── aws.ts
-│       ├── azure.ts
-│       ├── oci.ts
-│       ├── vultr.ts
-│       └── cloudflare.ts
-├── ui/                      ← UI 服务器 + 浏览器配置页（5 个 HTML + 1 个 Node.js server）
-│   ├── server.cjs           ← 本地 HTTP server（默认端口 0 自动分配）
-│   ├── config-form.html     ← 默认全功能配置表单
-│   ├── aws-config.html      ← AWS 凭据编辑页
-│   ├── azure-config.html    ← Azure 凭据编辑页
-│   ├── oci-config.html      ← OCI 凭据编辑页
-│   └── vultr-config.html    ← Vultr 凭据编辑页
-├── dist/                    ← src/ 的 TypeScript 编译产物（npm run build 后生成）
-│   └── index.js             ← MCP 启动入口，install.sh 配置到 mcp.json 里就是它
-├── data/                    ← install 脚本创建的运行时目录（取代 ~/.ip-switch/）
-│                              install 时自动 mkdir -p；运行时被 open-ui.mjs / ui/server.cjs 读写
-└── scripts/                 ← skill 脚本与图标（install 拷贝到用户级路径的 scripts/ 子目录）
-    ├── _icon.svg            ← skill 图标
-    ├── open-ui.mjs          ← 主脚本（跨平台零依赖，启动 ui/server.cjs 并打开浏览器）
-    ├── open-ui.sh           ← Bash 包装器
-    └── open-ui.ps1          ← PowerShell 包装器
-```
-
-### 用户级路径（install 之后）
-
-- **目标目录**：`~/.workbuddy/skills/ip-switch/`
-- **目标布局**（install 后）：
-  ```
-  ~/.workbuddy/skills/ip-switch/
-  ├── SKILL.md
-  ├── skill.json
-  └── scripts/                       ← 保留为子目录（不展平）
-      ├── _icon.svg
-      ├── open-ui.mjs                 ← 调用入口：node ~/.workbuddy/skills/ip-switch/scripts/open-ui.mjs
-      ├── open-ui.sh
-      └── open-ui.ps1
-  ```
-- **install 流程**：`install.sh` / `install.ps1` 的 `install_skill` / `Install-Skill` 函数：从项目根拷 `SKILL.md`、`skill.json` 到目标根目录，再把整个 `scripts/` 子目录拷到目标的 `scripts/`，并写入 `.install-path.txt` bootstrap 锚点。
-- **Codex 镜像**：`~/.codex/skills/ip-switch/`（仅当 `~/.codex/skills/` 已存在时才复制）。
-- **运行时数据**（取代之前的 `~/.ip-switch/`）：`<ip-switch 项目目录>/data/` 下保存 `install-dir.txt`、`config.json`、`server-port.txt`、`server.pid`、`ui-server.out.log`、`ui-server.err.log`。
+卸载：`rm -rf <install-dir>/data`（清凭据，保留程序）；`rm -rf ~/.workbuddy/skills/ip-switch ~/.codex/skills/ip-switch`（卸 skill）；整卸再删 `<install-dir>` 并从 mcp.json / config.toml 移除 ip-switch 条目。
