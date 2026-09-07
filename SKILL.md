@@ -138,18 +138,27 @@ rotate_instance_ip({
 
 只有当用户要**配置/编辑凭据**时才调用。脚本位于用户级副本（install 已装好）：
 
-| 场景 | 命令 |
-|------|------|
-| 默认全功能表单（增删改所有云账号） | `node ~/.workbuddy/skills/ip-switch/scripts/open-ui.mjs` |
-| 只加 AWS | `node ~/.workbuddy/skills/ip-switch/scripts/open-ui.mjs aws` |
-| 只加 Azure / OCI / Vultr | `… open-ui.mjs azure`（`oci` / `vultr` 同理） |
-| Windows PowerShell | `& "$env:USERPROFILE\.workbuddy\skills\ip-switch\scripts\open-ui.mjs" aws` |
-| 项目内原件（skill 未装时兜底） | `node <install-dir>/scripts/open-ui.mjs aws` |
+| 场景 | 命令 | 是否弹窗 |
+|------|------|----------|
+| **Windows 外行 / 桌面快捷方式**（零窗口，推荐） | 双击 `~/.workbuddy/skills/ip-switch/scripts/open-ui.vbs` 或 `wscript open-ui.vbs [aws\|azure\|oci\|vultr]` | **完全不弹窗**（wscript + CREATE_NO_WINDOW） |
+| 默认全功能表单（增删改所有云账号） | `node ~/.workbuddy/skills/ip-switch/scripts/open-ui.mjs` | 用户自己的终端可见日志 |
+| 只加 AWS | `node ~/.workbuddy/skills/ip-switch/scripts/open-ui.mjs aws` | 同上 |
+| 只加 Azure / OCI / Vultr | `… open-ui.mjs azure`（`oci` / `vultr` 同理） | 同上 |
+| Windows PowerShell | `& "$env:USERPROFILE\.workbuddy\skills\ip-switch\scripts\open-ui.mjs" aws` | PowerShell 窗口可见日志 |
+| 项目内原件（skill 未装时兜底） | `node <install-dir>/scripts/open-ui.mjs aws` | 用户终端可见日志 |
+| 静默模式（不打印 [INFO]，日志写文件） | 加 `--quiet` / `-q`（vbs 已自动启用） | 仅文件日志 |
+
+**给外行用户的标准建议**：桌面右键 `open-ui.vbs` → "发送到" → "桌面快捷方式"。以后双击图标就打开浏览器配置页，全程零窗口。`open-ui.vbs` 内部用 WScript.Shell 以 WindowStyle=0 调用 node，并自动加 `--quiet`，所以 [INFO] 日志全走 `<install-dir>/data/open-ui.log` 文件，stderr 干净。
 
 脚本行为：
 1. 自动定位 `<install-dir>`（用户级副本读旁侧的 `.install-path.txt`；项目内原件按自身路径推导）
 2. 后台拉起 `ui/server.cjs`，浏览器打开表单；URL 也会打到 stderr 供回显
-3. 辅助参数：`--port`（只输出 URL 不开浏览器）、`--status`（JSON 状态）、`--stop`（关掉后台 UI server）
+3. 辅助参数：`--port`（只输出 URL 不开浏览器）、`--status`（JSON 状态）、`--stop`（关掉后台 UI server）、`--quiet`（静默模式）
+
+**Windows 后台进程"零窗口"机制说明**（why vbs works）：
+- open-ui.mjs spawn server 时，**优先检测 `nodew.exe`**（Node 的 GUI 子系统版本，与 `node.exe` 同目录，Windows 官方安装包自带）。若存在则用之，否则 fallback 到 `node.exe + windowsHide: true`
+- `nodew.exe` 是真正的 GUI subsystem → 启动时不创建 console → **彻底无窗口**
+- 若你的机器没装 `nodew.exe`，spawn 仍带 `windowsHide: true`，但 `node.exe`（console subsystem）启动时 Windows 可能仍会闪一下——这种情况装个官方 Node 安装包就解决了，或者就用 vbs 入口（外层 wscript 已是 GUI subsystem，子进程无 console）
 
 **浏览器约定**：一定要让用户用**真实浏览器**访问 URL 填表，不要用 Agent 内嵌 widget（其沙箱 CSP 会拦 fetch，保存写不进去）。表单保存后让用户「回到对话」，AI 用 `list_profiles` 验证。
 

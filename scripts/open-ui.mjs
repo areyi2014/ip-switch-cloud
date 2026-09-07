@@ -22,6 +22,12 @@
  *   node open-ui.mjs --port           # 只输出 URL，不打开浏览器（CI/调试用）
  *   node open-ui.mjs --stop           # 关闭后台 UI server（如果有的话）
  *   node open-ui.mjs --status         # 检查 UI server 是否在运行
+ *   node open-ui.mjs --quiet aws      # 静默模式：[INFO]/[OK] 日志只写文件，不打印到终端
+ *                                      （与 -q 等价；用于 vbs/wscript 调用避免外行看到日志）
+ *
+ * Windows GUI 入口（推荐外行/桌面快捷方式用，零窗口）：
+ *   wscript open-ui.vbs               # 双击运行无任何窗口，参数完全透传
+ *   wscript open-ui.vbs aws           # 打开 AWS 配置页
  *
  * 跨平台浏览器打开：
  *   Windows: cmd /c start "" "<url>"
@@ -65,21 +71,44 @@ const PAGE_PATHS = {
   vultr: '/vultr-config.html',
 };
 
-// ── 日志工具（输出到 stderr，避免污染脚本被管道消费的 stdout） ────────────────
+// ── 日志工具 ──────────────────────────────────────────────────────────────────
+//   行为：
+//     - 默认：写到 stderr（人类/调试可见）+ 同时 append 到 <install-dir>/data/open-ui.log
+//     - --quiet / -q：只写文件，stderr 完全静默（给 vbs/wscript 外行用户用，零屏幕输出）
+//
+//   实现要点：用 fs.appendFileSync 而非 WriteStream——脚本可能在 log 后立即 exit，
+//   stream 异步 flush 会丢日志。同步追加每次几行无性能问题。
+let _quietMode = false;
+let _logFilePath = null;
+
+function initLogFile(dataDir) {
+  if (_logFilePath || !dataDir) return;
+  _logFilePath = path.join(dataDir, 'open-ui.log');
+}
+
+function writeLog(level, msg) {
+  const line = `[${new Date().toISOString()}] [${level}] ${msg}\n`;
+  if (_logFilePath) {
+    try { fs.appendFileSync(_logFilePath, line); } catch { /* ignore */ }
+  }
+  if (!_quietMode) process.stderr.write(line);
+}
+
 const log = {
-  info: (msg) => console.error(`[INFO]  ${msg}`),
-  ok: (msg) => console.error(`[ OK ]  ${msg}`),
-  warn: (msg) => console.error(`[WARN]  ${msg}`),
-  err: (msg) => console.error(`[ERROR] ${msg}`),
+  info: (msg) => writeLog('INFO', msg),
+  ok:   (msg) => writeLog(' OK ', msg),
+  warn: (msg) => writeLog('WARN', msg),
+  err:  (msg) => writeLog('ERROR', msg),
 };
 
 // ── 解析参数 ──────────────────────────────────────────────────────────────────
 function parseArgs(argv) {
-  const out = { page: '', portOnly: false, stop: false, status: false, help: false };
+  const out = { page: '', portOnly: false, stop: false, status: false, help: false, quiet: false };
   for (const arg of argv.slice(2)) {
     if (arg === '--port') out.portOnly = true;
     else if (arg === '--stop') out.stop = true;
     else if (arg === '--status') out.status = true;
+    else if (arg === '--quiet' || arg === '-q') out.quiet = true;
     else if (arg === '--help' || arg === '-h') out.help = true;
     else if (SUPPORTED_PAGES.has(arg)) out.page = arg;
     else if (arg.startsWith('--')) out[arg.slice(2)] = true;
@@ -106,7 +135,11 @@ function printHelp() {
   --port           只输出 URL 到 stdout，不打开浏览器（CI / 调试）
   --stop           关闭后台 UI server
   --status         检查 UI server 是否在运行，输出 JSON
-  -h, --help       显示本帮助`);
+  -q, --quiet      静默模式：[INFO]/[OK] 日志只写文件，不打印到终端（vbs/wscript 用）
+  -h, --help       显示本帮助
+
+Windows 桌面入口（推荐外行用户用，零窗口）：
+  wscript open-ui.vbs [页面]      双击运行，参数完全透传给本脚本（自动启用 --quiet）`);
 }
 
 // ── 定位 ip-switch 安装目录 ───────────────────────────────────────────────────
@@ -189,7 +222,18 @@ async function startServer(installDir) {
   if (process.platform === 'win32') {
     // Windows：用 cmd /c start /B 真正脱离父进程（detached+unref 在 Windows
     //   上仍可能因 job 对象被父终端回收）。start /B 不开新窗口，但仍完全后台。
-    child = spawn('cmd.exe', ['/c', 'start', '/B', process.execPath, serverJs], {
+    //
+    // 关键：优先用 nodew.exe（GUI 子系统，彻底无 console），否则 fallback 到
+    //   node.exe + windowsHide: true（仍可能闪一下 cmd 窗口）。
+    //   nodew.exe 是 Windows 官方 Node 安装包自带的，通常与 node.exe 同目录。
+    const nodeDir = path.dirname(process.execPath);
+    const nodewExe = path.join(nodeDir, 'nodew.exe');
+    const useNodew = fs.existsSync(nodewExe);
+    const exe = useNodew ? nodewExe : process.execPath;
+    if (useNodew) {
+      log.info(`检测到 nodew.exe → 使用 GUI 子系统启动 server.cjs（彻底无窗口）`);
+    }
+    child = spawn('cmd.exe', ['/c', 'start', '/B', exe, serverJs], {
       cwd: installDir,
       env: { ...process.env, IP_SWITCH_DATA_DIR: dataDir },
       detached: true,
@@ -305,6 +349,8 @@ async function main() {
     process.exit(1);
   }
   const dataDir = runtimeDir(installDir);
+  _quietMode = !!args.quiet;
+  initLogFile(dataDir);
   log.info(`ip-switch 安装目录: ${installDir}`);
   log.info(`运行时数据目录: ${dataDir}`);
 
