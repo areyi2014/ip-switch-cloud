@@ -1,18 +1,3 @@
----
-name: ip-switch
-license: MIT
-github: https://github.com/areyi2014/ip-switch
-description: ip-switch MCP 服务使用手册。指导 AI 唤起 MCP 的 13 个工具（多云公网 IP 轮换 / Cloudflare DNS / profile 管理）；凭据未配置时唤起浏览器配置页。跨 WorkBuddy / Codex / 任意支持 MCP 的 Agent。
-metadata:
-  author: areyi2014
-  version: 1.0.0
-  display_name: "IP Switch · 配置面板"
-  display_name_en: "IP Switch · UI"
-  description_zh: "ip-switch MCP 使用指南：何时直接调 MCP 工具（rotate_ip_and_update_dns 等 13 个）、何时开浏览器配置页填凭据、工具不可见时如何排障"
-  description_en: "ip-switch MCP usage guide: when to invoke the 13 MCP tools (rotate_ip_and_update_dns, etc.), when to launch the browser config UI for credentials, and how to troubleshoot missing tools."
-  visibility: "public"
----
-
 # ip-switch — 多云 IP 轮换 MCP 服务使用手册
 
 ## 1. 这是什么
@@ -21,16 +6,17 @@ ip-switch 是一个 **MCP（Model Context Protocol）服务**，安装后被注�
 
 本 skill 承担两个职责（**不要混淆**）：
 
-| 场景 | 用哪个 |
-|------|--------|
-| 用户想做**操作**（轮换 IP、查 IP、更新 DNS、管理 profile） | **直接唤起 MCP 工具**（见 §3–§5），不需要本 skill 的脚本 |
-| 用户要**配置凭据**（首次添加云账号 / 编辑凭据） | 用本 skill 自带的脚本打开浏览器表单（见 §6），由用户亲手填凭据并保存到 profile |
+| 场景                                       | 用哪个                                              |
+| ---------------------------------------- | ------------------------------------------------ |
+| 用户想做**操作**（轮换 IP、查 IP、更新 DNS、管理 profile） | **直接唤起 MCP 工具**（见 §3–§5），不需要本 skill 的脚本          |
+| 用户要**配置凭据**（首次添加云账号 / 编辑凭据）              | 用本 skill 自带的脚本打开浏览器表单（见 §6），由用户亲手填凭据并保存到 profile |
 
 > 核心原则：**MCP 工具轮不到本 skill 脚本上场；只有「填凭据/看配置表单」才需要开 UI。**
 
 ## 2. 前置条件（必读）
 
 **必须先跑过 `bash install.sh` 或 `install.ps1`**。install 做了三件事：
+
 1. 编译并注册 MCP 服务 → 本 Agent 工具列表里出现 `ip-switch` 的 13 个工具（重点）
 2. 把本 skill 装到用户级目录 → AI 能读到这份手册、能调用开 UI 的脚本
 3. 创建运行时数据目录 `<install-dir>/data/`
@@ -51,23 +37,24 @@ ip-switch 是一个 **MCP（Model Context Protocol）服务**，安装后被注�
 
 **执行前必须探活**：先调 `list_profiles` 确认服务在线、确认有没有可用的 profile（如果工具调用失败/返回空，见 §7）。
 
+
 ## 4. MCP 服务总览（13 个工具）
 
-| 组 | 工具 | 一句话 | 依赖已保存的 profile？ |
-|----|------|--------|----------------------|
-| **一键** | `rotate_ip_and_update_dns` | 轮换 profile 实例 IP + 自动更新绑定子域名的 Cloudflare DNS | ✅ 必需（且 profile 内须带 Cloudflare 凭据） |
-| **云操作** | `rotate_instance_ip` | 轮换实例公网 IP（AWS stop/start、Azure 换 NIC IP、OCI 删建、Vultr 换保留 IP） | ❌ 凭据实时传 |
-| | `get_instance_info` | 查实例详情（当前公/私网 IP、状态） | ❌ |
-| | `list_instances` | 列出区域内实例 | ❌ |
-| | `allocate_ip` | 分配新公网 IP | ❌ |
-| | `associate_ip` | 把已分配 IP 绑到实例 | ❌ |
-| | `release_ip` | 释放/删除公网 IP | ❌ |
-| | `list_ips` | 列出区域内已分配 IP | ❌ |
-| | `get_instance_public_ip` | 查实例当前公网 IP | ❌ |
-| **配置管理** | `save_profile` | 保存 profile（含可选 Cloudflare 凭据） | —（写数据） |
-| | `list_profiles` | 列出所有 profile（含是否带 Cloudflare） | — |
-| | `delete_profile` | 按名字删除 profile | — |
-| **DNS** | `update_dns` | 把子域名 A 记录指向指定 IP（需显式传 Cloudflare Token/Zone） | ❌ 显式传参 |
+| 组        | 工具                         | 一句话                                                          | 依赖已保存的 profile？                   |
+| -------- | -------------------------- | ------------------------------------------------------------ | --------------------------------- |
+| **一键**   | `rotate_ip_and_update_dns` | 轮换 profile 实例 IP + 自动更新绑定子域名的 Cloudflare DNS                 | ✅ 必需（且 profile 内须带 Cloudflare 凭据） |
+| **云操作**  | `rotate_instance_ip`       | 轮换实例公网 IP（AWS stop/start、Azure 换 NIC IP、OCI 删建、Vultr 换保留 IP） | ❌ 凭据实时传                           |
+|          | `get_instance_info`        | 查实例详情（当前公/私网 IP、状态）                                          | ❌                                 |
+|          | `list_instances`           | 列出区域内实例                                                      | ❌                                 |
+|          | `allocate_ip`              | 分配新公网 IP                                                     | ❌                                 |
+|          | `associate_ip`             | 把已分配 IP 绑到实例                                                 | ❌                                 |
+|          | `release_ip`               | 释放/删除公网 IP                                                   | ❌                                 |
+|          | `list_ips`                 | 列出区域内已分配 IP                                                  | ❌                                 |
+|          | `get_instance_public_ip`   | 查实例当前公网 IP                                                   | ❌                                 |
+| **配置管理** | `save_profile`             | 保存 profile（含可选 Cloudflare 凭据）                                | —（写数据）                            |
+|          | `list_profiles`            | 列出所有 profile（含是否带 Cloudflare）                                | —                                 |
+|          | `delete_profile`           | 按名字删除 profile                                                | —                                 |
+| **DNS**  | `update_dns`               | 把子域名 A 记录指向指定 IP（需显式传 Cloudflare Token/Zone）                 | ❌ 显式传参                            |
 
 - 服务进程：`node <install-dir>/dist/index.js`（stdio），由 MCP 客户端按需拉起，AI 无需手动启动；桌面快捷方式（`codex_app.vbs` / `codex_app.sh`）会常驻后台一份。
 - 数据文件：profile 与凭据存于 **`<install-dir>/data/config.json`**（与 MCP server、UI server 三方共享，已 gitignore）。
@@ -87,12 +74,12 @@ credentials: { …按 provider 的键填… }
 
 `credentials` 的键随 provider 变化（**不要把键混着填**）：
 
-| provider | credentials 键 |
-|----------|----------------|
-| aws | `accessKeyId`, `secretAccessKey`, `[sessionToken]` |
-| azure | `subscriptionId`, `clientId`, `clientSecret`, `tenantId`, `[resourceGroupName]` |
-| oci | `tenancy`, `user`, `fingerprint`, `privateKey` |
-| vultr | `apiKey` |
+| provider | credentials 键                                                                   |
+| -------- | ------------------------------------------------------------------------------- |
+| aws      | `accessKeyId`, `secretAccessKey`, `[sessionToken]`                              |
+| azure    | `subscriptionId`, `clientId`, `clientSecret`, `tenantId`, `[resourceGroupName]` |
+| oci      | `tenancy`, `user`, `fingerprint`, `privateKey`                                  |
+| vultr    | `apiKey`                                                                        |
 
 例（用户要求直接轮换某台 AWS 实例，且愿意在对话中给凭据——一般更推荐走 profile）：
 
@@ -134,63 +121,84 @@ rotate_instance_ip({
 - [ ] 涉及删除/释放（`delete_profile` / `release_ip`）先跟用户确认目标
 - [ ] 结果必须结构化回显：old IP → new IP、DNS 是否更新、失败原因
 
+
 ## 6. UI 配置页（本 skill 脚本，填凭据专用）
 
 只有当用户要**配置/编辑凭据**时才调用。脚本位于**用户级副本**（install 已装好），同时存在于两个目录，**两端通用**：
 
-| Agent | Skill 根路径 |
-|-------|---------------|
-| **WorkBuddy** | `~/.workbuddy/skills/ip-switch/` |
-| **Codex 桌面端 / CLI** | `~/.codex/skills/ip-switch/` |
-| **项目内原件**（skill 未装时兜底） | `<install-dir>/scripts/` |
+| Agent                  | Skill 根路径                        |
+| ---------------------- | -------------------------------- |
+| **WorkBuddy**          | `~/.workbuddy/skills/ip-switch/` |
+| **Codex 桌面端 / CLI**    | `~/.codex/skills/ip-switch/`     |
+| **项目内原件**（skill 未装时兜底） | `<install-dir>/scripts/`         |
 
 > install 脚本会自动镜像到两处（Codex 端**仅当 `~/.codex/skills` 已存在**才复制）。下表所有命令的 skill 根路径可互换为上述任一。
 
-| 场景 | 命令 | 是否弹窗 |
-|------|------|----------|
-| **Windows 外行 / 桌面快捷方式**（零窗口，推荐） | 双击 `<skill-root>/scripts/open-ui.vbs` 或 `wscript open-ui.vbs [aws\|azure\|oci\|vultr]` | **完全不弹窗**（wscript + CREATE_NO_WINDOW） |
-| 默认全功能表单（增删改所有云账号） | `node <skill-root>/scripts/open-ui.mjs` | 用户自己的终端可见日志 |
-| 只加 AWS | `node <skill-root>/scripts/open-ui.mjs aws` | 同上 |
-| 只加 Azure / OCI / Vultr | `… open-ui.mjs azure`（`oci` / `vultr` 同理） | 同上 |
-| Windows PowerShell | `& "$env:USERPROFILE\<skill-root相对路径>\scripts\open-ui.mjs" aws`（WorkBuddy = `.workbuddy\skills\ip-switch`，Codex = `.codex\skills\ip-switch`） | PowerShell 窗口可见日志 |
-| 静默模式（不打印 [INFO]，日志写文件） | 加 `--quiet` / `-q`（vbs 已自动启用） | 仅文件日志 |
+| 场景                              | 命令                                                                                                                                           | 是否弹窗                                  |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| **Windows 外行 / 桌面快捷方式**（零窗口，推荐） | 双击 `<skill-root>/scripts/open-ui.vbs` 或 `wscript open-ui.vbs [aws\|azure\|oci\|vultr]`                                                       | **完全不弹窗**（wscript + CREATE_NO_WINDOW） |
+| 默认全功能表单（增删改所有云账号）               | `node <skill-root>/scripts/open-ui.mjs`                                                                                                      | 用户自己的终端可见日志                           |
+| 只加 AWS                          | `node <skill-root>/scripts/open-ui.mjs aws`                                                                                                  | 同上                                    |
+| 只加 Azure / OCI / Vultr          | `… open-ui.mjs azure`（`oci` / `vultr` 同理）                                                                                                    | 同上                                    |
+| Windows PowerShell              | `& "$env:USERPROFILE\<skill-root相对路径>\scripts\open-ui.mjs" aws`（WorkBuddy = `.workbuddy\skills\ip-switch`，Codex = `.codex\skills\ip-switch`） | PowerShell 窗口可见日志                     |
+| 静默模式（不打印 [INFO]，日志写文件）          | 加 `--quiet` / `-q`（vbs 已自动启用）                                                                                                                | 仅文件日志                                 |
 
 **给外行用户的标准建议**：桌面右键 `open-ui.vbs` → "发送到" → "桌面快捷方式"。以后双击图标就打开浏览器配置页，全程零窗口。`open-ui.vbs` 内部用 WScript.Shell 以 WindowStyle=0 调用 node，并自动加 `--quiet`，所以 [INFO] 日志全走 `<install-dir>/data/open-ui.log` 文件，stderr 干净。
 
 脚本行为：
+
 1. 自动定位 `<install-dir>`（用户级副本读旁侧的 `.install-path.txt`；项目内原件按自身路径推导）
 2. 后台拉起 `ui/server.cjs`，浏览器打开表单；URL 也会打到 stderr 供回显
 3. 辅助参数：`--port`（只输出 URL 不开浏览器）、`--status`（JSON 状态）、`--stop`（关掉后台 UI server）、`--quiet`（静默模式）
 
 **Windows 后台进程"零窗口"机制说明**（why vbs works）：
+
 - open-ui.mjs spawn server 时，**优先检测 `nodew.exe`**（Node 的 GUI 子系统版本，与 `node.exe` 同目录，Windows 官方安装包自带）。若存在则用之，否则 fallback 到 `node.exe + windowsHide: true`
 - `nodew.exe` 是真正的 GUI subsystem → 启动时不创建 console → **彻底无窗口**
 - 若你的机器没装 `nodew.exe`，spawn 仍带 `windowsHide: true`，但 `node.exe`（console subsystem）启动时 Windows 可能仍会闪一下——这种情况装个官方 Node 安装包就解决了，或者就用 vbs 入口（外层 wscript 已是 GUI subsystem，子进程无 console）
 
 **浏览器约定**：一定要让用户用**真实浏览器**访问 URL 填表，不要用 Agent 内嵌 widget（其沙箱 CSP 会拦 fetch，保存写不进去）。表单保存后让用户「回到对话」，AI 用 `list_profiles` 验证。
 
-### 6.1 Codex 用户视角（桌面端 / CLI / 手动）
+### 6.1 多 Agent 用户视角（桌面端 / CLI / 手动）
 
-**Codex 桌面端**（最常见，推荐外行）：
-- 用户根本不需要敲命令。在 Codex 对话框里直接说：
-  > "帮我打开 ip-switch 配置页" / "添加一个 AWS 账号" / "改一下 Azure 凭据"
-- Codex 桌面端会把这个 skill 加载进来，AI 自动跑 `node ~/.codex/skills/ip-switch/scripts/open-ui.mjs aws` 并把浏览器 URL 告诉用户。
-- **前提**：Codex 桌面端连接器/插件页里 "IP Switch" 必须已启用（见 §7.1 排障）。
+install 已把 skill 同时镜像到 `~/.workbuddy/skills/ip-switch/` 与 `~/.codex/skills/ip-switch/`，**两种 Agent 都能发现并使用**。以下按使用场景分述，每个场景 WorkBuddy / Codex 行为对照。
 
-**Codex CLI**（开发者 / CI）：
-```bash
-# 单次命令：Codex CLI 加载 ip-switch profile（profile 内已配 MCP server）
-codex --profile ip-switch exec "添加一个 AWS 账号"
+#### 1. 桌面端（最常见，外行首选）
 
-# 或手动调 skill 脚本（与 WorkBuddy 等价，只换路径）
-node ~/.codex/skills/ip-switch/scripts/open-ui.mjs aws
-```
+用户**不需要自己敲命令**，在 Agent 对话框里说一句自然语言即可，AI 自动跑脚本并把 URL 告诉你：
 
-**手动**（任何人包括外行）：
-- macOS / Linux：`node ~/.codex/skills/ip-switch/scripts/open-ui.mjs aws` 或 `bash ~/.codex/skills/ip-switch/scripts/open-ui.sh aws`
-- Windows：`wscript <skill-root>\scripts\open-ui.vbs aws`（零窗口）或 `node <skill-root>\scripts\open-ui.mjs aws`
+| Agent | 用户在对话框说 | AI 自动执行的命令 | 浏览器行为 |
+|-------|---------------|-----------------|-----------|
+| **WorkBuddy 桌面端** | "帮我打开 ip-switch 配置页" / "添加一个 AWS 账号" / "改一下 Azure 凭据" | `node ~/.workbuddy/skills/ip-switch/scripts/open-ui.mjs aws` | 浏览器自动开对应表单页 |
+| **Codex 桌面端** | 同上 | `node ~/.codex/skills/ip-switch/scripts/open-ui.mjs aws` | 同上 |
 
-> 与 WorkBuddy 唯一区别：**路径前缀** `.workbuddy/skills` → `.codex/skills`，其他完全相同（vbs / sh / ps1 三套入口都有，install 自动镜像）。
+> **前提**：WorkBuddy 需在「连接器管理」页对 ip-switch 点「信任」并重启；Codex 需在插件页启用 "IP Switch"（详见 §7.1 排障）。
+
+#### 2. CLI / 开发者（绕过 Agent 对话，直跑脚本）
+
+| Agent | 命令 |
+|-------|------|
+| **Codex CLI** | `codex --profile ip-switch exec "添加一个 AWS 账号"`（profile 内已配 MCP server 与 skill 路径）；或直接 `node ~/.codex/skills/ip-switch/scripts/open-ui.mjs aws` |
+| **WorkBuddy**（无官方 CLI） | 直接调 skill 脚本：`node ~/.workbuddy/skills/ip-switch/scripts/open-ui.mjs aws`（绕过桌面端，让 UI 后台启动后单独开浏览器） |
+
+#### 3. 手动（任何 OS / 任何人）
+
+| OS | 命令（`<skill-root>` 取 WorkBuddy / Codex / 项目内任一） |
+|----|------|
+| **macOS / Linux** | `node <skill-root>/scripts/open-ui.mjs aws` 或 `bash <skill-root>/scripts/open-ui.sh aws` |
+| **Windows 零窗口**（推荐外行） | 双击 `<skill-root>\scripts\open-ui.vbs`，或 `wscript <skill-root>\scripts\open-ui.vbs aws` |
+| **Windows 终端**（PowerShell） | `& "$env:USERPROFILE\<skill-root 相对路径>\scripts\open-ui.mjs" aws` |
+| **Windows 终端**（Git Bash / cmd） | `node <skill-root>\scripts\open-ui.mjs aws` |
+
+#### 路径速查（回顾 §6 表头）
+
+| Agent | skill 根路径 |
+|-------|------------|
+| WorkBuddy | `~/.workbuddy/skills/ip-switch/` |
+| Codex | `~/.codex/skills/ip-switch/` |
+| 项目内原件（兜底） | `<install-dir>/scripts/` |
+
+> 三个 skill 根**完全等价**——vbs / sh / ps1 / mjs 四套入口都装齐了，install 自动镜像。唯一区别就是路径前缀。
 
 ## 7. 排障：MCP 工具不可见 / 调用报错
 
@@ -215,17 +223,17 @@ node ~/.codex/skills/ip-switch/scripts/open-ui.mjs aws
 }
 ```
 
-5. **验证服务本体**：终端跑 `node <install-dir>/dist/index.js` 应输出 `[ip-switch] Starting MCP server (providers: aws, azure, oci, vultr)` 并等 stdin（stdio 连接），而不是立刻退出报错。报错多为 `dist/` 缺失 → `cd <install-dir> && npm install && npm run build`。
+1. **验证服务本体**：终端跑 `node <install-dir>/dist/index.js` 应输出 `[ip-switch] Starting MCP server (providers: aws, azure, oci, vultr)` 并等 stdin（stdio 连接），而不是立刻退出报错。报错多为 `dist/` 缺失 → `cd <install-dir> && npm install && npm run build`。
 
 ### 7.2 调用工具报错
 
-| 现象 | 处理 |
-|------|------|
-| `Profile "x" not found` | 先 `list_profiles` 看真实名字/大小写；没有就用 §5.3 建 |
-| `Profile has no Cloudflare credentials` | UI 或 `save_profile` 补 `cfApiToken` + `cfZoneId` 重新保存该 profile |
-| 云厂商鉴权错误（InvalidAccessKeyId / AuthFailure / 401…） | 凭据错或失效 → 引导用户去 UI 表单更新凭据，绝不让用户在对话里重新粘贴 |
-| 权限不足（UnauthorizedOperation / …） | 云账号 IAM 缺 EC2/VNet/Network 权限 → 让用户在云控制台加权限 |
-| 轮换成功但无新 IP / DNS 未更新 | 回显 `rotateResult` / `dnsResult` 原样给用户，检查 Cloudflare Token 的 Zone 权限与 `proxied` 设置 |
+| 现象                                               | 处理                                                                                |
+| ------------------------------------------------ | --------------------------------------------------------------------------------- |
+| `Profile "x" not found`                          | 先 `list_profiles` 看真实名字/大小写；没有就用 §5.3 建                                           |
+| `Profile has no Cloudflare credentials`          | UI 或 `save_profile` 补 `cfApiToken` + `cfZoneId` 重新保存该 profile                     |
+| 云厂商鉴权错误（InvalidAccessKeyId / AuthFailure / 401…） | 凭据错或失效 → 引导用户去 UI 表单更新凭据，绝不让用户在对话里重新粘贴                                            |
+| 权限不足（UnauthorizedOperation / …）                  | 云账号 IAM 缺 EC2/VNet/Network 权限 → 让用户在云控制台加权限                                       |
+| 轮换成功但无新 IP / DNS 未更新                             | 回显 `rotateResult` / `dnsResult` 原样给用户，检查 Cloudflare Token 的 Zone 权限与 `proxied` 设置 |
 
 ## 8. 附录：路径速查
 
