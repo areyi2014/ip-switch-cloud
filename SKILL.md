@@ -136,16 +136,23 @@ rotate_instance_ip({
 
 ## 6. UI 配置页（本 skill 脚本，填凭据专用）
 
-只有当用户要**配置/编辑凭据**时才调用。脚本位于用户级副本（install 已装好）：
+只有当用户要**配置/编辑凭据**时才调用。脚本位于**用户级副本**（install 已装好），同时存在于两个目录，**两端通用**：
+
+| Agent | Skill 根路径 |
+|-------|---------------|
+| **WorkBuddy** | `~/.workbuddy/skills/ip-switch/` |
+| **Codex 桌面端 / CLI** | `~/.codex/skills/ip-switch/` |
+| **项目内原件**（skill 未装时兜底） | `<install-dir>/scripts/` |
+
+> install 脚本会自动镜像到两处（Codex 端**仅当 `~/.codex/skills` 已存在**才复制）。下表所有命令的 skill 根路径可互换为上述任一。
 
 | 场景 | 命令 | 是否弹窗 |
 |------|------|----------|
-| **Windows 外行 / 桌面快捷方式**（零窗口，推荐） | 双击 `~/.workbuddy/skills/ip-switch/scripts/open-ui.vbs` 或 `wscript open-ui.vbs [aws\|azure\|oci\|vultr]` | **完全不弹窗**（wscript + CREATE_NO_WINDOW） |
-| 默认全功能表单（增删改所有云账号） | `node ~/.workbuddy/skills/ip-switch/scripts/open-ui.mjs` | 用户自己的终端可见日志 |
-| 只加 AWS | `node ~/.workbuddy/skills/ip-switch/scripts/open-ui.mjs aws` | 同上 |
+| **Windows 外行 / 桌面快捷方式**（零窗口，推荐） | 双击 `<skill-root>/scripts/open-ui.vbs` 或 `wscript open-ui.vbs [aws\|azure\|oci\|vultr]` | **完全不弹窗**（wscript + CREATE_NO_WINDOW） |
+| 默认全功能表单（增删改所有云账号） | `node <skill-root>/scripts/open-ui.mjs` | 用户自己的终端可见日志 |
+| 只加 AWS | `node <skill-root>/scripts/open-ui.mjs aws` | 同上 |
 | 只加 Azure / OCI / Vultr | `… open-ui.mjs azure`（`oci` / `vultr` 同理） | 同上 |
-| Windows PowerShell | `& "$env:USERPROFILE\.workbuddy\skills\ip-switch\scripts\open-ui.mjs" aws` | PowerShell 窗口可见日志 |
-| 项目内原件（skill 未装时兜底） | `node <install-dir>/scripts/open-ui.mjs aws` | 用户终端可见日志 |
+| Windows PowerShell | `& "$env:USERPROFILE\<skill-root相对路径>\scripts\open-ui.mjs" aws`（WorkBuddy = `.workbuddy\skills\ip-switch`，Codex = `.codex\skills\ip-switch`） | PowerShell 窗口可见日志 |
 | 静默模式（不打印 [INFO]，日志写文件） | 加 `--quiet` / `-q`（vbs 已自动启用） | 仅文件日志 |
 
 **给外行用户的标准建议**：桌面右键 `open-ui.vbs` → "发送到" → "桌面快捷方式"。以后双击图标就打开浏览器配置页，全程零窗口。`open-ui.vbs` 内部用 WScript.Shell 以 WindowStyle=0 调用 node，并自动加 `--quiet`，所以 [INFO] 日志全走 `<install-dir>/data/open-ui.log` 文件，stderr 干净。
@@ -161,6 +168,29 @@ rotate_instance_ip({
 - 若你的机器没装 `nodew.exe`，spawn 仍带 `windowsHide: true`，但 `node.exe`（console subsystem）启动时 Windows 可能仍会闪一下——这种情况装个官方 Node 安装包就解决了，或者就用 vbs 入口（外层 wscript 已是 GUI subsystem，子进程无 console）
 
 **浏览器约定**：一定要让用户用**真实浏览器**访问 URL 填表，不要用 Agent 内嵌 widget（其沙箱 CSP 会拦 fetch，保存写不进去）。表单保存后让用户「回到对话」，AI 用 `list_profiles` 验证。
+
+### 6.1 Codex 用户视角（桌面端 / CLI / 手动）
+
+**Codex 桌面端**（最常见，推荐外行）：
+- 用户根本不需要敲命令。在 Codex 对话框里直接说：
+  > "帮我打开 ip-switch 配置页" / "添加一个 AWS 账号" / "改一下 Azure 凭据"
+- Codex 桌面端会把这个 skill 加载进来，AI 自动跑 `node ~/.codex/skills/ip-switch/scripts/open-ui.mjs aws` 并把浏览器 URL 告诉用户。
+- **前提**：Codex 桌面端连接器/插件页里 "IP Switch" 必须已启用（见 §7.1 排障）。
+
+**Codex CLI**（开发者 / CI）：
+```bash
+# 单次命令：Codex CLI 加载 ip-switch profile（profile 内已配 MCP server）
+codex --profile ip-switch exec "添加一个 AWS 账号"
+
+# 或手动调 skill 脚本（与 WorkBuddy 等价，只换路径）
+node ~/.codex/skills/ip-switch/scripts/open-ui.mjs aws
+```
+
+**手动**（任何人包括外行）：
+- macOS / Linux：`node ~/.codex/skills/ip-switch/scripts/open-ui.mjs aws` 或 `bash ~/.codex/skills/ip-switch/scripts/open-ui.sh aws`
+- Windows：`wscript <skill-root>\scripts\open-ui.vbs aws`（零窗口）或 `node <skill-root>\scripts\open-ui.mjs aws`
+
+> 与 WorkBuddy 唯一区别：**路径前缀** `.workbuddy/skills` → `.codex/skills`，其他完全相同（vbs / sh / ps1 三套入口都有，install 自动镜像）。
 
 ## 7. 排障：MCP 工具不可见 / 调用报错
 
