@@ -1,9 +1,8 @@
 # ip-switch — Multi-Cloud IP Rotation MCP Service Handbook
 
-> **Description**: Multi-cloud public IP rotation MCP service (AWS / Azure / OCI / Vultr) with Cloudflare DNS auto-update, plus a browser-based credential config UI launcher.
-> **描述**: 多云公网 IP 轮换 MCP 服务（AWS / Azure / OCI / Vultr）+ Cloudflare DNS 自动更新 + 浏览器凭据配置页唤起。
+> **Description**: Multi-cloud public IP rotation MCP service (AWS / Azure / OCI / Vultr) with Cloudflare DNS auto-update, plus a browser-based credential config UI launcher. (Bilingual metadata lives in `skill.json`: `description_zh` / `description_en`.)
 >
-> 中文手册（Chinese version of this handbook）: `references/zh.md` — read it on demand when serving users who prefer Chinese. This file stays English-only to keep the agent instruction layer lean.
+> Chinese version of this handbook: `references/zh.md` — read it on demand when serving users who prefer Chinese. This file stays English-only to keep the agent instruction layer lean.
 
 ## 1. What this is
 
@@ -172,7 +171,7 @@ The user **doesn't type commands** — one natural-language sentence in the Agen
 
 | Agent | User says in chat | Command the AI runs | Browser behavior |
 |-------|---------------|-----------------|-----------|
-| **WorkBuddy desktop** | "帮我打开 ip-switch 配置页" / "Open the ip-switch config page" / "添加一个 AWS 账号" / "改一下 Azure 凭据" | `node ~/.workbuddy/skills/ip-switch/scripts/open-ui.mjs aws` | Browser opens the matching form |
+| **WorkBuddy desktop** | "Open the ip-switch config page" / "Add an AWS account" / "Update the Azure credentials" | `node ~/.workbuddy/skills/ip-switch/scripts/open-ui.mjs aws` | Browser opens the matching form |
 | **Codex desktop** | Same as above | `node ~/.codex/skills/ip-switch/scripts/open-ui.mjs aws` | Same as above |
 
 > **Prerequisites**: WorkBuddy — click "Trust" for ip-switch on the connector management page, then restart; Codex — enable "IP Switch" on the plugins page (see §7.1 troubleshooting).
@@ -181,7 +180,7 @@ The user **doesn't type commands** — one natural-language sentence in the Agen
 
 | Agent | Command |
 |-------|------|
-| **Codex CLI** | `codex --profile ip-switch exec "添加一个 AWS 账号"` (the profile has the MCP server and skill paths configured); or directly `node ~/.codex/skills/ip-switch/scripts/open-ui.mjs aws` |
+| **Codex CLI** | `codex --profile ip-switch exec "Add an AWS account"` (the profile has the MCP server and skill paths configured); or directly `node ~/.codex/skills/ip-switch/scripts/open-ui.mjs aws` |
 | **WorkBuddy** (no official CLI) | Call the skill script directly: `node ~/.workbuddy/skills/ip-switch/scripts/open-ui.mjs aws` (bypasses the desktop app; the UI starts in the background and opens the browser separately) |
 
 #### 3. Manual (any OS / anyone)
