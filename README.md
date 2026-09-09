@@ -80,7 +80,7 @@ An MCP service for rotating cloud public IPs — lets AI Agents batch-rotate pub
 | npm       | >= 9    | Installed together with Node.js |
 | git       | Any     | Used to clone the repo; auto-installed by the script if missing |
 | OS        | -       | macOS 14+, Ubuntu 20.04+, Windows 10+ |
-| Software  | -       | Workbuddy 1.1.0+ |
+| Software  | -       | Workbuddy 5.0+, Codex                 |
 
 ---
 
