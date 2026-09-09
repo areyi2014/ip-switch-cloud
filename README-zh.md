@@ -1,0 +1,606 @@
+# ip-switch
+
+[English](README.md) | [简体中文](README-zh.md)
+
+---
+
+对多个云公网IP轻松轮换的 AI Agent插件 —— 一键批量轮换云服务器公网IP（AWS / Azure / Oracle / Vultr），并同步更新域名解析，免除了多个网络平台登录与配置的繁琐操作。
+
+支持平台：Workbuddy / Codex + AWS / Azure / Oracle OCI / Vultr + Cloudflare DNS
+
+---
+
+## 快速下载安装
+
+> 需要 **Node.js >= 18**（[nodejs.org](https://nodejs.org/) 下载 LTS）。若未安装 git，脚本会自动安装。
+
+**Windows**：
+
+> **执行环境：PowerShell**
+
+```powershell
+# 下载安装脚本
+Invoke-WebRequest -Uri "https://gitee.com/areyi2014/ip-switch/raw/main/install.ps1" -OutFile "$env:TEMP\install-ip-switch.ps1"
+
+# 运行（必须在 PowerShell 中执行；cmd 中不支持 & 语法）
+& "$env:TEMP\install-ip-switch.ps1"
+```
+
+> **提示**: 如在 cmd 或其他环境，可用以下命令（不依赖 `&`，也自动绕过执行策略限制）：
+>
+> ```
+> powershell -ExecutionPolicy Bypass -File "%TEMP%\install-ip-switch.ps1"
+> ```
+
+**macOS / Ubuntu**：
+
+> **执行环境：Bash Shell（终端）**
+
+```bash
+# 下载安装脚本
+curl -fsSL https://gitee.com/areyi2014/ip-switch/raw/main/install.sh -o install-ip-switch.sh
+
+# 运行
+bash install-ip-switch.sh
+```
+
+脚本自动完成：检查环境（缺 git 自动安装）→ 克隆仓库 → 安装依赖 → 编译 → 写入 MCP 配置。详细安装说明见下文。
+
+---
+
+# ip-switch 安装指南
+
+对多个云公网 IP 轮换的 MCP 服务 —— 让 AI Agent 一键批量轮换云服务器公网IP（AWS / Azure / OCI / Vultr），并同步更新域名解析。
+
+---
+
+## 目录
+
+- [系统要求](#系统要求)
+- [一键安装](#一键安装)
+  - [macOS / Ubuntu](#macos--ubuntu)
+  - [Windows](#windows)
+- [手动安装](#手动安装)
+- [MCP 配置](#mcp-配置)
+  - [WorkBuddy](#workbuddy)
+  - [环境变量说明](#环境变量说明)
+- [验证安装](#验证安装)
+- [配置云服务器（UI）](#配置云服务器ui)
+- [使用方式](#使用方式)
+- [更新与卸载](#更新与卸载)
+- [常见问题](#常见问题)
+
+---
+
+## 系统要求
+
+| 依赖       | 最低版本 | 说明                              |
+|-----------|---------|-----------------------------------|
+| Node.js   | >= 18   | 需要原生 `fetch` API（Node 18+）  |
+| npm       | >= 9    | 随 Node.js 一起安装               |
+| git       | 任意版本  | 用于克隆仓库；缺失时脚本可自动安装 |
+| OS        | -       | macOS 14+, Ubuntu 20.04+, Windows 10+ |
+| Software  | -       | Workbuddy 1.1.0+ |
+
+---
+
+## 一键安装
+
+### macOS / Ubuntu
+
+> **执行环境：Bash Shell（终端）**
+
+```bash
+# 下载安装脚本
+curl -fsSL https://gitee.com/areyi2014/ip-switch/raw/main/install.sh -o install-ip-switch.sh
+
+# 运行（需要网络连接）
+bash install-ip-switch.sh
+```
+
+**自定义参数：**
+
+> **执行环境：Bash Shell（终端）**
+
+```bash
+# 指定安装目录
+bash install-ip-switch.sh --install-dir /opt/ip-switch
+
+# 使用 GitHub 镜像
+bash install-ip-switch.sh --repo-url https://gitee.com/areyi2014/ip-switch.git
+
+# 指定分支
+bash install-ip-switch.sh --branch develop
+
+# 仅下载不编译
+bash install-ip-switch.sh --skip-build
+```
+
+脚本会依次完成：
+1. 检查 Node.js >= 18
+2. 检查 git（未安装时通过包管理器自动安装）
+3. 克隆仓库到 `~/ip-switch`（克隆前确认目录、预热 DNS、最多重试 3 次）
+4. 安装 npm 依赖
+5. 编译 TypeScript → `dist/`
+6. 生成 MCP 配置文件（直接写入 `~/.workbuddy/mcp.json`）
+
+### Windows
+
+> **执行环境：PowerShell**
+
+```powershell
+# 如果遇到执行策略限制，先运行：
+Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
+
+# 下载安装脚本
+Invoke-WebRequest -Uri "https://gitee.com/areyi2014/ip-switch/raw/main/install.ps1" -OutFile "$env:TEMP\install-ip-switch.ps1"
+
+# 运行
+& "$env:TEMP\install-ip-switch.ps1"
+```
+
+**自定义参数：**
+
+> **执行环境：PowerShell**
+
+```powershell
+& "$env:TEMP\install-ip-switch.ps1" -InstallDir "D:\tools\ip-switch"
+& "$env:TEMP\install-ip-switch.ps1" -RepoUrl "https://gitee.com/areyi2014/ip-switch.git"
+```
+
+> **注意**: 如遇 `无法加载文件，因为在此系统上禁止运行脚本` 错误，请先执行 `Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned`。
+
+> **提示**: 未安装 git 时，脚本会自动按 CPU 架构静默下载安装 git（国内镜像加速）到用户目录，无需手动处理。
+
+---
+
+## 手动安装
+
+如果不使用一键脚本，可以手动执行以下步骤：
+
+### 1. 确保 Node.js >= 18 已安装
+
+> **执行环境：Bash Shell / PowerShell（两者均可）**
+
+```bash
+node -v   # 应输出 v18.x.x 或更高
+npm -v    # 应输出 9.x.x 或更高
+```
+
+如未安装，前往 [nodejs.org](https://nodejs.org/) 下载 LTS 版本（推荐 22.x）。
+
+### 2. 克隆仓库
+
+> **执行环境：Bash Shell / PowerShell（两者均可）**
+
+```bash
+git clone --depth 1 https://gitee.com/areyi2014/ip-switch.git
+cd ip-switch
+```
+
+### 3. 安装依赖
+
+> **执行环境：Bash Shell / PowerShell（两者均可）**
+
+```bash
+npm install
+```
+
+### 4. 编译
+
+> **执行环境：Bash Shell / PowerShell（两者均可）**
+
+```bash
+npm run build
+```
+
+> **WorkBuddy 用户注意**: 如果编译时报错或静默退出，说明 `ELECTRON_RUN_AS_NODE` 环境变量干扰了 `tsc`。执行以下命令代替：
+>
+> ```bash
+> # macOS / Ubuntu
+> env -u ELECTRON_RUN_AS_NODE npm run build
+>
+> # Windows PowerShell
+> $env:ELECTRON_RUN_AS_NODE = ""; npm run build
+> ```
+
+### 5. 验证
+
+编译成功后，`dist/index.js` 文件应存在：
+
+> **执行环境：Bash Shell（macOS / Ubuntu）或 PowerShell（Windows）**
+
+```bash
+# macOS / Ubuntu
+ls -la dist/index.js
+
+# Windows
+dir dist\index.js
+```
+
+---
+
+## MCP 配置
+
+一键安装完成后，脚本已自动将 `ip-switch` 条目合并写入：
+
+- `~/.workbuddy/mcp.json`
+
+（合并写入，不会覆盖文件中已有的其他 server 配置。）
+
+### WorkBuddy
+
+一键脚本检测到 `~/.workbuddy` 目录时会自动写入 `~/.workbuddy/mcp.json`。**WorkBuddy 自带 Node.js**，脚本优先将 `command` 指向它（无需单独安装 Node.js）：
+
+```
+Windows:     C:\Users\<用户名>\.workbuddy\binaries\node\versions\22.22.2\node.exe
+macOS/Linux: ~/.workbuddy/binaries/node/versions/<版本>/bin/node
+```
+
+打开 WorkBuddy **连接器管理页面**，在「自定义连接器」区域找到 `ip-switch`，点击 **「信任」** 即可在对话中使用。
+
+如未自动写入，可手动编辑 `~/.workbuddy/mcp.json`（如文件不存在则创建）：
+
+```json
+{
+  "mcpServers": {
+    "ip-switch": {
+      "command": "C:\\Users\\你的用户名\\.workbuddy\\binaries\\node\\versions\\22.22.2\\node.exe",
+      "args": ["C:\\Users\\你的用户名\\ip-switch\\dist\\index.js"]
+    }
+  }
+}
+```
+
+> **路径说明**:
+> - `command`: Node.js 可执行文件的完整路径（**WorkBuddy 环境优先使用 WorkBuddy 自带的 Node.js**；安装脚本还会自动检测 Codex 自带的 Node.js，见下方 Codex 小节）
+> - `args[0]`: `dist/index.js` 的完整绝对路径
+> - Windows 路径中使用双反斜杠 `\\` 转义
+> - **注意**: WorkBuddy 自带 Node.js 的版本号目录可能随更新变化，若路径失效，可用以下命令找到实际路径：
+>
+> ```bash
+> # Windows PowerShell（版本目录会随更新变化）
+> Get-ChildItem "$env:USERPROFILE\.workbuddy\binaries\node\versions" -Recurse -Filter node.exe | Select-Object -ExpandProperty FullName
+>
+> # macOS / Linux
+> find ~/.workbuddy/binaries/node/versions -name node -type f
+> ```
+
+### Codex
+
+一键脚本检测到 `~/.codex` 目录时会自动写入 `~/.codex/mcp.json`。**Codex 自带 Node.js**，脚本优先将 `command` 指向它（无需单独安装 Node.js）：
+
+```
+Windows:   C:\Users\<用户名>\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe
+macOS/Linux: ~/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node
+```
+
+如未自动写入，可手动编辑 `~/.codex/mcp.json`（如文件不存在则创建）：
+
+```json
+{
+  "mcpServers": {
+    "ip-switch": {
+      "command": "C:\\Users\\你的用户名\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\node\\bin\\node.exe",
+      "args": ["C:\\Users\\你的用户名\\ip-switch\\dist\\index.js"]
+    }
+  }
+}
+```
+
+> **注意**: Codex runtime 目录可能随版本变化（如 `codex-primary-runtime` 前缀），若路径失效，可用以下命令找到实际路径：
+>
+> ```bash
+> # Windows PowerShell
+> Get-ChildItem "$env:USERPROFILE\.cache\codex-runtimes" -Recurse -Filter node.exe | Select-Object -ExpandProperty FullName
+>
+> # macOS / Linux
+> find ~/.cache/codex-runtimes -name node -type f
+> ```
+
+### 环境变量说明
+
+MCP 配置中可以通过 `env` 字段设置环境变量。本项目在 WorkBuddy 环境下通常需要清除 Electron 干扰：
+
+```json
+{
+  "command": "node",
+  "args": ["/path/to/dist/index.js"],
+  "env": {
+    "ELECTRON_RUN_AS_NODE": ""
+  }
+}
+```
+
+| 变量                    | 说明                                  |
+|------------------------|--------------------------------------|
+| `ELECTRON_RUN_AS_NODE` | 设为空字符串 `""`，避免 Electron 环境干扰 |
+
+---
+
+## 验证安装
+
+在 WorkBuddy 对话中，尝试以下命令验证：
+
+```
+列出我的云服务器配置
+```
+
+如果服务正常加载，会返回一个配置列表（可能为空 `{}`）。
+
+也可以直接运行 `dist/index.js` 验证 MCP 协议是否正常：
+
+> **执行环境：Bash Shell / PowerShell（两者均可）**
+
+```bash
+echo '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | node dist/index.js
+```
+
+预期输出包含 13 个工具定义。
+
+---
+
+## 配置云服务器（UI）
+
+提供了一个本地浏览器配置界面，用于填写云平台凭据。
+
+> **执行环境：Bash Shell / PowerShell（两者均可）**
+
+```bash
+# 启动 UI 服务器
+node ui/server.cjs
+```
+
+然后浏览器打开 `http://127.0.0.1:<端口>`（端口由系统自动分配，启动时在终端打印），即可在可视化界面中填写和保存配置。
+
+> **约定**: 配置表单**永远用浏览器打开**，不要使用 WorkBuddy 内嵌窗口（沙箱限制）。
+>
+> 原因：AI 对话平台的内嵌 widget（如 WorkBuddy 的 `show_widget`）运行在沙箱中，CSP 策略会拦截 `fetch` 请求，导致保存按钮无法写入配置文件。浏览器中同源 `fetch` 不受限制。
+
+服务提供以下接口：
+
+- `GET /` — 配置表单页面
+- `GET /api/config` — 读取当前配置
+- `POST /api/save-config` — 保存配置（合并写入 config.json）
+- `POST /api/delete-profile` — 删除指定配置
+
+也可以直接打开 `ui/config-form.html` 文件（此时保存走剪贴板兜底）。
+
+**表单功能**：
+
+- 四平台标签页切换（AWS / Azure / OCI / Vultr）
+- 区域下拉支持「其他区域 (手动输入)」
+- 勾选「启用 Cloudflare 域名解析」后展开 API Token + Zone ID 输入框
+- 每个 profile 可绑定独立的 Cloudflare 凭据
+
+---
+
+## 项目结构
+
+```
+ip-switch/
+├── src/
+│   ├── index.ts          # MCP Server 入口（stdio 传输）
+│   ├── tools.ts          # 14 个 MCP 工具定义
+│   ├── router.ts         # 多云调度路由层
+│   ├── types.ts          # 统一类型定义
+│   ├── config-store.ts   # 持久化配置存储
+│   └── adapters/
+│       ├── base.ts       # CloudAdapter 接口
+│       ├── aws.ts        # AWS（stop/start 获取新动态 IP）
+│       ├── azure.ts      # Azure（解绑→删除→创建→绑定）
+│       ├── oci.ts        # OCI（ephemeral IP，RSA-SHA256 签名）
+│       ├── vultr.ts      # Vultr（reserved IP→attach→删除旧的）
+│       └── cloudflare.ts # Cloudflare DNS（查找+更新 A 记录）
+├── ui/
+│   ├── config-form.html  # 全功能配置表单（639行，四平台标签页）
+│   ├── aws-config.html   # AWS 独立表单（精简版，~90行）
+│   ├── azure-config.html # Azure 独立表单
+│   ├── oci-config.html   # OCI 独立表单
+│   ├── vultr-config.html # Vultr 独立表单
+│   └── server.cjs        # 本地配置服务器（系统自动分配端口）
+└── dist/                 # 编译输出
+```
+
+## 配置文件
+
+路径：`~/.ip-switch/config.json`（即 `C:\Users\<用户名>\.ip-switch\config.json`）
+
+结构：
+
+```json
+{
+  "profiles": {
+    "aws-sg": {
+      "name": "aws-sg",
+      "provider": "aws",
+      "region": "ap-southeast-1",
+      "instanceId": "i-xxx",
+      "credentials": { "accessKeyId": "...", "secretAccessKey": "..." },
+      "subdomain": "app.example.com",
+      "proxied": false,
+      "cloudflare": {
+        "apiToken": "profile 级 Cloudflare API Token",
+        "zoneId": "profile 级 Zone ID"
+      }
+    }
+  }
+}
+```
+
+Cloudflare 凭据存储在 profile 内，不再有全局字段。每个 profile 独立绑定自己的 Cloudflare 账号。
+
+---
+
+## 使用方式
+
+通过 AI 对话即可操作，常用指令：
+
+| 对话指令                           | 功能                       |
+|-----------------------------------|---------------------------|
+| 「添加一个 AWS 配置」               | 打开 UI 添加云服务器配置     |
+| 「列出我的云服务器配置」             | 查看已保存的配置            |
+| 「轮换所有已配置服务器的 IP」        | 一键轮换所有 IP + 更新 DNS  |
+| 「轮换 aws-ty 的 IP 并更新 DNS」   | 轮换指定配置并同步 DNS      |
+| 「删除 aws-ty 配置」               | 移除指定配置               |
+
+**MCP 工具完整列表（13 个）**
+
+### 云平台操作（8 个，凭据即时传入）
+
+1. `rotate_instance_ip` — 一键轮换公网 IP
+2. `get_instance_info` — 查询实例详情
+3. `list_instances` — 列出区域内所有实例
+4. `allocate_ip` — 分配新公网 IP
+5. `associate_ip` — 绑定 IP 到实例
+6. `release_ip` — 释放/删除公网 IP
+7. `list_ips` — 列出已分配的公网 IP
+8. `get_instance_public_ip` — 查询实例当前公网 IP
+
+### 配置管理 + DNS（5 个，持久化保存）
+
+9. `save_profile` — 保存云平台配置（含独立 Cloudflare 凭据）
+10. `list_profiles` — 列出所有已保存配置
+11. `delete_profile` — 删除已保存配置
+12. `update_dns` — 手动更新 Cloudflare DNS A 记录（需传入 cfApiToken + cfZoneId）
+13. `rotate_ip_and_update_dns` — 一键：轮换 IP + 自动更新 DNS（核心工具）
+
+---
+
+## 更新与卸载
+
+### 更新
+
+重新运行安装脚本（自动 git pull + 安装依赖 + 编译 + 更新 MCP 配置），或手动：
+
+> **执行环境：Bash Shell / PowerShell（两者均可）**
+
+```bash
+cd ~/ip-switch
+git pull
+npm install
+npm run build
+```
+
+### 卸载
+
+> **执行环境：Bash Shell（macOS / Ubuntu）或 PowerShell（Windows）**
+
+```bash
+# 删除项目目录
+rm -rf ~/ip-switch            # macOS / Ubuntu
+Remove-Item -Recurse -Force ~/ip-switch   # Windows
+
+# 删除配置数据（含保存的凭据）
+rm -rf ~/.ip-switch                # macOS / Ubuntu
+Remove-Item -Recurse -Force ~/.ip-switch       # Windows
+
+# 从 WorkBuddy 的 mcp.json 中移除 ip-switch 条目
+```
+
+---
+
+## 常见问题
+
+### 1. 编译报错或静默退出
+
+**原因**: `ELECTRON_RUN_AS_NODE=1` 环境变量干扰了 `tsc` 编译器。
+
+**解决**:
+
+> **执行环境：Bash Shell（macOS / Ubuntu）或 PowerShell（Windows）**
+
+```bash
+# macOS / Ubuntu
+env -u ELECTRON_RUN_AS_NODE npm run build
+
+# Windows PowerShell
+$env:ELECTRON_RUN_AS_NODE = ""; npm run build
+```
+
+### 2. 克隆仓库失败
+
+**原因**: 网络问题或仓库不可访问。
+
+**解决**:
+- 确认网络正常，能访问 gitee.com
+- 脚本已内置 DNS 预热与最多 3 次自动重试
+- 如为私有仓库，先配置 SSH Key: `ssh-keygen -t ed25519 && cat ~/.ssh/id_ed25519.pub`
+- 手动克隆: `git clone https://gitee.com/areyi2014/ip-switch.git`
+
+### 3. MCP 配置后工具未出现
+
+**原因**: MCP 进程启动失败、配置路径错误或 mcp.json 格式不被识别。
+
+**排查**:
+1. 确认 `dist/index.js` 存在
+2. 确认 `command` 中的 node 路径正确: `which node`（全路径）
+3. 确认 mcp.json 是标准 JSON（脚本使用 node 序列化输出，不会出现缩进/转义问题）
+4. 手动测试: `echo '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | node dist/index.js`
+5. 检查 WorkBuddy 连接器管理页面是否有错误信息
+
+### 4. npm install 失败（权限错误）
+
+**解决**: 避免使用 `sudo`。如提示 EACCES 错误：
+
+> **执行环境：Bash Shell（macOS / Ubuntu）**
+
+```bash
+# macOS / Ubuntu: 修复 npm 权限
+mkdir -p ~/.npm-global
+npm config set prefix '~/.npm-global'
+echo 'export PATH=~/.npm-global/bin:$PATH' >> ~/.bashrc
+source ~/.bashrc
+```
+
+### 5. Azure SDK 报错 "networkInterfaces.updateProperties 不存在"
+
+此问题已在最新代码中修复（使用 `beginCreateOrUpdateAndWait` 替代），确保使用最新的 `main` 分支即可。
+
+### 6. Windows PowerShell 脚本无法运行
+
+> **执行环境：PowerShell**
+
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
+```
+
+或使用 `powershell -ExecutionPolicy Bypass -File install.ps1` 绕过限制。
+
+### 7. 创建 Codex 桌面快捷方式（无黑窗闪屏）
+
+在 Windows 上直接用 `codex.exe` 启动 Codex 桌面版时会弹出命令行窗口（一闪而过）。通过 `wscript.exe`（Windows 脚本宿主 GUI 版本）执行 VBS 脚本可避免该问题。
+
+**步骤：**
+
+1. 将项目根目录下的 `codex_app.vbs` 复制到固定位置（例如 `C:\Users\<用户名>\bin\codex_app.vbs`）。
+
+> 该脚本采用**动态路径解析**，无需手动修改硬编码路径，按以下策略依次查找 `codex.exe`：
+> 1. **策略一**：读取 `~\.codex\config.toml` 中的 `CODEX_CLI_PATH` 配置；
+> 2. **策略二**：扫描 `%LOCALAPPDATA%\OpenAI\Codex\bin` 下的所有子目录，选取**最新修改时间**的 `codex.exe`；
+> 3. **策略三**：以上均失败时回退到系统 `PATH` 中的 `codex` 命令。
+
+2. 在桌面右键 → **新建 → 快捷方式**，目标栏填入：
+
+```
+C:\Windows\System32\wscript.exe "C:\Users\<用户名>\bin\codex_app.vbs"
+```
+
+3. 点击「下一步」并命名为「Codex」，完成创建。双击快捷方式即可无黑窗启动 Codex 桌面版。
+
+> **说明**：
+> - `wscript.exe` 是 Windows 脚本宿主（WSH）的 GUI 版本；`cscript.exe` 是控制台版本。用 `wscript.exe` 执行脚本时**不会弹出命令行窗口**。
+> - `WshShell.Run` 的第 2 个参数 `0` 表示隐藏窗口启动；第 3 个参数 `False` 表示不等待脚本结束。
+> - **无需硬编码路径**：Codex 的安装目录常带版本哈希（如 `bin\8e8bf206e63ac436\`），此脚本会自动定位最新版本，升级 Codex 后快捷方式依然有效。
+> - 在 `config.toml` 中设置 `CODEX_CLI_PATH` 可显式指定 codex.exe 路径（优先级最高）。
+> - 也可改用 `wscript.exe` 直接执行：`wscript.exe "C:\Users\<用户名>\bin\codex_app.vbs"`（等价效果）。
+
+---
+
+## 开发者注意事项
+
+- `tsc` 可能因 `ELECTRON_RUN_AS_NODE=1` 环境变量干扰静默退出（exit 1 无输出）
+- 解决方案：`env -u ELECTRON_RUN_AS_NODE -u NODE_OPTIONS npx tsc`（Windows PowerShell: `$env:ELECTRON_RUN_AS_NODE = ""; npm run build`）
+- Azure SDK：`networkInterfaces.updateProperties` 不存在，用 `beginCreateOrUpdateAndWait`
+- MCP SDK：返回 content 的 `type: 'text'` 需加 `as const`
+- `package.json` 设为 `"type": "module"`，本地脚本用 `.cjs` 扩展名
