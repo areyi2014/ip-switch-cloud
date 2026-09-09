@@ -843,17 +843,18 @@ install_skill() {
     log_ok "已写入 install-dir 标记: ${INSTALL_DIR}/data/install-dir.txt -> ${marker_dir_unix}"
 
     # 2. 复制到目标位置（WorkBuddy 读 ~/.workbuddy/skills/<name>/ 平铺发现）
-    #    源分两块：项目根的 SKILL.md / skill.json + scripts/ 整个子目录
+    #    源分三块：项目根的 SKILL.md / skill.json + scripts/ + references/（多语言文档）
     #    目标布局：
     #       ~/.workbuddy/skills/ip-switch/
     #       ├── SKILL.md
     #       ├── skill.json
     #       ├── .install-path.txt        ← bootstrap 锚点（内容为 INSTALL_DIR 绝对路径）
-    #       └── scripts/                 ← 保留作为子目录（不展平）
-    #           ├── _icon.svg
-    #           ├── open-ui.mjs
-    #           ├── open-ui.sh
-    #           └── open-ui.ps1
+    #       ├── scripts/                 ← 保留作为子目录（不展平）
+    #       │   ├── _icon.svg
+    #       │   ├── open-ui.mjs
+    #       │   ├── open-ui.sh
+    #       │   └── open-ui.ps1
+    #       └── references/              ← 多语言文档（zh.md 等），按需加载
     local dest="$HOME/.workbuddy/skills/ip-switch"
     mkdir -p "$dest/scripts"
 
@@ -877,6 +878,17 @@ install_skill() {
         return 1
     fi
 
+    # 2b-2. references/ 子目录（多语言文档，如 zh.md）→ 目标的 references/ 子目录
+    local refs_src="$INSTALL_DIR/references"
+    if [ -d "$refs_src" ]; then
+        mkdir -p "$dest/references"
+        if cp -R "$refs_src/." "$dest/references/" 2>/dev/null; then
+            log_ok "已安装 skill 多语言文档: ${dest}/references/"
+        else
+            log_warn "复制 references 失败: $refs_src → $dest/references（跳过，不影响功能）"
+        fi
+    fi
+
     # 2c. bootstrap 锚点：把 INSTALL_DIR 绝对路径写到用户级副本的 scripts/ 下
     #    open-ui.mjs 启动时第一优先级读这个文件来定位 ip-switch 项目位置
     #    放在 scripts/ 下（跟 open-ui.mjs 同目录）避免混淆
@@ -895,7 +907,12 @@ install_skill() {
         for f in SKILL.md skill.json; do
             [ -f "$INSTALL_DIR/$f" ] && cp -f "$INSTALL_DIR/$f" "$codex_dest/" 2>/dev/null
         done
-cp -R "$scripts_src/." "$codex_dest/scripts/" 2>/dev/null
+        cp -R "$scripts_src/." "$codex_dest/scripts/" 2>/dev/null
+        # Codex 镜像同样带 references/ 多语言文档
+        if [ -d "$INSTALL_DIR/references" ]; then
+            mkdir -p "$codex_dest/references"
+            cp -R "$INSTALL_DIR/references/." "$codex_dest/references/" 2>/dev/null
+        fi
             # Codex 镜像副本同样需要 bootstrap 锚点（放在 scripts/ 下）
             printf '%s\n' "$marker_dir_unix" > "$codex_dest/scripts/.install-path.txt"
             find "$codex_dest/scripts" -maxdepth 1 -type f \( -name "*.sh" -o -name "*.mjs" -o -name "*.ps1" \) -exec chmod +x {} \; 2>/dev/null

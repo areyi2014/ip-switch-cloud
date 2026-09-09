@@ -898,17 +898,18 @@ function Install-Skill {
     Write-OK "已写入 install-dir 标记: $markerPath -> $installDir"
 
     # 2. 复制到目标位置（WorkBuddy 读 ~/.workbuddy/skills/<name>/ 平铺发现）
-    #    源分两块：项目根的 SKILL.md / skill.json + scripts/ 整个子目录
+    #    源分三块：项目根的 SKILL.md / skill.json + scripts\ + references\（多语言文档）
     #    目标布局：
     #       $env:USERPROFILE\.workbuddy\skills\ip-switch\
     #       ├── SKILL.md
     #       ├── skill.json
     #       ├── .install-path.txt        ← bootstrap 锚点（内容为 INSTALL_DIR 绝对路径）
-    #       └── scripts\                  ← 保留作为子目录（不展平）
-    #           ├── _icon.svg
-    #           ├── open-ui.mjs
-    #           ├── open-ui.sh
-    #           └── open-ui.ps1
+    #       ├── scripts\                  ← 保留作为子目录（不展平）
+    #       │   ├── _icon.svg
+    #       │   ├── open-ui.mjs
+    #       │   ├── open-ui.sh
+    #       │   └── open-ui.ps1
+    #       └── references\               ← 多语言文档（zh.md 等），按需加载
     $workbuddyDest = Join-Path $env:USERPROFILE ".workbuddy\skills\ip-switch"
     $workbuddyScriptsDest = Join-Path $workbuddyDest "scripts"
     New-Item -ItemType Directory -Path $workbuddyDest -Force | Out-Null
@@ -927,6 +928,19 @@ function Install-Skill {
         # 2b. scripts/ 整个子目录 → 目标的 scripts\ 子目录（保留目录名）
         Copy-Item -Path "$scriptsSrc\*" -Destination $workbuddyScriptsDest -Recurse -Force
         Write-OK "已安装 skill: $workbuddyDest（含 scripts\ 子目录）"
+
+        # 2b-2. references\ 子目录（多语言文档，如 zh.md）→ 目标的 references\ 子目录
+        $refsSrc = Join-Path $installDir "references"
+        if (Test-Path $refsSrc) {
+            $refsDest = Join-Path $workbuddyDest "references"
+            New-Item -ItemType Directory -Path $refsDest -Force | Out-Null
+            try {
+                Copy-Item -Path "$refsSrc\*" -Destination $refsDest -Recurse -Force
+                Write-OK "已安装 skill 多语言文档: $refsDest"
+            } catch {
+                Write-Warn "复制 references 失败: $refsSrc → $refsDest（跳过，不影响功能）"
+            }
+        }
 
         # 2c. bootstrap 锚点：把 INSTALL_DIR 绝对路径写到用户级副本的 scripts\ 下
         #    open-ui.mjs 启动时第一优先级读这个文件来定位 ip-switch 项目位置
@@ -954,6 +968,13 @@ function Install-Skill {
                 }
             }
             Copy-Item -Path "$scriptsSrc\*" -Destination $codexScriptsDest -Recurse -Force
+            # Codex 镜像同样带 references\ 多语言文档
+            $codexRefsSrc = Join-Path $installDir "references"
+            if (Test-Path $codexRefsSrc) {
+                $codexRefsDest = Join-Path $codexDest "references"
+                New-Item -ItemType Directory -Path $codexRefsDest -Force | Out-Null
+                Copy-Item -Path "$codexRefsSrc\*" -Destination $codexRefsDest -Recurse -Force
+            }
             # Codex 镜像副本同样需要 bootstrap 锚点（放在 scripts\ 下）
             $codexMarker = Join-Path $codexScriptsDest ".install-path.txt"
             [System.IO.File]::WriteAllText($codexMarker, $installDir, (New-Object System.Text.UTF8Encoding($false)))
