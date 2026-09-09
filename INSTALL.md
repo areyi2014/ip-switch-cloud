@@ -36,7 +36,7 @@ An AI Agent plugin for effortless rotation of cloud public IPs — batch-rotate 
 | npm       | >= 9    | Installed together with Node.js |
 | git       | Optional | Used to clone the repo; auto-installed by the script if missing |
 | OS        | -       | Windows 10+, macOS 14+, Ubuntu 20.04+ |
-| Software  | -       | Workbuddy 1.1.0+, Codex 26.818 |
+| Software  | -       | Workbuddy 5.0+, Codex           |
 
 ---
 
