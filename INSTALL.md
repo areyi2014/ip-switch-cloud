@@ -1,97 +1,101 @@
-# ip-switch 安装指南
+# ip-switch Installation Guide
 
-对多个云公网IP轻松轮换的 AI Agent插件 —— 一键批量轮换云服务器公网IP（ AWS / Azure / Oracle / Vultr ），并自动更新域名解析，免除了多个网络平台登录与配置的繁琐操作。
+[English](INSTALL.md) | [简体中文](INSTALL-zh.md)
 
 ---
 
-## 目录
+An AI Agent plugin for effortless rotation of cloud public IPs — batch-rotate public IPs of cloud servers (AWS / Azure / Oracle / Vultr) with one click and automatically update DNS records, eliminating the tedium of logging into and configuring multiple web platforms.
 
-- [系统要求](#系统要求)
-- [一键安装](#一键安装)
+---
+
+## Table of Contents
+
+- [System Requirements](#system-requirements)
+- [One-Click Installation](#one-click-installation)
   - [Windows](#windows)
   - [macOS / Ubuntu](#macos--ubuntu)
-  - [脚本自动完成的内容](#脚本自动完成的内容)
-  - [自定义参数](#自定义参数)
-- [手动安装](#手动安装)
-- [MCP 配置](#mcp-配置)
+  - [What the Script Does Automatically](#what-the-script-does-automatically)
+  - [Custom Parameters](#custom-parameters)
+- [Manual Installation](#manual-installation)
+- [MCP Configuration](#mcp-configuration)
   - [WorkBuddy](#workbuddy)
-  - [环境变量说明](#环境变量说明)
-- [验证安装](#验证安装)
-- [配置云服务器（UI）](#配置云服务器ui)
-- [使用方式](#使用方式)
-- [更新与卸载](#更新与卸载)
-- [常见问题](#常见问题)
+  - [Environment Variables](#environment-variables)
+- [Verify Installation](#verify-installation)
+- [Configure Cloud Servers (UI)](#configure-cloud-servers-ui)
+- [Usage](#usage)
+- [Update & Uninstall](#update--uninstall)
+- [FAQ](#faq)
 
 ---
 
-## 系统要求
+## System Requirements
 
-| 依赖       | 最低版本 | 说明                              |
+| Dependency | Min Version | Description |
 |-----------|---------|-----------------------------------|
-| Node.js   | >= 18   | 需要原生 `fetch` API（Node 18+）  |
-| Npm       | >= 9    | 随 Node.js 一起安装               |
-| Git       | 可选    | 用于克隆仓库；缺失时脚本会自动安装 |
+| Node.js   | >= 18   | Requires the native `fetch` API (Node 18+) |
+| npm       | >= 9    | Installed together with Node.js |
+| git       | Optional | Used to clone the repo; auto-installed by the script if missing |
 | OS        | -       | Windows 10+, macOS 14+, Ubuntu 20.04+ |
-| Software  | -       | Workbuddy 1.1.0+， Codex 26.818 |
+| Software  | -       | Workbuddy 1.1.0+, Codex 26.818 |
 
 ---
 
-## 一键安装
+## One-Click Installation
 
 ### Windows
 
-在 PowerShell 中执行（如遇执行策略限制，先运行 `Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned`）：
+Run in PowerShell (if you hit execution policy restrictions, run `Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned` first):
 
 ```powershell
-# 下载安装脚本
+# Download the install script
 Invoke-WebRequest -Uri "https://gitee.com/areyi2014/ip-switch/raw/main/install.ps1" -OutFile "$env:TEMP\install-ip-switch.ps1"
 
-# 运行（必须在 PowerShell 中执行；cmd 中不支持 & 语法）
+# Run it (must be executed in PowerShell; cmd does not support the & syntax)
 & "$env:TEMP\install-ip-switch.ps1"
 ```
 
-> **注意**:
-> - 请勿使用 `irm ... | iex` 简写 —— `irm`/`iex` 是 PowerShell 别名，在 cmd 等环境会报「找不到 irm」，且管道直接执行多行脚本易出错。
-> - `& "$env:TEMP\..."` 是 PowerShell 语法，必须在 PowerShell 窗口执行，不能在 cmd 中运行。
-> - 如在 cmd 或其他环境，可用以下命令（不依赖 `&`，也自动绕过执行策略限制）：
+> **Notes**:
+> - Do NOT use the `irm ... | iex` shorthand — `irm`/`iex` are PowerShell aliases; in cmd and other environments they error with "irm not found", and piping a multi-line script straight into execution is error-prone.
+> - `& "$env:TEMP\..."` is PowerShell syntax; it must run in a PowerShell window, not cmd.
+> - If you are in cmd or another environment, use the following command instead (no reliance on `&`, and it bypasses execution policy restrictions):
 > ```
 > powershell -ExecutionPolicy Bypass -File "%TEMP%\install-ip-switch.ps1"
 > ```
 
 ### macOS / Ubuntu
 
-在终端中执行：
+Run in a terminal:
 
 ```bash
-# 一条命令
+# One command
 bash <(curl -fsSL https://gitee.com/areyi2014/ip-switch/raw/main/install.sh)
 ```
 
-或分步执行：
+Or step by step:
 
 ```bash
-# 下载安装脚本
+# Download the install script
 curl -fsSL https://gitee.com/areyi2014/ip-switch/raw/main/install.sh -o install-ip-switch.sh
 
-# 运行
+# Run it
 bash install-ip-switch.sh
 ```
 
-### 脚本自动完成的内容
+### What the Script Does Automatically
 
-1. **检查 Node.js** —— 版本必须 >= 18，否则给出提示并退出
-2. **检查 git** —— 未安装时自动处理：
-   - Windows：按 CPU 架构（x64 / arm64）从国内镜像（NPMMirror / 清华 TUNA，GitHub 兜底）下载官方安装包，静默安装到用户目录 `%LOCALAPPDATA%\Git`，并自动加入 PATH，全程不弹窗
-   - macOS / Ubuntu：通过包管理器（apt / brew / xcode-select）自动安装
-3. **检测 MCP 客户端平台** —— 自动识别 `~/.workbuddy`
-4. **克隆仓库** —— 克隆前会显示仓库/分支/目录并让您确认（回车或输入新路径）；先 ping 预热 DNS 缓存，最多自动重试 3 次
-5. **安装依赖** —— `npm install`
-6. **编译** —— TypeScript 编译到 `dist/`（自动清除 `ELECTRON_RUN_AS_NODE` 环境变量干扰）
-7. **写入 MCP 配置** —— 直接用 node 序列化为标准 JSON，合并写入 `~/.workbuddy/mcp.json`（保留文件中已有的其他 server，不覆盖）
+1. **Check Node.js** — version must be >= 18, otherwise it prints a message and exits
+2. **Check git** — if missing, handled automatically:
+   - Windows: downloads the official installer for your CPU architecture (x64 / arm64) from China mirrors (NPMMirror / Tsinghua TUNA, GitHub as fallback), silently installs to the user directory `%LOCALAPPDATA%\Git`, adds it to PATH — zero popups throughout
+   - macOS / Ubuntu: auto-installed via package managers (apt / brew / xcode-select)
+3. **Detect MCP client platforms** — recognizes `~/.workbuddy` automatically
+4. **Clone the repo** — shows repo/branch/directory for confirmation before cloning (Enter or type a new path); pings first to warm up the DNS cache, retries up to 3 times
+5. **Install dependencies** — `npm install`
+6. **Build** — compiles TypeScript to `dist/` (automatically clears `ELECTRON_RUN_AS_NODE` interference)
+7. **Write MCP config** — serialized to standard JSON via node, merged into `~/.workbuddy/mcp.json` (other servers already in the file are preserved, not overwritten)
 
-### 自定义参数
+### Custom Parameters
 
-Windows PowerShell：
+Windows PowerShell:
 
 ```powershell
 & "$env:TEMP\install-ip-switch.ps1" -InstallDir "D:\tools\ip-switch"
@@ -101,7 +105,7 @@ Windows PowerShell：
 & "$env:TEMP\install-ip-switch.ps1" -Help
 ```
 
-macOS / Ubuntu：
+macOS / Ubuntu:
 
 ```bash
 bash install-ip-switch.sh --install-dir /opt/ip-switch
@@ -112,39 +116,39 @@ bash install-ip-switch.sh --skip-build
 
 ---
 
-## 手动安装
+## Manual Installation
 
-如果不使用一键脚本，可以手动执行以下步骤：
+If you don't use the one-click script, perform the following steps manually:
 
-### 1. 确保 Node.js >= 18 已安装
+### 1. Make sure Node.js >= 18 is installed
 
 ```bash
-node -v   # 应输出 v18.x.x 或更高
-npm -v    # 应输出 9.x.x 或更高
+node -v   # Should print v18.x.x or higher
+npm -v    # Should print 9.x.x or higher
 ```
 
-如未安装，前往 [nodejs.org](https://nodejs.org/) 下载 LTS 版本（推荐 22.x）。
+If not installed, download the LTS version (22.x recommended) from [nodejs.org](https://nodejs.org/).
 
-### 2. 克隆仓库
+### 2. Clone the repository
 
 ```bash
 git clone --depth 1 https://gitee.com/areyi2014/ip-switch.git
 cd ip-switch
 ```
 
-### 3. 安装依赖
+### 3. Install dependencies
 
 ```bash
 npm install
 ```
 
-### 4. 编译
+### 4. Build
 
 ```bash
 npm run build
 ```
 
-> **WorkBuddy 用户注意**: 如果编译时报错或静默退出，说明 `ELECTRON_RUN_AS_NODE` 环境变量干扰了 `tsc`。执行以下命令代替：
+> **Note for WorkBuddy users**: If the build fails or exits silently, the `ELECTRON_RUN_AS_NODE` environment variable is interfering with `tsc`. Use the following commands instead:
 > ```bash
 > # macOS / Ubuntu
 > env -u ELECTRON_RUN_AS_NODE npm run build
@@ -153,9 +157,9 @@ npm run build
 > $env:ELECTRON_RUN_AS_NODE = ""; npm run build
 > ```
 
-### 5. 验证
+### 5. Verify
 
-编译成功后，`dist/index.js` 文件应存在：
+After a successful build, `dist/index.js` should exist:
 
 ```bash
 # macOS / Ubuntu
@@ -167,45 +171,45 @@ dir dist\index.js
 
 ---
 
-## MCP 配置
+## MCP Configuration
 
-一键安装完成后，脚本已自动将 `ip-switch` 条目合并写入以下文件（node 序列化，标准 JSON，保留其他已有 server）：
+After one-click installation, the script has already merged the `ip-switch` entry into the following file (node-serialized standard JSON, preserving other existing servers):
 
 - `~/.workbuddy/mcp.json`
 
 ### WorkBuddy
 
-一键脚本检测到 `~/.workbuddy` 目录时会自动写入 `~/.workbuddy/mcp.json`。**WorkBuddy 自带 Node.js**，脚本优先将 `command` 指向它（无需单独安装 Node.js）：
+When the one-click script detects the `~/.workbuddy` directory, it automatically writes to `~/.workbuddy/mcp.json`. **WorkBuddy ships with its own Node.js**, and the script points `command` to it first (no separate Node.js install needed):
 
 ```
-Windows:     C:\Users\<用户名>\.workbuddy\binaries\node\versions\22.22.2\node.exe
-macOS/Linux: ~/.workbuddy/binaries/node/versions/<版本>/bin/node
+Windows:     C:\Users\<username>\.workbuddy\binaries\node\versions\22.22.2\node.exe
+macOS/Linux: ~/.workbuddy/binaries/node/versions/<version>/bin/node
 ```
 
-1. 打开 WorkBuddy **连接器管理页面**
-2. 在「自定义连接器」区域找到 `ip-switch`
-3. 点击 **「信任」**，即可在对话中使用
+1. Open the WorkBuddy **connector management page**
+2. Find `ip-switch` under "Custom connectors"
+3. Click **"Trust"** — it is then available in conversations
 
-如未自动写入，可手动编辑 `~/.workbuddy/mcp.json`（如文件不存在则创建）：
+If it was not written automatically, manually edit `~/.workbuddy/mcp.json` (create the file if it doesn't exist):
 
 ```json
 {
   "mcpServers": {
     "ip-switch": {
-      "command": "C:\\Users\\你的用户名\\.workbuddy\\binaries\\node\\versions\\22.22.2\\node.exe",
-      "args": ["C:\\Users\\你的用户名\\ip-switch\\dist\\index.js"]
+      "command": "C:\\Users\\<username>\\.workbuddy\\binaries\\node\\versions\\22.22.2\\node.exe",
+      "args": ["C:\\Users\\<username>\\ip-switch\\dist\\index.js"]
     }
   }
 }
 ```
 
-> **路径说明**:
-> - `command`: Node.js 可执行文件的完整路径（**WorkBuddy 环境优先使用 WorkBuddy 自带的 Node.js**；安装脚本还会自动检测 Codex 自带的 Node.js，见下方 Codex 小节）
-> - `args[0]`: `dist/index.js` 的完整绝对路径
-> - Windows 路径中反斜杠必须写为 `\\`（JSON 转义）
-> - **注意**: WorkBuddy 自带 Node.js 的版本号目录可能随更新变化，若路径失效，可用以下命令找到实际路径：
+> **Path notes**:
+> - `command`: Full path to the Node.js executable (**in a WorkBuddy environment, prefer the Node.js bundled with WorkBuddy**; the install script also auto-detects the Node.js bundled with Codex, see the Codex section below)
+> - `args[0]`: Full absolute path to `dist/index.js`
+> - Backslashes in Windows paths must be written as `\\` (JSON escaping)
+> - **Note**: The version-number directory of WorkBuddy's bundled Node.js may change with updates. If the path breaks, find the actual path with:
 > ```bash
-> # Windows PowerShell（版本目录会随更新变化）
+> # Windows PowerShell (the version dir changes with updates)
 > Get-ChildItem "$env:USERPROFILE\.workbuddy\binaries\node\versions" -Recurse -Filter node.exe | Select-Object -ExpandProperty FullName
 >
 > # macOS / Linux
@@ -214,27 +218,27 @@ macOS/Linux: ~/.workbuddy/binaries/node/versions/<版本>/bin/node
 
 ### Codex
 
-一键脚本检测到 `~/.codex` 目录时会自动写入 `~/.codex/mcp.json`。**Codex 自带 Node.js**，脚本优先将 `command` 指向它（无需单独安装 Node.js）：
+When the one-click script detects the `~/.codex` directory, it automatically writes to `~/.codex/mcp.json`. **Codex ships with its own Node.js**, and the script points `command` to it first (no separate Node.js install needed):
 
 ```
-Windows:   C:\Users\<用户名>\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe
+Windows:   C:\Users\<username>\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe
 macOS/Linux: ~/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node
 ```
 
-如未自动写入，可手动编辑 `~/.codex/mcp.json`（如文件不存在则创建）：
+If it was not written automatically, manually edit `~/.codex/mcp.json` (create the file if it doesn't exist):
 
 ```json
 {
   "mcpServers": {
     "ip-switch": {
-      "command": "C:\\Users\\你的用户名\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\node\\bin\\node.exe",
-      "args": ["C:\\Users\\你的用户名\\ip-switch\\dist\\index.js"]
+      "command": "C:\\Users\\<username>\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\node\\bin\\node.exe",
+      "args": ["C:\\Users\\<username>\\ip-switch\\dist\\index.js"]
     }
   }
 }
 ```
 
-> **注意**: Codex runtime 目录可能随版本变化（如 `codex-primary-runtime` 前缀），若路径失效，可用以下命令找到实际路径：
+> **Note**: The Codex runtime directory may vary by version (e.g. the `codex-primary-runtime` prefix). If the path breaks, find the actual path with:
 > ```bash
 > # Windows PowerShell
 > Get-ChildItem "$env:USERPROFILE\.cache\codex-runtimes" -Recurse -Filter node.exe | Select-Object -ExpandProperty FullName
@@ -243,9 +247,9 @@ macOS/Linux: ~/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin
 > find ~/.cache/codex-runtimes -name node -type f
 > ```
 
-### 环境变量说明
+### Environment Variables
 
-MCP 配置中可以通过 `env` 字段设置环境变量。本项目在 WorkBuddy 环境下通常需要清除 Electron 干扰：
+Environment variables can be set via the `env` field in the MCP config. In a WorkBuddy environment, this project usually needs the Electron interference cleared:
 
 ```json
 {
@@ -257,68 +261,68 @@ MCP 配置中可以通过 `env` 字段设置环境变量。本项目在 WorkBudd
 }
 ```
 
-| 变量                    | 说明                                  |
+| Variable | Description |
 |------------------------|--------------------------------------|
-| `ELECTRON_RUN_AS_NODE` | 设为空字符串 `""`，避免 Electron 环境干扰 |
+| `ELECTRON_RUN_AS_NODE` | Set to empty string `""` to avoid Electron environment interference |
 
 ---
 
-## 验证安装
+## Verify Installation
 
-在 WorkBuddy 对话中，尝试以下命令验证：
+In a WorkBuddy conversation, try the following command to verify:
 
 ```
-列出我的云服务器配置
+List my cloud server profiles
 ```
 
-如果服务正常加载，会返回一个配置列表（可能为空 `{}`）。
+If the service loaded correctly, it returns a list of profiles (possibly empty `{}`).
 
-也可以直接运行 `dist/index.js` 验证 MCP 协议是否正常：
+You can also run `dist/index.js` directly to verify the MCP protocol works:
 
 ```bash
 echo '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | node dist/index.js
 ```
 
-预期输出包含 13 个工具定义。
+The expected output contains 13 tool definitions.
 
 ---
 
-## 配置云服务器（UI）
+## Configure Cloud Servers (UI)
 
-提供了一个本地浏览器配置界面，用于填写云平台凭据。
+A local browser-based configuration UI is provided for entering cloud platform credentials.
 
 ```bash
-# 启动 UI 服务器（端口由系统自动分配，避免冲突）
+# Start the UI server (the port is auto-assigned by the system to avoid conflicts)
 node ui/server.cjs
 ```
 
-启动后终端会打印实际地址 `http://127.0.0.1:<端口>`，用浏览器打开即可在可视化界面中填写和保存配置。
+After startup, the terminal prints the actual address `http://127.0.0.1:<port>`. Open it in a browser to fill in and save configs in the visual interface.
 
-> **约定**: 配置表单**永远用浏览器打开**，不要使用 WorkBuddy 内嵌窗口（沙箱限制会拦截保存请求）。
+> **Convention**: Always open the config form in a **browser**, not in the WorkBuddy embedded window (its sandbox limitations block the save request).
 
 ---
 
-## 使用方式
+## Usage
 
-通过 AI 对话即可操作，常用指令：
+Operate it directly through AI conversation. Common commands:
 
-| 对话指令                           | 功能                       |
+| Command | Function |
 |-----------------------------------|---------------------------|
-| 「添加一个 AWS 配置」               | 打开 UI 添加云服务器配置     |
-| 「列出我的云服务器配置」             | 查看已保存的配置            |
-| 「轮换所有已配置服务器的 IP」        | 一键轮换所有 IP + 更新 DNS  |
-| 「轮换 aws-ty 的 IP 并更新 DNS」   | 轮换指定配置并同步 DNS      |
-| 「删除 aws-ty 配置」               | 移除指定配置               |
+| "Add an AWS profile" | Open the UI to add a cloud server profile |
+| "List my cloud server profiles" | View saved profiles |
+| "Rotate the IPs of all configured servers" | One-click rotate all IPs + update DNS |
+| "Rotate aws-ty's IP and update DNS" | Rotate the specified profile and sync DNS |
+| "Delete the aws-ty profile" | Remove the specified profile |
 
-13 个 MCP 工具完整列表详见 [README.md](./README.md) 的「使用方式」章节。
+For the complete list of 13 MCP tools, see the [Usage](./README.md#usage) section of [README.md](./README.md).
 
 ---
 
-## 更新与卸载
+## Update & Uninstall
 
-### 更新
+### Update
 
-重新运行安装脚本即可（检测到已克隆仓库时自动 `git pull` + 安装依赖 + 编译 + 更新 MCP 配置），或手动：
+Just re-run the install script (when it detects an already-cloned repo, it automatically does `git pull` + installs dependencies + builds + updates the MCP config), or do it manually:
 
 ```bash
 cd ~/ip-switch
@@ -327,29 +331,29 @@ npm install
 npm run build
 ```
 
-### 卸载
+### Uninstall
 
 ```bash
-# 删除项目目录
+# Delete the project directory
 rm -rf ~/ip-switch                 # macOS / Ubuntu
 Remove-Item -Recurse -Force ~/ip-switch   # Windows
 
-# 删除配置数据（含保存的凭据）
+# Delete config data (including saved credentials)
 rm -rf ~/.ip-switch                     # macOS / Ubuntu
 Remove-Item -Recurse -Force ~/.ip-switch       # Windows
 
-# 从 ~/.workbuddy/mcp.json 中移除 ip-switch 条目
+# Remove the ip-switch entry from ~/.workbuddy/mcp.json
 ```
 
 ---
 
-## 常见问题
+## FAQ
 
-### 1. 编译报错或静默退出
+### 1. Build fails or exits silently
 
-**原因**: `ELECTRON_RUN_AS_NODE=1` 环境变量干扰了 `tsc` 编译器。
+**Cause**: The `ELECTRON_RUN_AS_NODE=1` environment variable interferes with the `tsc` compiler.
 
-**解决**:
+**Fix**:
 
 ```bash
 # macOS / Ubuntu
@@ -359,53 +363,53 @@ env -u ELECTRON_RUN_AS_NODE npm run build
 $env:ELECTRON_RUN_AS_NODE = ""; npm run build
 ```
 
-### 2. 克隆仓库失败
+### 2. Repository clone fails
 
-**原因**: 网络问题或仓库不可访问。
+**Cause**: Network issues or the repository is unreachable.
 
-**解决**:
-- 确认网络正常，能访问 gitee.com
-- 脚本已内置 DNS 预热（先 ping 仓库域名）与最多 3 次自动重试
-- 如为私有仓库，先配置 SSH Key: `ssh-keygen -t ed25519 && cat ~/.ssh/id_ed25519.pub`
-- 手动克隆: `git clone https://gitee.com/areyi2014/ip-switch.git`
+**Fix**:
+- Confirm the network works and gitee.com is reachable
+- The script has built-in DNS warm-up (pings the repo domain first) and up to 3 automatic retries
+- For a private repo, set up an SSH key first: `ssh-keygen -t ed25519 && cat ~/.ssh/id_ed25519.pub`
+- Clone manually: `git clone https://gitee.com/areyi2014/ip-switch.git`
 
-### 3. MCP 配置后工具未出现
+### 3. Tools don't appear after MCP configuration
 
-**原因**: MCP 进程启动失败、配置路径错误或 mcp.json 格式不被识别。
+**Cause**: The MCP process failed to start, the configured path is wrong, or the mcp.json format isn't recognized.
 
-**排查**:
-1. 确认 `dist/index.js` 存在
-2. 确认 `command` 中的 node 路径正确: `Get-Command node` / `which node`（需完整路径）
-3. 确认 mcp.json 是标准 JSON（一键脚本使用 node 序列化输出，不会出现缩进或反斜杠转义问题）
-4. 手动测试: `echo '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | node dist/index.js`
-5. 检查 WorkBuddy 连接器管理页面是否有错误信息
+**Troubleshooting**:
+1. Confirm `dist/index.js` exists
+2. Confirm the node path in `command` is correct: `Get-Command node` / `which node` (full path required)
+3. Confirm mcp.json is valid JSON (the one-click script serializes output with node, so indentation or backslash escaping issues won't occur)
+4. Test manually: `echo '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | node dist/index.js`
+5. Check the WorkBuddy connector management page for error messages
 
-### 4. npm install 失败（权限错误）
+### 4. npm install fails (permission error)
 
-**解决**: 避免使用 `sudo`。如提示 EACCES 错误：
+**Fix**: Avoid `sudo`. If you get an EACCES error:
 
 ```bash
-# macOS / Ubuntu: 修复 npm 权限
+# macOS / Ubuntu: Fix npm permissions
 mkdir -p ~/.npm-global
 npm config set prefix '~/.npm-global'
 echo 'export PATH=~/.npm-global/bin:$PATH' >> ~/.bashrc
 source ~/.bashrc
 ```
 
-### 5. Azure SDK 报错 "networkInterfaces.updateProperties 不存在"
+### 5. Azure SDK error "networkInterfaces.updateProperties does not exist"
 
-此问题已在最新代码中修复（使用 `beginCreateOrUpdateAndWait` 替代），确保使用最新的 `main` 分支即可。
+This has been fixed in the latest code (replaced with `beginCreateOrUpdateAndWait`). Just make sure you're on the latest `main` branch.
 
-### 6. Windows PowerShell 脚本无法运行
+### 6. Windows PowerShell script won't run
 
 ```powershell
 Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
 ```
 
-或使用 `powershell -ExecutionPolicy Bypass -File install.ps1` 绕过限制。
+Or bypass the restriction with `powershell -ExecutionPolicy Bypass -File install.ps1`.
 
-### 7. git 自动安装失败
+### 7. Automatic git installation fails
 
-**原因**: 国内镜像或 GitHub 均不可达。
+**Cause**: Neither the China mirrors nor GitHub are reachable.
 
-**解决**: 手动前往 [git-scm.com/download](https://git-scm.com/download/win) 下载安装，装好后重新运行安装脚本（脚本会检测到已有 git 并跳过安装）。
+**Fix**: Manually download and install from [git-scm.com/download](https://git-scm.com/download/win), then re-run the install script (it detects the existing git and skips installation).
