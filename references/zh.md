@@ -250,7 +250,7 @@ install 已把 skill 同时镜像到 `~/.workbuddy/skills/ip-switch/` 与 `~/.co
 ├── .mcp.json                         ← 安装时生成的本机 MCP 配置
 ├── ui/server.cjs                     ← 配置页 HTTP server（open-ui.mjs 拉起）
 ├── scripts/open-ui.mjs               ← 本 skill 脚本原件
-├── SKILL.md                          ← 中文技能入口（唯一源文件）
+├── SKILL.md                          ← 英文技能入口（唯一源文件，agent 指令层）
 └── references/
     └── zh.md                         ← 本文件（详细手册，按需加载）
 ~/.workbuddy/skills/ip-switch/        ← WorkBuddy skill 副本（install 创建）
