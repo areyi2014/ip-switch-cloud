@@ -103,11 +103,12 @@ const log = {
 
 // ── 解析参数 ──────────────────────────────────────────────────────────────────
 function parseArgs(argv) {
-  const out = { page: '', portOnly: false, stop: false, status: false, help: false, quiet: false };
+  const out = { page: '', portOnly: false, stop: false, status: false, help: false, quiet: false, open: false };
   for (const arg of argv.slice(2)) {
     if (arg === '--port') out.portOnly = true;
     else if (arg === '--stop') out.stop = true;
     else if (arg === '--status') out.status = true;
+    else if (arg === '--open') out.open = true;
     else if (arg === '--quiet' || arg === '-q') out.quiet = true;
     else if (arg === '--help' || arg === '-h') out.help = true;
     else if (SUPPORTED_PAGES.has(arg)) out.page = arg;
@@ -133,6 +134,8 @@ function printHelp() {
 
 选项:
   --port           只输出 URL 到 stdout，不打开浏览器（CI / 调试）
+  --open           显式打开系统默认浏览器（默认不打开！AI agent 场景把 URL 嵌入回复；
+                   仅 vbs/桌面双击入口需要弹浏览器时才加）
   --stop           关闭后台 UI server
   --status         检查 UI server 是否在运行，输出 JSON
   -q, --quiet      静默模式：[INFO]/[OK] 日志只写文件，不打印到终端（vbs/wscript 用）
@@ -393,8 +396,16 @@ async function main() {
     return;
   }
 
-  log.ok(`打开配置页面: ${url}`);
-  openBrowser(url);
+  if (args.open) {
+    // 显式弹浏览器：仅 vbs/桌面双击入口或用户明确要求时
+    log.ok(`打开配置页面: ${url}`);
+    openBrowser(url);
+  } else {
+    // 默认：绝不弹系统浏览器。把 URL 输出到 stdout，
+    // 由 AI agent 嵌入回复（WorkBuddy: present_files 内置预览面板；Codex: 回复内链接）
+    log.ok(`配置页 URL（默认不弹浏览器）: ${url}`);
+    process.stdout.write(url + '\n');
+  }
 }
 
 main().catch((err) => {

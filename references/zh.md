@@ -11,7 +11,7 @@ ip-switch 是一个 **MCP（Model Context Protocol）服务**，安装后被注�
 | 场景                                       | 用哪个                                              |
 | ---------------------------------------- | ------------------------------------------------ |
 | 用户想做**操作**（轮换 IP、查 IP、更新 DNS、管理 profile） | **直接唤起 MCP 工具**（见 §3–§5），不需要本 skill 的脚本          |
-| 用户要**配置凭据**（首次添加云账号 / 编辑凭据）              | 用本 skill 自带的脚本打开浏览器表单（见 §6），由用户亲手填凭据并保存到 profile |
+| 用户要**配置凭据**（首次添加云账号 / 编辑凭据）              | 用本 skill 自带脚本打开配置页并**嵌入回复**（见 §6），由用户在页面里亲手填凭据并保存到 profile |
 
 > 核心原则：**MCP 工具轮不到本 skill 脚本上场；只有「填凭据/看配置表单」才需要开 UI。**
 
@@ -108,7 +108,7 @@ rotate_instance_ip({
 
 **凭据属于敏感信息：绝不在对话里向用户索取或复述明文**。首次添加账号的流程：
 
-1. 开 UI 表单（§6），让用户**在浏览器里亲手填** provider / 凭据 / 实例 / 子域名 / Cloudflare Token 与 Zone，点保存（保存写 `save_profile` 同款数据到 `data/config.json`）。
+1. 开 UI 表单（§6，嵌入回复不弹浏览器），让用户**在页面里亲手填** provider / 凭据 / 实例 / 子域名 / Cloudflare Token 与 Zone，点保存（保存写 `save_profile` 同款数据到 `data/config.json`）。
 2. 回对话后用 `list_profiles` 确认 profile 已出现、`cloudflareConfigured` 为 true（绑定 DNS 需要）。
 3. 之后一切操作都走 §5.2 的一键工具，无需再碰凭据。
 
@@ -143,13 +143,13 @@ rotate_instance_ip({
 | Windows PowerShell              | `& "$env:USERPROFILE\<skill-root相对路径>\scripts\open-ui.mjs" aws`（WorkBuddy = `.workbuddy\skills\ip-switch`，Codex = `.codex\skills\ip-switch`） | PowerShell 窗口可见日志                     |
 | 静默模式（不打印 [INFO]，日志写文件）          | 加 `--quiet` / `-q`（vbs 已自动启用）                                                                                                                | 仅文件日志                                 |
 
-**给外行用户的标准建议**：桌面右键 `open-ui.vbs` → "发送到" → "桌面快捷方式"。以后双击图标就打开浏览器配置页，全程零窗口。`open-ui.vbs` 内部用 WScript.Shell 以 WindowStyle=0 调用 node，并自动加 `--quiet`，所以 [INFO] 日志全走 `<install-dir>/data/open-ui.log` 文件，stderr 干净。
+**给外行用户的标准建议**：桌面右键 `open-ui.vbs` → "发送到" → "桌面快捷方式"。以后双击图标就打开浏览器配置页，全程零窗口。`open-ui.vbs` 内部用 WScript.Shell 以 WindowStyle=0 调用 node，并自动加 `--quiet --open`（双击场景没有 agent 回复可嵌入，仍需弹系统浏览器），所以 [INFO] 日志全走 `<install-dir>/data/open-ui.log` 文件，stderr 干净。
 
 脚本行为：
 
 1. 自动定位 `<install-dir>`（用户级副本读旁侧的 `.install-path.txt`；项目内原件按自身路径推导）
-2. 后台拉起 `ui/server.cjs`，浏览器打开表单；URL 也会打到 stderr 供回显
-3. 辅助参数：`--port`（只输出 URL 不开浏览器）、`--status`（JSON 状态）、`--stop`（关掉后台 UI server）、`--quiet`（静默模式）
+2. 后台拉起 `ui/server.cjs`，**默认不弹浏览器**，把配置页 URL 输出到 stdout（日志走 stderr）供 agent 嵌入回复
+3. 辅助参数：`--port`（只输出 URL）、`--open`（显式弹系统浏览器，仅 vbs/桌面双击入口使用）、`--status`（JSON 状态）、`--stop`（关掉后台 UI server）、`--quiet`（静默模式）
 
 **Windows 后台进程"零窗口"机制说明**（why vbs works）：
 
@@ -157,7 +157,12 @@ rotate_instance_ip({
 - `nodew.exe` 是真正的 GUI subsystem → 启动时不创建 console → **彻底无窗口**
 - 若你的机器没装 `nodew.exe`，spawn 仍带 `windowsHide: true`，但 `node.exe`（console subsystem）启动时 Windows 可能仍会闪一下——这种情况装个官方 Node 安装包就解决了，或者就用 vbs 入口（外层 wscript 已是 GUI subsystem，子进程无 console）
 
-**浏览器约定**：Codex 桌面端应使用 `open_in_codex` 打开本地 HTTP URL 并放在右侧面板；不要打开 `plugin://ip-switch@local`，该协议地址会显示空白页。其他客户端或手动场景使用系统浏览器。表单保存后让用户「回到对话」，AI 用 `list_profiles` 验证。
+**嵌入约定（2026-09-12 起，强制）**：配置页**必须嵌入回复，绝不弹系统浏览器新窗口**。
+- **WorkBuddy**：agent 调 `present_files` 传入 `http://127.0.0.1:<port>/...` URL → 页面嵌入内置浏览器预览面板（同源 fetch 正常，保存按钮可用）。**禁用 `show_widget` 内嵌**——其沙箱 CSP 拦截 fetch，保存按钮失效。
+- **Codex 桌面端**：用 `open_in_codex` 打开 URL 并放右侧面板（`placement: "right"`）；不要打开 `plugin://ip-switch@local`（空白页）。
+- **其他客户端 / CLI**：把 URL 作为可点击链接写在回复里，不代开浏览器。
+- 唯一例外：`open-ui.vbs` 桌面双击入口（内部自动加 `--open`），外行用户没有 agent 回复可嵌入，仍弹系统浏览器。
+表单保存后让用户「回到对话」，AI 用 `list_profiles` 验证。
 
 ### 6.1 多 Agent 用户视角（桌面端 / CLI / 手动）
 
@@ -165,12 +170,12 @@ install 已把 skill 同时镜像到 `~/.workbuddy/skills/ip-switch/` 与 `~/.co
 
 #### 1. 桌面端（最常见，外行首选）
 
-用户**不需要自己敲命令**，在 Agent 对话框里说一句自然语言即可，AI 自动跑脚本并把 URL 告诉你：
+用户**不需要自己敲命令**，在 Agent 对话框里说一句自然语言即可，AI 自动跑脚本并把页面**嵌入回复**：
 
-| Agent | 用户在对话框说 | AI 自动执行的命令 | 浏览器行为 |
+| Agent | 用户在对话框说 | AI 自动执行的命令 | 页面呈现方式 |
 |-------|---------------|-----------------|-----------|
-| **WorkBuddy 桌面端** | "帮我打开 ip-switch 配置页" / "添加一个 AWS 账号" / "改一下 Azure 凭据" | `node ~/.workbuddy/skills/ip-switch/scripts/open-ui.mjs aws` | 浏览器自动开对应表单页 |
-| **Codex 桌面端** | 同上 | `node ~/.codex/skills/ip-switch/scripts/open-ui.mjs aws` | 同上 |
+| **WorkBuddy 桌面端** | "帮我打开 ip-switch 配置页" / "添加一个 AWS 账号" / "改一下 Azure 凭据" | `node ~/.workbuddy/skills/ip-switch/scripts/open-ui.mjs aws` | `present_files` 打开 URL → 内置预览面板嵌入 |
+| **Codex 桌面端** | 同上 | `node ~/.codex/skills/ip-switch/scripts/open-ui.mjs aws` | `open_in_codex` → 右侧面板嵌入 |
 
 > **前提**：WorkBuddy 需在「连接器管理」页对 ip-switch 点「信任」并重启；Codex 需在插件页启用 "IP Switch"（详见 §7.1 排障）。
 
@@ -179,7 +184,7 @@ install 已把 skill 同时镜像到 `~/.workbuddy/skills/ip-switch/` 与 `~/.co
 | Agent | 命令 |
 |-------|------|
 | **Codex CLI** | `codex --profile ip-switch exec "添加一个 AWS 账号"`（profile 内已配 MCP server 与 skill 路径）；或直接 `node ~/.codex/skills/ip-switch/scripts/open-ui.mjs aws` |
-| **WorkBuddy**（无官方 CLI） | 直接调 skill 脚本：`node ~/.workbuddy/skills/ip-switch/scripts/open-ui.mjs aws`（绕过桌面端，让 UI 后台启动后单独开浏览器） |
+| **WorkBuddy**（无官方 CLI） | 直接调 skill 脚本：`node ~/.workbuddy/skills/ip-switch/scripts/open-ui.mjs aws`（UI 后台启动，URL 输出到 stdout，不弹浏览器） |
 
 #### 3. 手动（任何 OS / 任何人）
 
