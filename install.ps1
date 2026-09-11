@@ -778,9 +778,10 @@ function Install-CodexMarketplace {
     $codexRoot = "$env:USERPROFILE\.codex"
     $marketDir = "$codexRoot\marketplaces\local"
     $marketPluginDir = "$marketDir\plugins\ip-switch\.codex-plugin"
-    $pluginSkillDir = "$marketDir\plugins\ip-switch\skills\ip-switch"
 
     # 1. 市场清单 marketplace.json（参考 Codex 自带 openai-bundled 格式）
+    #    注：插件包只装清单 + .mcp.json，不再打包 skill 副本——
+    #    skill 由 ~\.codex\skills\ip-switch\ 独立通道提供，避免双通道重复
     $marketJson = @"
 {
   "name": "local",
@@ -829,7 +830,6 @@ function Install-CodexMarketplace {
     "dns"
   ],
   "mcpServers": "./.mcp.json",
-  "skills": "./skills/",
   "interface": {
     "displayName": "IP Switch",
     "shortDescription": "Multi-cloud IP switch & DNS update",
@@ -852,16 +852,6 @@ function Install-CodexMarketplace {
 
     New-Item -ItemType Directory -Path "$marketDir\.agents\plugins" -Force | Out-Null
     New-Item -ItemType Directory -Path $marketPluginDir -Force | Out-Null
-    New-Item -ItemType Directory -Path $pluginSkillDir -Force | Out-Null
-    Copy-Item -Path "$installDir\SKILL.md" -Destination "$pluginSkillDir\SKILL.md" -Force
-    Copy-Item -Path "$installDir\skill.json" -Destination "$pluginSkillDir\skill.json" -Force
-    New-Item -ItemType Directory -Path "$pluginSkillDir\scripts" -Force | Out-Null
-    Copy-Item -Path "$installDir\scripts\*" -Destination "$pluginSkillDir\scripts" -Recurse -Force
-    [System.IO.File]::WriteAllText("$pluginSkillDir\scripts\.install-path.txt", $installDir, (New-Object System.Text.UTF8Encoding($false)))
-    if (Test-Path "$installDir\references") {
-        New-Item -ItemType Directory -Path "$pluginSkillDir\references" -Force | Out-Null
-        Copy-Item -Path "$installDir\references\*" -Destination "$pluginSkillDir\references" -Recurse -Force
-    }
     Copy-Item -Path "$installDir\.mcp.json" -Destination "$marketDir\plugins\ip-switch\.mcp.json" -Force
     [System.IO.File]::WriteAllText("$marketDir\.agents\plugins\marketplace.json", $marketJson, (New-Object System.Text.UTF8Encoding($false)))
     [System.IO.File]::WriteAllText("$marketPluginDir\plugin.json", $pluginJson, (New-Object System.Text.UTF8Encoding($false)))

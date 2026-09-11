@@ -718,29 +718,11 @@ install_codex_marketplace() {
     local codex_root="$HOME/.codex"
     local market_dir="$codex_root/marketplaces/local"
     local market_plugin_dir="$market_dir/plugins/ip-switch/.codex-plugin"
-    local plugin_skill_dir="$market_dir/plugins/ip-switch/skills/ip-switch"
 
     # 1. 市场清单 marketplace.json（参考 Codex 自带 openai-bundled 格式）
-    mkdir -p "$market_dir/.agents/plugins" "$market_plugin_dir" "$plugin_skill_dir"
-    cp "$INSTALL_DIR/SKILL.md" "$plugin_skill_dir/SKILL.md"
-    cp "$INSTALL_DIR/skill.json" "$plugin_skill_dir/skill.json"
-    mkdir -p "$plugin_skill_dir/scripts"
-    cp -R "$INSTALL_DIR/scripts/." "$plugin_skill_dir/scripts/"
-    local plugin_marker="$INSTALL_DIR"
-    case "$plugin_marker" in
-        /[a-z]/*)
-            local plugin_drive plugin_rest
-            plugin_drive="${plugin_marker:1:1}"
-            plugin_rest="${plugin_marker:2}"
-            plugin_rest="${plugin_rest//\//\\}"
-            plugin_marker="${plugin_drive}:${plugin_rest}"
-            ;;
-    esac
-    printf '%s\n' "$plugin_marker" > "$plugin_skill_dir/scripts/.install-path.txt"
-    if [ -d "$INSTALL_DIR/references" ]; then
-        mkdir -p "$plugin_skill_dir/references"
-        cp -R "$INSTALL_DIR/references/." "$plugin_skill_dir/references/"
-    fi
+    #    注：插件包只装清单 + .mcp.json，不再打包 skill 副本——
+    #    skill 由 ~/.codex/skills/ip-switch/ 独立通道提供，避免双通道重复
+    mkdir -p "$market_dir/.agents/plugins" "$market_plugin_dir"
     cp "$INSTALL_DIR/.mcp.json" "$market_dir/plugins/ip-switch/.mcp.json"
     cat > "$market_dir/.agents/plugins/marketplace.json" <<'EOF_MARKET'
 {
@@ -790,7 +772,6 @@ EOF_MARKET
     "dns"
   ],
   "mcpServers": "./.mcp.json",
-  "skills": "./skills/",
   "interface": {
     "displayName": "IP Switch",
     "shortDescription": "Multi-cloud IP switch & DNS update",
