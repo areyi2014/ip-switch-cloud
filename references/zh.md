@@ -157,10 +157,11 @@ rotate_instance_ip({
 - `nodew.exe` 是真正的 GUI subsystem → 启动时不创建 console → **彻底无窗口**
 - 若你的机器没装 `nodew.exe`，spawn 仍带 `windowsHide: true`，但 `node.exe`（console subsystem）启动时 Windows 可能仍会闪一下——这种情况装个官方 Node 安装包就解决了，或者就用 vbs 入口（外层 wscript 已是 GUI subsystem，子进程无 console）
 
-**嵌入约定（2026-09-12 起，强制）**：配置页**必须嵌入回复，绝不弹系统浏览器新窗口**。
-- **WorkBuddy**：agent 调 `present_files` 传入 `http://127.0.0.1:<port>/...` URL → 页面嵌入内置浏览器预览面板（同源 fetch 正常，保存按钮可用）。**禁用 `show_widget` 内嵌**——其沙箱 CSP 拦截 fetch，保存按钮失效。
+**嵌入约定（2026-09-12 起，强制）**：配置页**必须嵌入回复并自动打开，绝不弹系统浏览器新窗口**——agent 拿到 URL 后必须立即主动调用打开动作（WorkBuddy=present_files、Codex=open_in_codex），不允许只贴链接让用户自己点。
+- **WorkBuddy**：agent 调 `present_files` 传入 `http://127.0.0.1:<port>/...` URL → 页面自动嵌入内置浏览器预览面板（同源 fetch 正常，保存按钮可用）。**禁用 `show_widget` 内嵌**——其沙箱 CSP 拦截 fetch，保存按钮失效。
 - **Codex 桌面端**：用 `open_in_codex` 打开 URL 并放右侧面板（`placement: "right"`）；不要打开 `plugin://ip-switch@local`（空白页）。
 - **其他客户端 / CLI**：把 URL 作为可点击链接写在回复里，不代开浏览器。
+- 可靠性（WorkBuddy 实测）：open-ui.mjs 的脱离式后台 server 会随 bash 命令结束被会话回收（URL 连不上）。此时改用**后台任务**常驻跑 `node <install-dir>/ui/server.cjs`（env `IP_SWITCH_DATA_DIR=<install-dir>/data`），端口读 `<install-dir>/data/server-port.txt`；验证用 `curl --noproxy "*"`（本机代理会把 localhost 变 502）。
 - 唯一例外：`open-ui.vbs` 桌面双击入口（内部自动加 `--open`），外行用户没有 agent 回复可嵌入，仍弹系统浏览器。
 表单保存后让用户「回到对话」，AI 用 `list_profiles` 验证。
 
