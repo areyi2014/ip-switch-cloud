@@ -718,9 +718,30 @@ install_codex_marketplace() {
     local codex_root="$HOME/.codex"
     local market_dir="$codex_root/marketplaces/local"
     local market_plugin_dir="$market_dir/plugins/ip-switch/.codex-plugin"
+    local plugin_skill_dir="$market_dir/plugins/ip-switch/skills/ip-switch"
 
     # 1. 市场清单 marketplace.json（参考 Codex 自带 openai-bundled 格式）
-    mkdir -p "$market_dir/.agents/plugins" "$market_plugin_dir"
+    mkdir -p "$market_dir/.agents/plugins" "$market_plugin_dir" "$plugin_skill_dir"
+    cp "$INSTALL_DIR/SKILL.md" "$plugin_skill_dir/SKILL.md"
+    cp "$INSTALL_DIR/skill.json" "$plugin_skill_dir/skill.json"
+    mkdir -p "$plugin_skill_dir/scripts"
+    cp -R "$INSTALL_DIR/scripts/." "$plugin_skill_dir/scripts/"
+    local plugin_marker="$INSTALL_DIR"
+    case "$plugin_marker" in
+        /[a-z]/*)
+            local plugin_drive plugin_rest
+            plugin_drive="${plugin_marker:1:1}"
+            plugin_rest="${plugin_marker:2}"
+            plugin_rest="${plugin_rest//\//\\}"
+            plugin_marker="${plugin_drive}:${plugin_rest}"
+            ;;
+    esac
+    printf '%s\n' "$plugin_marker" > "$plugin_skill_dir/scripts/.install-path.txt"
+    if [ -d "$INSTALL_DIR/references" ]; then
+        mkdir -p "$plugin_skill_dir/references"
+        cp -R "$INSTALL_DIR/references/." "$plugin_skill_dir/references/"
+    fi
+    cp "$INSTALL_DIR/.mcp.json" "$market_dir/plugins/ip-switch/.mcp.json"
     cat > "$market_dir/.agents/plugins/marketplace.json" <<'EOF_MARKET'
 {
   "name": "local",
@@ -744,7 +765,7 @@ install_codex_marketplace() {
 }
 EOF_MARKET
 
-    # 2. 市场内插件清单 plugin.json（mcpServers 指向源码 .mcp.json 绝对路径）
+    # 2. 市场内插件清单 plugin.json（mcpServers 使用插件包内 .mcp.json）
     cat > "$market_plugin_dir/plugin.json" <<EOF_PLUGIN
 {
   "name": "ip-switch",
@@ -768,7 +789,8 @@ EOF_MARKET
     "cloudflare",
     "dns"
   ],
-  "mcpServers": "${INSTALL_DIR}/.mcp.json",
+  "mcpServers": "./.mcp.json",
+  "skills": "./skills/",
   "interface": {
     "displayName": "IP Switch",
     "shortDescription": "Multi-cloud IP switch & DNS update",
@@ -781,6 +803,7 @@ EOF_MARKET
     ],
     "websiteURL": "https://github.com/areyi2014/ip-switch",
     "defaultPrompt": [
+      "Add an AWS profile in the IP Switch UI",
       "Use IP Switch to rotate the public IP of a cloud instance and update its Cloudflare DNS record.",
       "Use IP Switch to query instance info or list instances in a cloud region."
     ]
