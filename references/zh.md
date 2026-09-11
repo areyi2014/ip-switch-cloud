@@ -1,7 +1,6 @@
-# ip-switch — 多云 IP 轮换 MCP 服务使用手册（中文版）
+# ip-switch — 多云 IP 轮换 MCP 服务详细手册
 
-> 本文件是 `SKILL.md`（英文主文件）的中文版。默认情况下 agent 只需读英文主文件；当用户偏好中文时再按需读本文件。
-> This is the Chinese version of `SKILL.md` (the English master). Agents normally only need the English file; read this on demand for users who prefer Chinese.
+> 本文件是 `SKILL.md` 的详细参考手册。技能入口只保留路由和配置页流程；需要工具参数、完整矩阵或排障时再读本文件。
 
 ## 1. 这是什么
 
@@ -158,7 +157,7 @@ rotate_instance_ip({
 - `nodew.exe` 是真正的 GUI subsystem → 启动时不创建 console → **彻底无窗口**
 - 若你的机器没装 `nodew.exe`，spawn 仍带 `windowsHide: true`，但 `node.exe`（console subsystem）启动时 Windows 可能仍会闪一下——这种情况装个官方 Node 安装包就解决了，或者就用 vbs 入口（外层 wscript 已是 GUI subsystem，子进程无 console）
 
-**浏览器约定**：一定要让用户用**真实浏览器**访问 URL 填表，不要用 Agent 内嵌 widget（其沙箱 CSP 会拦 fetch，保存写不进去）。表单保存后让用户「回到对话」，AI 用 `list_profiles` 验证。
+**浏览器约定**：Codex 桌面端应使用 `open_in_codex` 打开本地 HTTP URL 并放在右侧面板；不要打开 `plugin://ip-switch@local`，该协议地址会显示空白页。其他客户端或手动场景使用系统浏览器。表单保存后让用户「回到对话」，AI 用 `list_profiles` 验证。
 
 ### 6.1 多 Agent 用户视角（桌面端 / CLI / 手动）
 
@@ -242,12 +241,12 @@ install 已把 skill 同时镜像到 `~/.workbuddy/skills/ip-switch/` 与 `~/.co
 <install-dir>/                        ← ip-switch 项目（install 的目标）
 ├── dist/index.js                     ← MCP 服务入口（注册到各客户端的就是它）
 ├── data/config.json                  ← 凭据/profile（MCP 与 UI 共享，gitignore）
-├── .mcp.json                         ← Codex 项目级直连配置
+├── .mcp.json                         ← 安装时生成的本机 MCP 配置
 ├── ui/server.cjs                     ← 配置页 HTTP server（open-ui.mjs 拉起）
 ├── scripts/open-ui.mjs               ← 本 skill 脚本原件
-├── SKILL.md                          ← 英文主文件
+├── SKILL.md                          ← 中文技能入口（唯一源文件）
 └── references/
-    └── zh.md                         ← 本文件（中文版，按需加载）
+    └── zh.md                         ← 本文件（详细手册，按需加载）
 ~/.workbuddy/skills/ip-switch/        ← WorkBuddy skill 副本（install 创建）
 ~/.codex/skills/ip-switch/            ← Codex 镜像（仅当 ~/.codex/skills 已存在）
 ~/.workbuddy/mcp.json                 ← WorkBuddy MCP 注册
