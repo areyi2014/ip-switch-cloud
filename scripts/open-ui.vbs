@@ -38,7 +38,7 @@ End If
 
 ' 在路径里的 \ 转义成 \\ 给 VBScript 的 Shell.Run 字符串解析用
 '（vbscript 的 " 包裹路径是允许 \\ 转义的；cmd 看到 \\ 还原成 \）
-command = "node """ & Replace(mjsPath, "\", "\\") & """ --quiet" & page
+command = "node """ & Replace(mjsPath, "\", "\\") & """ --quiet --open" & page
 
 ' WindowStyle = 0（隐藏），False（不等待）
 shell.Run command, 0, False

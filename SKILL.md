@@ -20,15 +20,20 @@ description: 配置和管理 ip-switch 的多云账号、凭据与 Cloudflare DN
 2. 在本技能根目录运行：
 
    ```powershell
-   node <skill-root>/scripts/open-ui.mjs aws --port
+   node <skill-root>/scripts/open-ui.mjs aws
    ```
 
    读取 stdout 最后一行的本地 URL。`<skill-root>` 指本 `SKILL.md` 所在目录。
-3. 在 Codex 桌面端，立即用 `open_in_codex` 打开该 URL：
-   `target: { type: "browser", url: "<printed-url>" }`，`placement: "right"`。
-   不要打开 `plugin://ip-switch@local`；该协议地址在内置浏览器中会渲染为空白页。
-4. 其他客户端或手动运行场景，让用户用系统浏览器打开 URL。
-5. 用户在页面保存后回到对话，再调用 `list_profiles` 验证结果。
+   该脚本默认**不弹系统浏览器**——严禁改用 `start`/`open`/`xdg-open` 或 `--open` 弹新窗口。
+3. 拿到 URL 后必须把页面**嵌入回复**，按客户端选择方式：
+   - **Codex 桌面端**：立即用 `open_in_codex` 打开该 URL：
+     `target: { type: "browser", url: "<printed-url>" }`，`placement: "right"`。
+     不要打开 `plugin://ip-switch@local`；该协议地址在内置浏览器中会渲染为空白页。
+   - **WorkBuddy**：调用 `present_files` 传入该 `http://127.0.0.1:<port>/...` URL，
+     页面会嵌入内置浏览器预览面板（同源 fetch 正常，保存按钮可直接写配置）。
+     不要用 `show_widget` 内嵌——其沙箱 CSP 会拦截 fetch，保存按钮失效。
+   - **其他客户端**：把 URL 作为可点击链接写在回复里，不要代开浏览器。
+4. 用户在页面保存后回到对话，再调用 `list_profiles` 验证结果。
 
 ## 维护命令
 
