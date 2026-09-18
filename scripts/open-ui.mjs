@@ -14,11 +14,12 @@
  *   - 不再有 ~/.ip-switch/ 目录
  *
  * 用法：
- *   node open-ui.mjs                  # 打开默认全功能表单 config-form.html
- *   node open-ui.mjs aws              # 打开 AWS 配置页 aws-config.html
- *   node open-ui.mjs azure            # 打开 Azure 配置页
- *   node open-ui.mjs oci              # 打开 OCI 配置页
- *   node open-ui.mjs vultr            # 打开 Vultr 配置页
+ *   node open-ui.mjs                  # 打开默认全功能表单 config-form.html（英文，默认输出）
+ *   node open-ui.mjs zh               # 打开中文全功能表单 config-form-zh.html
+ *   node open-ui.mjs aws              # 打开 AWS 配置页 aws-config.html（英文）
+ *   node open-ui.mjs azure            # 打开 Azure 配置页（英文）
+ *   node open-ui.mjs oci              # 打开 OCI 配置页（英文）
+ *   node open-ui.mjs vultr            # 打开 Vultr 配置页（英文）
  *   node open-ui.mjs --port           # 只输出 URL，不打开浏览器（CI/调试用）
  *   node open-ui.mjs --stop           # 关闭后台 UI server（如果有的话）
  *   node open-ui.mjs --status         # 检查 UI server 是否在运行
@@ -62,10 +63,11 @@ const SCRIPT_DIR = __dirname;
 // bootstrap 锚点文件名（install 脚本在用户级副本里写入）
 const INSTALL_PATH_MARKER = '.install-path.txt';
 
-const SUPPORTED_PAGES = new Set(['aws', 'azure', 'oci', 'vultr']);
+const SUPPORTED_PAGES = new Set(['aws', 'azure', 'oci', 'vultr', 'zh']);
 const PAGE_PATHS = {
-  '': '/config-form.html',
-  aws: '/aws-config.html',
+  '': '/config-form.html',            // English full-featured form (default output)
+  zh: '/config-form-zh.html',         // Chinese full-featured form
+  aws: '/aws-config.html',            // English standalone forms
   azure: '/azure-config.html',
   oci: '/oci-config.html',
   vultr: '/vultr-config.html',
@@ -126,11 +128,12 @@ function printHelp() {
   console.log(`用法: node open-ui.mjs [页面] [选项]
 
 页面:
-  (无)             打开默认全功能表单（config-form.html）
-  aws              打开 AWS 配置页
-  azure            打开 Azure 配置页
-  oci              打开 OCI 配置页
-  vultr            打开 Vultr 配置页
+  (无)             打开默认全功能表单（config-form.html，英文，默认输出）
+  zh               打开中文全功能表单（config-form-zh.html）
+  aws              打开 AWS 配置页（aws-config.html，英文）
+  azure            打开 Azure 配置页（英文）
+  oci              打开 OCI 配置页（英文）
+  vultr            打开 Vultr 配置页（英文）
 
 选项:
   --port           只输出 URL 到 stdout，不打开浏览器（CI / 调试）

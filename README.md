@@ -393,11 +393,16 @@ ip-switch/
 │       ├── vultr.ts      # Vultr (reserved IP → attach → delete old)
 │       └── cloudflare.ts # Cloudflare DNS (find + update A record)
 ├── ui/
-│   ├── config-form.html  # Full-featured config form (639 lines, four-platform tabs)
-│   ├── aws-config.html   # AWS standalone form (lightweight, ~90 lines)
-│   ├── azure-config.html # Azure standalone form
-│   ├── oci-config.html   # OCI standalone form
-│   ├── vultr-config.html # Vultr standalone form
+│   ├── config-form.html    # Full-featured config form, English (default output; four-platform tabs)
+│   ├── config-form-zh.html # Full-featured config form, Chinese
+│   ├── aws-config.html     # AWS standalone form (English, lightweight, ~90 lines)
+│   ├── aws-config-zh.html  # AWS standalone form (Chinese)
+│   ├── azure-config.html   # Azure standalone form (English)
+│   ├── azure-config-zh.html # Azure standalone form (Chinese)
+│   ├── oci-config.html     # OCI standalone form (English)
+│   ├── oci-config-zh.html  # OCI standalone form (Chinese)
+│   ├── vultr-config.html   # Vultr standalone form (English)
+│   ├── vultr-config-zh.html # Vultr standalone form (Chinese)
 │   └── server.cjs        # Local config server (system-assigned port)
 └── dist/                 # Build output
 ```

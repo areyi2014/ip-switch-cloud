@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Vultr 配置</title>
+<title>Vultr Config</title>
 <style>
 :root{--bg-primary:#fff;--bg-secondary:#f7f7f5;--text-primary:#1a1a1a;--text-secondary:#666;--text-tertiary:#999;--border:rgba(0,0,0,0.12);--border-focus:rgba(0,0,0,0.3);--radius-md:8px;--radius-lg:12px;--accent:#534AB7;--success:#1D9E75;--danger:#E24B4A;--font-sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;--font-mono:"SF Mono",Monaco,Consolas,monospace}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -26,12 +26,12 @@ input[type="checkbox"]{-webkit-appearance:checkbox;appearance:auto;width:auto;he
 </head>
 <body>
 <div class="container">
-<div class="header"><h1>Vultr 云服务器配置</h1><p>填写 Vultr 实例信息</p></div>
+<div class="header"><h1>Vultr Cloud Server Config</h1><p>Fill in your Vultr instance details</p></div>
 <form autocomplete="off"><div class="field-group">
-<div class="field"><label>配置名称 <span class="required">*</span></label><input id="f-name" placeholder="vultr-sg"></div>
-<div class="field"><label>区域 <span class="required">*</span></label>
+<div class="field"><label>Profile Name <span class="required">*</span></label><input id="f-name" placeholder="vultr-sg"></div>
+<div class="field"><label>Region <span class="required">*</span></label>
 <select id="f-region" onchange="toggleRegion()">
-<option value="">选择区域</option>
+<option value="">Select region...</option>
 <option value="ewr">ewr (New Jersey)</option>
 <option value="lax">lax (Los Angeles)</option>
 <option value="ord">ord (Chicago)</option>
@@ -39,23 +39,23 @@ input[type="checkbox"]{-webkit-appearance:checkbox;appearance:auto;width:auto;he
 <option value="sin">sin (Singapore)</option>
 <option value="tokyo">tokyo (Tokyo)</option>
 <option value="ams">ams (Amsterdam)</option>
-<option value="__custom__">其他区域 (手动输入)</option>
+<option value="__custom__">Other region (manual input)</option>
 </select>
-<input id="f-region-custom" type="text" class="hidden" placeholder="输入区域代码，如 del" style="margin-top:4px;">
+<input id="f-region-custom" type="text" class="hidden" placeholder="Enter region code, e.g. del" style="margin-top:4px;">
 </div>
-<div class="credentials-section"><div class="credentials-title">凭据</div><div class="field-group">
+<div class="credentials-section"><div class="credentials-title">Credentials</div><div class="field-group">
 <div class="field"><label>API Key <span class="required">*</span></label><input id="cred-apiKey" class="mono" type="password" placeholder="Vultr API Key"></div>
 </div></div>
-<div class="field"><label>实例 ID <span class="required">*</span></label><input id="f-instance" class="mono" placeholder="instance UUID (如 7e3ab...)"></div>
-<div class="field"><label>二级域名 <span class="required">*</span></label><input id="f-subdomain" placeholder="vultr.example.com"></div>
-<div class="field"><label><input id="f-proxied" type="checkbox" onchange="toggleCF()"> 启用 Cloudflare 域名解析</label></div>
-<div id="cf-fields" class="credentials-section hidden"><div class="credentials-title">Cloudflare 凭据</div><div class="field-group">
+<div class="field"><label>Instance ID <span class="required">*</span></label><input id="f-instance" class="mono" placeholder="instance UUID (e.g. 7e3ab...)"></div>
+<div class="field"><label>Subdomain <span class="required">*</span></label><input id="f-subdomain" placeholder="vultr.example.com"></div>
+<div class="field"><label><input id="f-proxied" type="checkbox" onchange="toggleCF()"> Enable Cloudflare DNS</label></div>
+<div id="cf-fields" class="credentials-section hidden"><div class="credentials-title">Cloudflare Credentials</div><div class="field-group">
 <div class="field"><label>API Token <span class="required">*</span></label><input id="f-cf-token" type="password" class="mono" placeholder="Cloudflare API Token"></div>
-<div class="field"><label>Zone ID <span class="required">*</span></label><input id="f-cf-zone" class="mono" placeholder="如 41bf01bf4504866c02b1b6728bd4c203"></div>
+<div class="field"><label>Zone ID <span class="required">*</span></label><input id="f-cf-zone" class="mono" placeholder="e.g. 41bf01bf4504866c02b1b6728bd4c203"></div>
 </div></div>
 </div>
 <div class="msg" id="f-msg"></div>
-<div class="buttons"><button type="button" class="primary" onclick="submit()">保存配置</button></div>
+<div class="buttons"><button type="button" class="primary" onclick="submit()">Save Profile</button></div>
 </form>
 </div>
 <script>
@@ -67,22 +67,22 @@ var c={name:document.getElementById('f-name').value.trim(),provider:'vultr',regi
 credentials:{},instanceId:document.getElementById('f-instance').value.trim(),subdomain:document.getElementById('f-subdomain').value.trim(),
 proxied:document.getElementById('f-proxied').checked};
 var ak=document.getElementById('cred-apiKey').value.trim();if(ak)c.credentials.apiKey=ak;
-if(!c.name)return showMsg('请填写配置名称','error');if(!c.region)return showMsg('请选择区域','error');
-if(!c.credentials.apiKey)return showMsg('请填写 API Key','error');
-if(!c.instanceId)return showMsg('请填写实例 ID','error');if(!c.subdomain)return showMsg('请填写二级域名','error');
+if(!c.name)return showMsg('Please enter a profile name','error');if(!c.region)return showMsg('Please select a region','error');
+if(!c.credentials.apiKey)return showMsg('Please enter API Key','error');
+if(!c.instanceId)return showMsg('Please enter instance ID','error');if(!c.subdomain)return showMsg('Please enter subdomain','error');
 if(c.proxied){c.cloudflare={apiToken:document.getElementById('f-cf-token').value.trim(),zoneId:document.getElementById('f-cf-zone').value.trim()};
-if(!c.cloudflare.apiToken)return showMsg('请填写 Cloudflare API Token','error');
-if(!c.cloudflare.zoneId)return showMsg('请填写 Cloudflare Zone ID','error')}
+if(!c.cloudflare.apiToken)return showMsg('Please enter Cloudflare API Token','error');
+if(!c.cloudflare.zoneId)return showMsg('Please enter Cloudflare Zone ID','error')}
 var lines=['Please save the following cloud config:','Profile name: '+c.name,'Provider: vultr','Region: '+c.region];
 var cp=[];for(var k in c.credentials)cp.push(k+': '+c.credentials[k]);lines.push('Credentials: '+cp.join(', '));
 lines.push('Instance ID: '+c.instanceId);lines.push('Subdomain: '+c.subdomain);lines.push('Proxied: '+c.proxied);
 if(c.cloudflare){lines.push('Cloudflare API Token: '+c.cloudflare.apiToken);lines.push('Cloudflare Zone ID: '+c.cloudflare.zoneId)}
 var txt=lines.join('\n');
-showMsg('正在保存...','info');
+showMsg('Saving...','info');
 fetch('/api/save-config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({profile:c})})
 .then(function(r){return r.json()})
-.then(function(d){if(d.success){showMsg('已保存到 '+d.path+'（共 '+d.profileCount+' 个配置）','success')}else{showMsg('保存失败: '+(d.error||'未知错误'),'error')}})
-.catch(function(){if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(txt).catch(function(){})}var s=false;if(typeof sendPrompt==='function'){try{sendPrompt(txt);s=true}catch(e){}}showMsg(s?'已提交！文本已复制到剪贴板':'沙箱限制无法直接保存，已复制到剪贴板，请粘贴到对话框','success')})
+.then(function(d){if(d.success){showMsg('Saved to '+d.path+' ('+d.profileCount+' profile(s) total)','success')}else{showMsg('Save failed: '+(d.error||'unknown error'),'error')}})
+.catch(function(){if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(txt).catch(function(){})}var s=false;if(typeof sendPrompt==='function'){try{sendPrompt(txt);s=true}catch(e){}}showMsg(s?'Submitted! Text copied to clipboard':'Sandbox blocked direct save. Copied to clipboard — paste it into the chat','success')})
 }
 </script>
 </body>

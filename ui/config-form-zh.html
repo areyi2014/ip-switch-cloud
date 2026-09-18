@@ -1,13 +1,13 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Cloud IP Rotator - Config Form</title>
+<title>Cloud IP Rotator - 配置表单</title>
 <style>
   /* ============================================================
-   * Self-contained styles — no external dependencies, works in
-   * any browser / Agent platform. For dark theme, tweak :root vars.
+   * 自包含样式 — 不依赖宿主环境，可直接用于任何浏览器/Agent 平台
+   * 如需适配暗色主题，修改 :root 中的变量即可
    * ============================================================ */
   :root {
     --bg-primary: #ffffff;
@@ -176,8 +176,8 @@
 <body>
 <div class="container">
   <div class="header">
-    <h1>Add Cloud Server Profile</h1>
-    <p>Pick a platform, fill in the details, and save</p>
+    <h1>添加云服务器配置</h1>
+    <p>选择云平台，填写信息，点击保存</p>
   </div>
 
   <!-- Provider tabs -->
@@ -193,32 +193,32 @@
 
       <!-- Profile name (all providers) -->
       <div class="field">
-        <label>Profile Name <span class="required">*</span></label>
+        <label>配置名称 <span class="required">*</span></label>
         <input id="f-name" type="text" placeholder="aws-tokyo" />
       </div>
 
       <!-- Region (dynamic options per provider) -->
       <div class="field">
-        <label>Region <span class="required">*</span></label>
+        <label>区域 <span class="required">*</span></label>
         <select id="f-region"></select>
-        <input id="f-region-custom" type="text" placeholder="Enter region code" class="hidden" style="margin-top:4px;" />
+        <input id="f-region-custom" type="text" placeholder="输入区域代码" class="hidden" style="margin-top:4px;" />
       </div>
 
       <!-- Provider-specific credentials -->
       <div class="credentials-section">
-        <div class="credentials-title">Credentials</div>
+        <div class="credentials-title">凭据</div>
         <div class="field-group" id="cred-fields"></div>
       </div>
 
       <!-- Instance ID -->
       <div class="field">
-        <label>Instance ID <span class="required">*</span></label>
+        <label>实例 ID <span class="required">*</span></label>
         <input id="f-instance" type="text" class="mono" placeholder="" />
       </div>
 
       <!-- Subdomain -->
       <div class="field">
-        <label>Subdomain <span class="required">*</span></label>
+        <label>二级域名 <span class="required">*</span></label>
         <input id="f-subdomain" type="text" placeholder="xxx.example.com" />
       </div>
 
@@ -226,13 +226,13 @@
       <div class="field">
         <label>
           <input id="f-proxied" type="checkbox" onchange="toggleCloudflareFields()" style="width:auto;display:inline-block;margin-right:4px;" />
-          Enable Cloudflare DNS
+          启用 Cloudflare 域名解析
         </label>
       </div>
 
       <!-- Cloudflare credentials (shown when proxy is enabled) -->
       <div id="cf-fields" class="credentials-section hidden">
-        <div class="credentials-title">Cloudflare Credentials</div>
+        <div class="credentials-title">Cloudflare 凭据</div>
         <div class="field-group">
           <div class="field">
             <label>API Token <span class="required">*</span></label>
@@ -240,7 +240,7 @@
           </div>
           <div class="field">
             <label>Zone ID <span class="required">*</span></label>
-            <input id="f-cf-zone" type="text" class="mono" placeholder="e.g. 41bf01bf4504866c02b1b6728bd4c203" />
+            <input id="f-cf-zone" type="text" class="mono" placeholder="例如 41bf01bf4504866c02b1b6728bd4c203" />
           </div>
         </div>
       </div>
@@ -249,8 +249,8 @@
     <div class="msg" id="f-msg"></div>
 
     <div class="buttons">
-      <button type="button" class="primary" onclick="submitConfig()">Save Profile</button>
-      <button type="button" class="secondary" onclick="copyConfig()">Copy Text</button>
+      <button type="button" class="primary" onclick="submitConfig()">保存配置</button>
+      <button type="button" class="secondary" onclick="copyConfig()">复制文本</button>
     </div>
 
     <div class="output-preview" id="f-preview"></div>
@@ -260,21 +260,21 @@
 <script>
 /**
  * ============================================================
- * Cloud IP Rotator - Config Form (English)
+ * Cloud IP Rotator - Config Form
  * ============================================================
  *
- * Submit methods (auto-detected, by priority):
- *   1. sendPrompt(text)      — WorkBuddy embedded environment
- *   2. window.parent.postMessage — iframe embedding (Dify / self-hosted)
- *   3. navigator.clipboard    — generic browser (copy to clipboard)
+ * 提交方式（自动检测，按优先级）:
+ *   1. sendPrompt(text)      — WorkBuddy 内嵌环境
+ *   2. window.parent.postMessage — iframe 嵌入（Dify/自建平台）
+ *   3. navigator.clipboard    — 通用浏览器（复制到剪贴板）
  *
- * Custom submit:
- *   Set window.CIR_FORM_SUBMIT = function(text, json) { ... } on the
- *   host page; it takes priority over the built-in handlers.
+ * 自定义提交:
+ *   在调用页面设置 window.CIR_FORM_SUBMIT = function(text, json) { ... }
+ *   会优先使用此函数
  *
- * URL params:
- *   ?provider=aws            preselect the cloud platform
- *   ?autoprompt=1            auto-submit after page load
+ * URL 参数:
+ *   ?provider=aws            预选云平台
+ *   ?autoprompt=1            页面加载后自动提交
  * ============================================================
  */
 
@@ -549,7 +549,7 @@ function submitConfig() {
 
   // 1. Try local server first — directly saves to config.json
   if (typeof fetch === 'function') {
-    showMsg('Saving...', 'info');
+    showMsg('正在保存...', 'info');
     fetch('/api/save-config', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -558,9 +558,9 @@ function submitConfig() {
     .then(function(r) { return r.json(); })
     .then(function(data) {
       if (data.success) {
-        showMsg('Saved to ' + data.path + ' (' + data.profileCount + ' profile(s) total)', 'success');
+        showMsg('配置已保存到 ' + data.path + '（共 ' + data.profileCount + ' 个配置）', 'success');
       } else {
-        showMsg('Save failed: ' + (data.error || 'unknown error'), 'error');
+        showMsg('保存失败: ' + (data.error || '未知错误'), 'error');
       }
     })
     .catch(function(err) {
@@ -601,9 +601,9 @@ function fallbackSubmit(text, json, c) {
   }
 
   if (sentViaPrompt) {
-    showMsg('Submitted! The text has also been copied to the clipboard. If it was not sent automatically, paste it into the chat.', 'success');
+    showMsg('已提交！文本也已复制到剪贴板。如果没有自动发送，请粘贴到对话框。', 'success');
   } else {
-    showMsg('Sandbox blocked direct save. Copied to clipboard — please paste it into the chat.', 'success');
+    showMsg('沙箱限制无法直接保存，已复制到剪贴板，请粘贴到对话框发送。', 'success');
   }
 }
 

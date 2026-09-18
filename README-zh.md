@@ -393,11 +393,16 @@ ip-switch/
 │       ├── vultr.ts      # Vultr（reserved IP→attach→删除旧的）
 │       └── cloudflare.ts # Cloudflare DNS（查找+更新 A 记录）
 ├── ui/
-│   ├── config-form.html  # 全功能配置表单（639行，四平台标签页）
-│   ├── aws-config.html   # AWS 独立表单（精简版，~90行）
-│   ├── azure-config.html # Azure 独立表单
-│   ├── oci-config.html   # OCI 独立表单
-│   ├── vultr-config.html # Vultr 独立表单
+│   ├── config-form.html  # 全功能配置表单（英文，默认输出，四平台标签页）
+│   ├── config-form-zh.html # 全功能配置表单（中文）
+│   ├── aws-config.html   # AWS 独立表单（英文，精简版，~90行）
+│   ├── aws-config-zh.html  # AWS 独立表单（中文）
+│   ├── azure-config.html   # Azure 独立表单（英文）
+│   ├── azure-config-zh.html # Azure 独立表单（中文）
+│   ├── oci-config.html     # OCI 独立表单（英文）
+│   ├── oci-config-zh.html  # OCI 独立表单（中文）
+│   ├── vultr-config.html   # Vultr 独立表单（英文）
+│   ├── vultr-config-zh.html # Vultr 独立表单（中文）
 │   └── server.cjs        # 本地配置服务器（系统自动分配端口）
 └── dist/                 # 编译输出
 ```

@@ -137,11 +137,17 @@ rotate_instance_ip({
 | 场景                              | 命令                                                                                                                                           | 是否弹窗                                  |
 | ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
 | **Windows 外行 / 桌面快捷方式**（零窗口，推荐） | 双击 `<skill-root>/scripts/open-ui.vbs` 或 `wscript open-ui.vbs [aws\|azure\|oci\|vultr]`                                                       | **完全不弹窗**（wscript + CREATE_NO_WINDOW） |
-| 默认全功能表单（增删改所有云账号）               | `node <skill-root>/scripts/open-ui.mjs`                                                                                                      | 用户自己的终端可见日志                           |
-| 只加 AWS                          | `node <skill-root>/scripts/open-ui.mjs aws`                                                                                                  | 同上                                    |
-| 只加 Azure / OCI / Vultr          | `… open-ui.mjs azure`（`oci` / `vultr` 同理）                                                                                                    | 同上                                    |
+| 默认全功能表单·英文页（增删改所有云账号，默认输出） | `node <skill-root>/scripts/open-ui.mjs`                                                                                                      | 用户自己的终端可见日志                           |
+| 默认全功能表单·中文页                           | `node <skill-root>/scripts/open-ui.mjs zh`（config-form-zh.html）                                                                                                   | 同上                                    |
+| 只加 AWS（英文页）                   | `node <skill-root>/scripts/open-ui.mjs aws`（aws-config.html）                                                                                                  | 同上                                    |
+| 只加 Azure / OCI / Vultr（英文页）    | `… open-ui.mjs azure`（`oci` / `vultr` 同理；中文版把 URL 路径加 `-zh` 后缀即可）                                                                                                    | 同上                                    |
 | Windows PowerShell              | `& "$env:USERPROFILE\<skill-root相对路径>\scripts\open-ui.mjs" aws`（WorkBuddy = `.workbuddy\skills\ip-switch`，Codex = `.codex\skills\ip-switch`） | PowerShell 窗口可见日志                     |
 | 静默模式（不打印 [INFO]，日志写文件）          | 加 `--quiet` / `-q`（vbs 已自动启用）                                                                                                                | 仅文件日志                                 |
+
+**页面语言选择与命名（2026-09-19 起，强制）**：**默认输出英文**。命名规则：英文页用原名，中文页加 `-zh` 后缀——
+- 用户输入为英文或其他非中文语言 → 打开英文页 `config-form.html`（`open-ui.mjs` 无参数输出的就是它，无需换路径；`?provider=aws` 可预选平台）。
+- 仅当用户输入为中文 → 打开中文页 `config-form-zh.html`（`open-ui.mjs zh`）或分厂商中文页 `aws/azure/oci/vultr-config-zh.html`（把打印 URL 路径加 `-zh` 后缀即可）。
+- 分厂商英文页 `aws/azure/oci/vultr-config.html` 由 `open-ui.mjs aws|azure|oci|vultr` 直接输出。
 
 **给外行用户的标准建议**：桌面右键 `open-ui.vbs` → "发送到" → "桌面快捷方式"。以后双击图标就打开浏览器配置页，全程零窗口。`open-ui.vbs` 内部用 WScript.Shell 以 WindowStyle=0 调用 node，并自动加 `--quiet --open`（双击场景没有 agent 回复可嵌入，仍需弹系统浏览器），所以 [INFO] 日志全走 `<install-dir>/data/open-ui.log` 文件，stderr 干净。
 
@@ -249,6 +255,10 @@ install 已把 skill 同时镜像到 `~/.workbuddy/skills/ip-switch/` 与 `~/.co
 ├── data/config.json                  ← 凭据/profile（MCP 与 UI 共享，gitignore）
 ├── .mcp.json                         ← 安装时生成的本机 MCP 配置
 ├── ui/server.cjs                     ← 配置页 HTTP server（open-ui.mjs 拉起）
+├── ui/config-form.html               ← 全功能配置表单（英文，默认输出）
+├── ui/config-form-zh.html            ← 全功能配置表单（中文）
+├── ui/aws-config-zh.html             ← 分厂商独立表单（中文；azure/oci/vultr 同理）
+├── ui/aws-config.html                ← 分厂商独立表单（英文，默认；azure/oci/vultr 同理）
 ├── scripts/open-ui.mjs               ← 本 skill 脚本原件
 ├── SKILL.md                          ← 英文技能入口（唯一源文件，agent 指令层）
 └── references/

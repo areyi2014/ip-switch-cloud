@@ -5,7 +5,7 @@
 '       适合：桌面快捷方式、外行用户双击、文件管理器右键"打开方式"。
 '
 ' 用法：
-'   双击运行                  → 打开默认全功能表单 config-form.html
+'   双击运行                  → 打开默认全功能表单 config-form.html（英文，默认输出；中文页为 config-form-zh.html）
 '   wscript open-ui.vbs aws   → 打开 AWS 配置页
 '   wscript open-ui.vbs azure → 打开 Azure 配置页
 '   wscript open-ui.vbs oci   → 打开 OCI 配置页
