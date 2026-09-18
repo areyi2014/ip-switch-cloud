@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Azure Config</title>
+<title>OCI 配置</title>
 <style>
 :root{--bg-primary:#fff;--bg-secondary:#f7f7f5;--text-primary:#1a1a1a;--text-secondary:#666;--text-tertiary:#999;--border:rgba(0,0,0,0.12);--border-focus:rgba(0,0,0,0.3);--radius-md:8px;--radius-lg:12px;--accent:#534AB7;--success:#1D9E75;--danger:#E24B4A;--font-sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;--font-mono:"SF Mono",Monaco,Consolas,monospace}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -26,39 +26,39 @@ input[type="checkbox"]{-webkit-appearance:checkbox;appearance:auto;width:auto;he
 </head>
 <body>
 <div class="container">
-<div class="header"><h1>Azure Cloud Server Config</h1><p>Fill in your Azure VM instance details</p></div>
+<div class="header"><h1>OCI 云服务器配置</h1><p>填写 Oracle Cloud 实例信息</p></div>
 <form autocomplete="off"><div class="field-group">
-<div class="field"><label>Profile Name <span class="required">*</span></label><input id="f-name" placeholder="azure-hk"></div>
-<div class="field"><label>Region <span class="required">*</span></label>
+<div class="field"><label>配置名称 <span class="required">*</span></label><input id="f-name" placeholder="oci-tokyo"></div>
+<div class="field"><label>区域 <span class="required">*</span></label>
 <select id="f-region" onchange="toggleRegion()">
-<option value="">Select region...</option>
-<option value="eastus">eastus (East US)</option>
-<option value="westus2">westus2 (West US 2)</option>
-<option value="westeurope">westeurope (West Europe)</option>
-<option value="southeastasia">southeastasia (Southeast Asia)</option>
-<option value="eastasia">eastasia (East Asia)</option>
-<option value="japaneast">japaneast (Japan East)</option>
-<option value="__custom__">Other region (manual input)</option>
+<option value="">选择区域</option>
+<option value="us-ord-1">us-ord-1 (Chicago)</option>
+<option value="us-phx-1">us-phx-1 (Phoenix)</option>
+<option value="ap-tokyo-1">ap-tokyo-1 (Tokyo)</option>
+<option value="ap-singapore-1">ap-singapore-1 (Singapore)</option>
+<option value="ap-seoul-1">ap-seoul-1 (Seoul)</option>
+<option value="ap-mumbai-1">ap-mumbai-1 (Mumbai)</option>
+<option value="eu-frankfurt-1">eu-frankfurt-1 (Frankfurt)</option>
+<option value="__custom__">其他区域 (手动输入)</option>
 </select>
-<input id="f-region-custom" type="text" class="hidden" placeholder="Enter region code, e.g. northeurope" style="margin-top:4px;">
+<input id="f-region-custom" type="text" class="hidden" placeholder="输入区域代码，如 ap-hyderabad-1" style="margin-top:4px;">
 </div>
-<div class="credentials-section"><div class="credentials-title">Credentials</div><div class="field-group">
-<div class="field"><label>Subscription ID <span class="required">*</span></label><input id="cred-subscriptionId" class="mono"></div>
-<div class="field"><label>Client ID (App ID) <span class="required">*</span></label><input id="cred-clientId" class="mono"></div>
-<div class="field"><label>Client Secret <span class="required">*</span></label><input id="cred-clientSecret" class="mono" type="password"></div>
-<div class="field"><label>Tenant ID <span class="required">*</span></label><input id="cred-tenantId" class="mono"></div>
-<div class="field"><label>Resource Group Name <span style="color:var(--text-tertiary);font-weight:400">(optional)</span></label><input id="cred-resourceGroupName" placeholder="(optional)"></div>
+<div class="credentials-section"><div class="credentials-title">凭据</div><div class="field-group">
+<div class="field"><label>Tenancy OCID <span class="required">*</span></label><input id="cred-tenancy" class="mono" placeholder="ocid1.tenancy..."></div>
+<div class="field"><label>User OCID <span class="required">*</span></label><input id="cred-user" class="mono" placeholder="ocid1.user..."></div>
+<div class="field"><label>Fingerprint <span class="required">*</span></label><input id="cred-fingerprint" class="mono" placeholder="aa:bb:cc:..."></div>
+<div class="field"><label>Private Key <span class="required">*</span></label><textarea id="cred-privateKey" class="mono" rows="4" placeholder="-----BEGIN RSA PRIVATE KEY-----"></textarea></div>
 </div></div>
-<div class="field"><label>Instance ID <span class="required">*</span></label><input id="f-instance" class="mono" placeholder="my-resource-group/my-vm-name"></div>
-<div class="field"><label>Subdomain <span class="required">*</span></label><input id="f-subdomain" placeholder="azure.example.com"></div>
-<div class="field"><label><input id="f-proxied" type="checkbox" onchange="toggleCF()"> Enable Cloudflare DNS</label></div>
-<div id="cf-fields" class="credentials-section hidden"><div class="credentials-title">Cloudflare Credentials</div><div class="field-group">
+<div class="field"><label>实例 ID <span class="required">*</span></label><input id="f-instance" class="mono" placeholder="ocid1.instance.oc1..."></div>
+<div class="field"><label>二级域名 <span class="required">*</span></label><input id="f-subdomain" placeholder="oci.example.com"></div>
+<div class="field"><label><input id="f-proxied" type="checkbox" onchange="toggleCF()"> 启用 Cloudflare 域名解析</label></div>
+<div id="cf-fields" class="credentials-section hidden"><div class="credentials-title">Cloudflare 凭据</div><div class="field-group">
 <div class="field"><label>API Token <span class="required">*</span></label><input id="f-cf-token" type="password" class="mono" placeholder="Cloudflare API Token"></div>
-<div class="field"><label>Zone ID <span class="required">*</span></label><input id="f-cf-zone" class="mono" placeholder="e.g. 41bf01bf4504866c02b1b6728bd4c203"></div>
+<div class="field"><label>Zone ID <span class="required">*</span></label><input id="f-cf-zone" class="mono" placeholder="如 41bf01bf4504866c02b1b6728bd4c203"></div>
 </div></div>
 </div>
 <div class="msg" id="f-msg"></div>
-<div class="buttons"><button type="button" class="primary" onclick="submit()">Save Profile</button></div>
+<div class="buttons"><button type="button" class="primary" onclick="submit()">保存配置</button></div>
 </form>
 </div>
 <script>
@@ -66,30 +66,29 @@ function toggleRegion(){var s=document.getElementById('f-region');var c=document
 function toggleCF(){document.getElementById('cf-fields').classList.toggle('hidden',!document.getElementById('f-proxied').checked)}
 function showMsg(t,c){var m=document.getElementById('f-msg');m.className='msg '+c;m.textContent=t}
 function submit(){
-var c={name:document.getElementById('f-name').value.trim(),provider:'azure',region:document.getElementById('f-region').value==='__custom__'?document.getElementById('f-region-custom').value.trim():document.getElementById('f-region').value,
+var c={name:document.getElementById('f-name').value.trim(),provider:'oci',region:document.getElementById('f-region').value==='__custom__'?document.getElementById('f-region-custom').value.trim():document.getElementById('f-region').value,
 credentials:{},instanceId:document.getElementById('f-instance').value.trim(),subdomain:document.getElementById('f-subdomain').value.trim(),
 proxied:document.getElementById('f-proxied').checked};
-['subscriptionId','clientId','clientSecret','tenantId'].forEach(function(k){var v=document.getElementById('cred-'+k).value.trim();if(v)c.credentials[k]=v});
-var rg=document.getElementById('cred-resourceGroupName').value.trim();if(rg)c.credentials.resourceGroupName=rg;
-if(!c.name)return showMsg('Please enter a profile name','error');if(!c.region)return showMsg('Please select a region','error');
-if(!c.credentials.subscriptionId)return showMsg('Please enter Subscription ID','error');
-if(!c.credentials.clientId)return showMsg('Please enter Client ID','error');
-if(!c.credentials.clientSecret)return showMsg('Please enter Client Secret','error');
-if(!c.credentials.tenantId)return showMsg('Please enter Tenant ID','error');
-if(!c.instanceId)return showMsg('Please enter instance ID','error');if(!c.subdomain)return showMsg('Please enter subdomain','error');
+['tenancy','user','fingerprint','privateKey'].forEach(function(k){var v=document.getElementById('cred-'+k).value.trim();if(v)c.credentials[k]=v});
+if(!c.name)return showMsg('请填写配置名称','error');if(!c.region)return showMsg('请选择区域','error');
+if(!c.credentials.tenancy)return showMsg('请填写 Tenancy OCID','error');
+if(!c.credentials.user)return showMsg('请填写 User OCID','error');
+if(!c.credentials.fingerprint)return showMsg('请填写 Fingerprint','error');
+if(!c.credentials.privateKey)return showMsg('请填写 Private Key','error');
+if(!c.instanceId)return showMsg('请填写实例 ID','error');if(!c.subdomain)return showMsg('请填写二级域名','error');
 if(c.proxied){c.cloudflare={apiToken:document.getElementById('f-cf-token').value.trim(),zoneId:document.getElementById('f-cf-zone').value.trim()};
-if(!c.cloudflare.apiToken)return showMsg('Please enter Cloudflare API Token','error');
-if(!c.cloudflare.zoneId)return showMsg('Please enter Cloudflare Zone ID','error')}
-var lines=['Please save the following cloud config:','Profile name: '+c.name,'Provider: azure','Region: '+c.region];
+if(!c.cloudflare.apiToken)return showMsg('请填写 Cloudflare API Token','error');
+if(!c.cloudflare.zoneId)return showMsg('请填写 Cloudflare Zone ID','error')}
+var lines=['Please save the following cloud config:','Profile name: '+c.name,'Provider: oci','Region: '+c.region];
 var cp=[];for(var k in c.credentials)cp.push(k+': '+c.credentials[k]);lines.push('Credentials: '+cp.join(', '));
 lines.push('Instance ID: '+c.instanceId);lines.push('Subdomain: '+c.subdomain);lines.push('Proxied: '+c.proxied);
 if(c.cloudflare){lines.push('Cloudflare API Token: '+c.cloudflare.apiToken);lines.push('Cloudflare Zone ID: '+c.cloudflare.zoneId)}
 var txt=lines.join('\n');
-showMsg('Saving...','info');
+showMsg('正在保存...','info');
 fetch('/api/save-config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({profile:c})})
 .then(function(r){return r.json()})
-.then(function(d){if(d.success){showMsg('Saved to '+d.path+' ('+d.profileCount+' profile(s) total)','success')}else{showMsg('Save failed: '+(d.error||'unknown error'),'error')}})
-.catch(function(){if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(txt).catch(function(){})}var s=false;if(typeof sendPrompt==='function'){try{sendPrompt(txt);s=true}catch(e){}}showMsg(s?'Submitted! Text copied to clipboard':'Sandbox blocked direct save. Copied to clipboard — paste it into the chat','success')})
+.then(function(d){if(d.success){showMsg('已保存到 '+d.path+'（共 '+d.profileCount+' 个配置）','success')}else{showMsg('保存失败: '+(d.error||'未知错误'),'error')}})
+.catch(function(){if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(txt).catch(function(){})}var s=false;if(typeof sendPrompt==='function'){try{sendPrompt(txt);s=true}catch(e){}}showMsg(s?'已提交！文本已复制到剪贴板':'沙箱限制无法直接保存，已复制到剪贴板，请粘贴到对话框','success')})
 }
 </script>
 </body>

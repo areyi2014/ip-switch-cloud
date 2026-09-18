@@ -16,8 +16,11 @@ This skill owns the configuration entry point and operation routing. For the det
 
 ## Opening the Config Page
 
-1. Pick the page based on the user's goal: `aws`, `azure`, `oci`, `vultr`; when unspecified, open the default full-featured form.
-2. Run this from the skill root (the directory containing this `SKILL.md`):
+1. Pick the page language by the user's input language (mandatory, since 2026-09-19). File naming: English pages use plain names, Chinese pages carry a `-zh` suffix.
+   - **English is the default output.** When the user's input is not Chinese (English or any other language), open the English page `config-form.html` — the launcher script's default URL already serves it, no path swap needed (append `?provider=aws` etc. to preselect a platform).
+   - Only when the user's input is Chinese, open the Chinese pages, which carry a `-zh` suffix: `config-form-zh.html` (script arg `zh`) or the standalone `aws/azure/oci/vultr-config-zh.html` (open by swapping the path in the printed URL).
+2. Pick the provider scope by the user's goal: `aws`, `azure`, `oci`, `vultr`; when unspecified, open the full-featured form.
+3. Run this from the skill root (the directory containing this `SKILL.md`):
 
    ```powershell
    node <skill-root>/scripts/open-ui.mjs aws
@@ -37,7 +40,7 @@ This skill owns the configuration entry point and operation routing. For the det
      Instead run `node <install-dir>/ui/server.cjs` as a **long-lived background task**
      (env `IP_SWITCH_DATA_DIR=<install-dir>/data`), read the port from `<install-dir>/data/server-port.txt`,
      verify HTTP 200 with `curl --noproxy "*"` before invoking the open action; testing curl requires `--noproxy` (a local proxy turns localhost into 502).
-4. After the user saves in the page and returns to the conversation, call `list_profiles` to verify the result.
+5. After the user saves in the page and returns to the conversation, call `list_profiles` to verify the result.
 
 ## Maintenance Commands
 
