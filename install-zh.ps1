@@ -1,10 +1,10 @@
 ﻿#===============================================================================
-# ip-switch automated deployment script (Windows PowerShell)
-# Chinese version: install-zh.ps1
+# ip-switch 自动部署脚本 (Windows PowerShell)
+# English version: install.ps1
 #===============================================================================
-# Purpose: one-click clone, install dependencies, build, generate the WorkBuddy config, generate the Codex config [create a desktop shortcut]
-# Applies to: Windows 10/11 (PowerShell 5.1+)
-# Prerequisites: git installed, Node.js >= 18 installed
+# 用途: 一键克隆、安装依赖、编译、生成 workbuddy 配置、生成 codex 配置[创建桌面图标]
+# 适用: Windows 10/11 (PowerShell 5.1+)
+# 前提: git 已安装, Node.js >= 18 已安装
 #===============================================================================
 param(
     [string]$RepoUrl    = "https://gitee.com/areyi2014/ip-switch.git",
@@ -16,16 +16,16 @@ param(
 
 if ($Help) {
     Write-Host @"
-Usage: .\install.ps1 [options]
+用法: .\install.ps1 [选项]
 
-Options:
-  -RepoUrl URL     Repository URL (default: gitee)
-  -Branch NAME     Branch name (default: main)
-  -installDir DIR  Install directory (default: ~\ip-switch)
-  -SkipBuild       Skip the build step
-  -Help            Show help
+选项:
+  -RepoUrl URL     指定仓库地址（默认 gitee）
+  -Branch NAME     指定分支（默认 main）
+  -installDir DIR  指定安装目录（默认 ~\ip-switch）
+  -SkipBuild       跳过编译步骤
+  -Help            显示帮助
 
-Examples:
+示例:
   .\install.ps1
   .\install.ps1 -RepoUrl "https://gitee.com/areyi2014/ip-switch.git"
   .\install.ps1 -installDir "D:\my-tools\ip-switch"
@@ -37,7 +37,7 @@ $ErrorActionPreference = "Stop"
 $NodeMinVersion = 18
 $ProjectName = "ip-switch"
 
-# -- Helper functions --------------------------------------------------------
+# -- 辅助函数 ---------------------------------------------------------------
 function Write-Step($msg) {
     Write-Host ""
     Write-Host "=== $msg ===" -ForegroundColor Cyan
@@ -48,48 +48,48 @@ function Write-OK($msg)    { Write-Host "[ OK ]  $msg" -ForegroundColor Green }
 function Write-Warn($msg)  { Write-Host "[WARN]  $msg" -ForegroundColor Yellow }
 function Write-Err($msg)   { Write-Host "[ERROR] $msg" -ForegroundColor Red }
 
-# -- Check the npm environment -------------------------------------------------
-# Does not depend on the IDE-bundled node (its version directory changes on upgrades, making issues hard to trace).
-# Only two paths: (1) system PATH has node+npm -> use the system one directly;
-#            (2) otherwise download a standalone Node.js from nodejs.org into a fixed directory
-#               ~\.nodejs\node (fixed path, easy to trace, does not pollute the system).
-# The selection is recorded in $script:NodeExe / $script:NpmCli / $script:NpmCmd,
-# shared by npm execution and the MCP configuration.
+# -- 检查 npm 环境 ------------------------------------------------------------
+# 不依赖 IDE 捆绑的 node（版本目录会随升级变化，难以排查）。
+# 仅两条路径: ① 系统 PATH 有 node+npm → 直接用系统的；
+#            ② 否则从 nodejs.org 官方下载独立 Node.js 到固定目录
+#               ~\.nodejs\node（路径固定、可排查，不污染系统）。
+# 选定结果统一记录到 $script:NodeExe / $script:NpmCli / $script:NpmCmd，
+# 供 npm 执行与 MCP 配置共用。
 function Check-Npm {
-    Write-Step "Checking the npm environment"
+    Write-Step "检查 npm 环境"
 
     $node = Get-Command node -ErrorAction SilentlyContinue
     $npm  = Get-Command npm -ErrorAction SilentlyContinue
     if ($node -and $npm) {
         $script:NodeExe = $node.Source
         $script:NpmCmd  = $npm.Source
-        Write-OK "Using system Node.js: $($node.Source)"
+        Write-OK "使用系统 Node.js: $($node.Source)"
         return
     }
 
     Install-NpmFromOfficial
 }
 
-# -- Download a standalone Node.js (with npm) from nodejs.org into a fixed directory -----
+# -- 从 nodejs.org 官方下载独立 Node.js(含 npm) 到固定目录 ---------------------
 function Install-NpmFromOfficial {
-    Write-Warn "System Node.js not found; downloading Node.js 22 LTS from nodejs.org..."
+    Write-Warn "未找到系统 Node.js，正在从 nodejs.org 下载 Node.js 22 LTS..."
     $final = "$env:USERPROFILE\.nodejs\node"
 
-    # Reuse first: if a complete install (with npm) already exists, use it directly; no re-download/delete.
-    # Otherwise deletion fails while the MCP process holds node.exe, and repeated reinstalls are pointless.
+    # 复用优先：已装完整(含 npm)则直接使用，不再重下/删除。
+    # 否则 MCP 进程正占用 node.exe 时删除会失败，且反复重装毫无必要。
     if ((Test-Path "$final\node.exe") -and (Test-Path "$final\node_modules\npm\bin\npm-cli.js")) {
-        Write-Info "Existing Node.js detected, reusing: $final"
+        Write-Info "检测到已安装的 Node.js，直接复用: $final"
         $script:NodeExe = "$final\node.exe"
         $script:NpmCli  = "$final\node_modules\npm\bin\npm-cli.js"
         return
     }
 
-    # Clean up temp extraction dirs possibly left by an interrupted run (ignore if locked; retry next time)
+    # 清理上次中断可能残留的临时解压目录（被占用时忽略，下次再清）
     $tmp = "$env:USERPROFILE\.nodejs\.tmp"
     Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue
     New-Item -ItemType Directory -Path $tmp -Force | Out-Null
 
-    # Resolve the latest v22.x version (fall back to a fixed LTS on failure)
+    # 解析最新 v22.x 版本号（失败时用固定 LTS 兜底）
     $ver = ""
     try { $ver = (Invoke-RestMethod "https://nodejs.org/dist/latest-v22.x/index.json" -TimeoutSec 30)[0].version } catch { }
     if (-not $ver) { $ver = "v22.14.0" }
@@ -97,24 +97,24 @@ function Install-NpmFromOfficial {
     $arch = if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') { 'arm64' } else { 'x64' }
     $zipUrl = "https://nodejs.org/dist/$ver/node-$ver-win-$arch.zip"
     $zipPath = Join-Path $env:TEMP "node-$ver-win-$arch.zip"
-    Write-Info "Downloading: $zipUrl"
+    Write-Info "下载中: $zipUrl"
     Invoke-WebRequest -Uri $zipUrl -OutFile $zipPath -TimeoutSec 300
     Expand-Archive -Path $zipPath -DestinationPath $tmp -Force
 
-    # The zip extracts a node-<ver>-win-<arch>/ subfolder; normalize it to node (stable path, easy to trace)
+    # zip 解压出 node-<ver>-win-<arch>/ 子目录，统一固定为 node（路径稳定，便于排查）
     $dir = Get-ChildItem $tmp -Directory | Where-Object { Test-Path "$($_.FullName)\node.exe" } | Select-Object -First 1
     if (-not $dir) {
-        Write-Err "Download/extract failed; install Node.js manually: https://nodejs.org"
+        Write-Err "下载解压失败，请手动安装 Node.js: https://nodejs.org"
         exit 1
     }
 
-    # If the old directory exists and is locked by MCP it cannot be deleted -- fail with a clear message instead of silently
+    # 旧目录若存在且被 MCP 占用则无法删除——给出明确提示而不是静默失败
     if (Test-Path $final) {
         Remove-Item $final -Recurse -Force -ErrorAction SilentlyContinue
         if (Test-Path $final) {
-            Write-Err "Old install directory is locked and cannot be replaced: $final"
-            Write-Info "Exit the Codex / WorkBuddy ip-switch MCP (or kill the process holding node.exe) first, then retry."
-            Write-Info "The installed version keeps working; no functional impact."
+            Write-Err "旧安装目录被占用，无法替换: $final"
+            Write-Info "请先退出 Codex / WorkBuddy 的 ip-switch MCP（或结束占用 node.exe 的进程）后重试。"
+            Write-Info "已安装版本仍可继续使用，不影响功能。"
             exit 1
         }
     }
@@ -123,21 +123,21 @@ function Install-NpmFromOfficial {
     $script:NodeExe = "$final\node.exe"
     $script:NpmCli  = "$final\node_modules\npm\bin\npm-cli.js"
     if (-not (Test-Path $script:NpmCli)) {
-        Write-Err "npm installation failed; install Node.js manually: https://nodejs.org"
+        Write-Err "npm 安装失败，请手动安装 Node.js: https://nodejs.org"
         exit 1
     }
-    # Clean up the temp extraction directory
+    # 清理临时解压目录
     Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue
 
     $npmVer = & $script:NodeExe $script:NpmCli --version 2>$null
-    Write-OK "Installed Node.js $ver (npm $npmVer) -> $final"
+    Write-OK "已安装 Node.js $ver (npm $npmVer) -> $final"
 }
 
-# -- Run npm commands -----------------------------------------------------------
-# npm is essentially a JS script run by node (npm-cli.js). The downloaded node is not on the system PATH,
-# and on Windows `npm run` executes node_modules/.bin/*.cmd (e.g. tsc.cmd) via cmd.exe,
-# and those cmd scripts locate node via PATH -- so prepend the node dir to the process-local PATH before running
-# (no system changes; restored when the process exits).
+# -- 执行 npm 命令 -------------------------------------------------------------
+# npm 本质是 node 运行的 JS 脚本(npm-cli.js)。官方下载的 node 不在系统 PATH，
+# 而 npm run 在 Windows 上通过 cmd.exe 执行 node_modules/.bin/*.cmd（如 tsc.cmd），
+# 这些 cmd 脚本从 PATH 查找 node —— 因此执行前把 node 目录临时置顶进程内 PATH
+# （不改系统配置，退出即还原）。
 function Invoke-Npm {
     param([Parameter(Mandatory = $true)][string]$SubCommand, [string[]]$ExtraArgs)
     if (-not $script:NpmCli -and -not $script:NpmCmd) { return $false }
@@ -150,8 +150,8 @@ function Invoke-Npm {
             if ($nodeDir -and $env:Path -notlike "*$nodeDir*") {
                 $env:Path = "$nodeDir;$env:Path"
             }
-            # Temporary EAP relaxation: native commands writing to stderr throw NativeCommandError under EAP=Stop,
-            # causing false failures during build; success is judged by $LASTEXITCODE, error text comes from npm output.
+            # EAP 临时放宽：native 命令写 stderr 在 EAP=Stop 下会抛 NativeCommandError，
+            # 导致 build 失败时误报；统一以 $LASTEXITCODE 判断成败，错误文本由 npm 输出。
             $ErrorActionPreference = "Continue"
             & $script:NodeExe $script:NpmCli $SubCommand @ExtraArgs 2>&1 | Out-Host
             return ($LASTEXITCODE -eq 0)
@@ -168,9 +168,9 @@ function Invoke-Npm {
     }
 }
 
-# -- Check git ----------------------------------------------------------------
+# -- 检查 git -----------------------------------------------------------------
 function Check-Git {
-    Write-Step "Checking the Git environment"
+    Write-Step "检查 Git 环境"
 
     $gitCmd = Get-Command git -ErrorAction SilentlyContinue
     if ($gitCmd) {
@@ -178,19 +178,19 @@ function Check-Git {
         return
     }
 
-    Write-Warn "git not detected; installing automatically..."
+    Write-Warn "未检测到 git，正在自动安装..."
 
-    # -- Determine CPU architecture ------------------------------------------------
+    # ── 获取 CPU 架构 ──────────────────────────────────────────────
     $arch = $env:PROCESSOR_ARCHITECTURE.ToLower()
     if ($arch -eq 'amd64') { $arch = 'x64' }
-    Write-Info "Detected CPU architecture: $arch"
+    Write-Info "检测到 CPU 架构: $arch"
 
-    # -- Option 1: Git already installed but not on PATH ---------------------------
+    # ── 方案 1：已有 Git 但不在 PATH ──────────────────────────────
     $gitDir = "$env:LOCALAPPDATA\Git"
     $gitExe = "$gitDir\cmd\git.exe"
     $gitBin = "$gitDir\bin\git.exe"
 
-    # Check common Git install locations first
+    # 先检查常见 Git 安装位置
     $knownPaths = @(
         "$gitDir\cmd\git.exe",
         "$gitDir\bin\git.exe",
@@ -200,42 +200,42 @@ function Check-Git {
     foreach ($kp in $knownPaths) {
         if (Test-Path $kp) {
             $foundDir = Split-Path $kp -Parent
-            Write-Info "Existing Git detected: $foundDir; repairing PATH..."
+            Write-Info "检测到已有 Git: $foundDir，修复 PATH..."
             $env:Path = "$foundDir;$env:Path"
             Write-OK "git $(& git --version) ($kp)"
             return
         }
     }
 
-    # -- Option 2: download and install silently -----------------------------------
+    # ── 方案 2：下载并静默安装 ────────────────────────────────────
     $installerPath = Download-GitInstaller -Arch $arch
     if (-not $installerPath) {
-        Write-Err "Git download failed; install manually: https://git-scm.com/download/win"
+        Write-Err "Git 下载失败，请手动安装: https://git-scm.com/download/win"
         exit 1
     }
 
-    Write-Info "Silently installing Git into $gitDir ..."
+    Write-Info "静默安装 Git 到 $gitDir ..."
     $proc = Start-Process -FilePath $installerPath `
         -ArgumentList "/VERYSILENT", "/NORESTART", "/CURRENTUSER", "/DIR=$gitDir", "/NOICONS" `
         -NoNewWindow -Wait -PassThru
     Remove-Item $installerPath -Force -ErrorAction SilentlyContinue
 
     if ($proc.ExitCode -ne 0) {
-        Write-Err "Git installation failed (exit code: $($proc.ExitCode))"
-        Write-Info "Install manually: https://git-scm.com/download/win"
+        Write-Err "Git 安装失败 (exit code: $($proc.ExitCode))"
+        Write-Info "请手动安装: https://git-scm.com/download/win"
         exit 1
     }
 
-    # Add to PATH
+    # 加入 PATH
     Add-GitToPath $gitDir
     $env:Path = "$gitDir\cmd;$env:Path"
     if (Test-Path "$gitDir\bin\git.exe") {
         $env:Path = "$gitDir\bin;$env:Path"
     }
-    Write-OK "git installed: $(& $gitExe --version)"
+    Write-OK "git 安装完成: $(& $gitExe --version)"
 }
 
-# -- Download the Git installer (Invoke-WebRequest, pure PowerShell, no .NET dependency) --
+# ── 下载 Git 安装包（Invoke-WebRequest，纯 PowerShell 无 .NET 依赖）──
 function Download-GitInstaller {
     param([string]$Arch)
 
@@ -249,31 +249,31 @@ function Download-GitInstaller {
 
     foreach ($url in $urls) {
         $shortUrl = if ($url.Length -gt 80) { $url.Substring(0, 80) + "..." } else { $url }
-        Write-Info "Trying download: $shortUrl"
+        Write-Info "尝试下载: $shortUrl"
 
         try {
-            # Invoke-WebRequest is a native PowerShell cmdlet with no external .NET dependency
-            # -UserAgent is required: some mirrors (e.g. TUNA) reject the default UA
+            # Invoke-WebRequest 是 PowerShell 原生 cmdlet，不依赖外部 .NET
+            # -UserAgent 必须设置，部分镜像站（如 TUNA）拒绝默认 UA
             Invoke-WebRequest -Uri $url -OutFile $installerPath `
                 -UseBasicParsing -TimeoutSec 600 -UserAgent "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
 
             if (-not (Test-Path $installerPath)) {
-                Write-Warn "  File missing after download; trying the next source..."
+                Write-Warn "  下载后文件不存在，尝试下一个源..."
                 continue
             }
 
             $fileSize = (Get-Item $installerPath).Length
             if ($fileSize -lt 50MB) {
-                Write-Warn "  File too small ($([math]::Round($fileSize/1MB, 1)) MB), possibly incomplete; trying the next source..."
+                Write-Warn "  文件过小 ($([math]::Round($fileSize/1MB, 1)) MB)，可能不完整，尝试下一个源..."
                 Remove-Item $installerPath -Force
                 continue
             }
 
-            Write-Info "  Download complete: $([math]::Round($fileSize / 1MB, 1)) MB"
+            Write-Info "  下载完成: $([math]::Round($fileSize / 1MB, 1)) MB"
             return $installerPath
 
         } catch {
-            Write-Warn "  Download failed: $_"
+            Write-Warn "  下载失败: $_"
             Remove-Item $installerPath -Force -ErrorAction SilentlyContinue
             continue
         }
@@ -282,7 +282,7 @@ function Download-GitInstaller {
     return $null
 }
 
-# Add the Git directory to the user PATH (no popups)
+# 将 Git 目录加入用户 PATH（无弹窗）
 function Add-GitToPath {
     param([string]$GitDir)
     $pathsToAdd = @()
@@ -306,77 +306,77 @@ function Add-GitToPath {
     }
 }
 
-# Fetch the latest official version from the GitHub API and build the download URL list
-# API: https://api.github.com/repos/git-for-windows/git/releases/latest
-# Official file name format: Git-{version}-64-bit.exe / Git-{version}-arm64.exe
+# 从 GitHub API 获取官方最新版本号，构建下载 URL 列表
+# 接口: https://api.github.com/repos/git-for-windows/git/releases/latest
+# 官方文件名格式: Git-{version}-64-bit.exe / Git-{version}-arm64.exe
 function Get-GitDownloadUrls {
     param([string]$Arch)
 
-    # -- Get the latest version via the GitHub API ----------------------------------
+    # ── 通过 GitHub API 获取最新版本号 ────────────────────────────
     $apiUrl = "https://api.github.com/repos/git-for-windows/git/releases/latest"
     $tag = $null
-    Write-Info "Querying the latest Git for Windows version..."
+    Write-Info "查询 Git for Windows 最新版本..."
 
     try {
         $release = Invoke-RestMethod -Uri $apiUrl -TimeoutSec 15 -ErrorAction Stop
         $tag = $release.tag_name
-        Write-Info "  Latest official version: $tag"
+        Write-Info "  官方最新版本: $tag"
     } catch {
-        Write-Warn "  Could not fetch the latest version; using the built-in one"
+        Write-Warn "  无法获取最新版本信息，使用内置版本"
         $tag = "v2.55.0.windows.3"
     }
 
-    # Version format: tag=v2.55.0.windows.3 -> the file name uses 2.55.0.3 (strip ".windows.")
+    # 版本号格式: tag=v2.55.0.windows.3 → 文件名用 2.55.0.3（去掉 .windows.）
     $ver = $tag -replace '^v', ''                          # "2.55.0.windows.3"
     $fileVer = $ver -replace '\.windows\.', '.'             # "2.55.0.3"
 
-    # Architecture suffix: Git-2.55.0.3-64-bit.exe / Git-2.55.0.3-arm64.exe
+    # 架构后缀: Git-2.55.0.3-64-bit.exe / Git-2.55.0.3-arm64.exe
     $suffix = if ($Arch -eq 'arm64') { "arm64" } else { "64-bit" }
-    $filename = "Git-$fileVer-$suffix.exe"                  # correct file name
+    $filename = "Git-$fileVer-$suffix.exe"                  # 正确的文件名
 
-    Write-Info "  Installer file name: $filename"
+    Write-Info "  安装包文件名: $filename"
 
-    # Download sources (priority high to low, CN mirrors first)
+    # 下载源（优先级从高到低，国内镜像优先）
     return @(
-        # Source 1: NPMMirror CDN (fastest in CN, direct CDN, no redirect)
+        # 源 1：NPMMirror CDN（国内最快，直接走 CDN 不做重定向）
         "https://cdn.npmmirror.com/binaries/git-for-windows/$tag/$filename",
 
-        # Source 2: NPMMirror Registry (auto-redirects to the CDN)
+        # 源 2：NPMMirror Registry（自动重定向到 CDN）
         "https://registry.npmmirror.com/-/binary/git-for-windows/$tag/$filename",
 
-        # Source 3: Tsinghua TUNA mirror
+        # 源 3：清华大学 TUNA 镜像
         "https://mirrors.tuna.tsinghua.edu.cn/github-release/git-for-windows/git/LatestRelease/$filename",
 
-        # Source 4: GitHub official (fallback)
+        # 源 4：GitHub 官方（兜底）
         "https://github.com/git-for-windows/git/releases/download/$tag/$filename"
     )
 }
 
-# -- Clone the repository ------------------------------------------------------
+# -- 克隆仓库 ----------------------------------------------------------------
 function Clone-Repo {
-    Write-Step "Cloning the project repository"
+    Write-Step "克隆项目仓库"
 
     if (Test-Path "$installDir\.git") {
-        Write-Warn "Target directory exists; running git pull to update..."
+        Write-Warn "目标目录已存在，执行 git pull 更新..."
         Push-Location $installDir
         git fetch origin $Branch
         git checkout $Branch
         git pull origin $Branch
         Pop-Location
-        Write-OK "Project updated: $installDir"
+        Write-OK "项目已更新: $installDir"
         return
     }
 
-    Write-Info "Repository URL: $RepoUrl"
-    Write-Info "Target branch: $Branch"
-    Write-Info "Install directory: $installDir"
+    Write-Info "仓库地址: $RepoUrl"
+    Write-Info "目标分支: $Branch"
+    Write-Info "安装目录: $installDir"
     Write-Host ""
-    $userInput = Read-Host "Install to this directory? Press Enter to confirm, or type a new path"
+    $userInput = Read-Host "确认安装到此目录? 按 Enter 确认，或输入新目录路径"
     if ($userInput) {
         $installDir = $userInput
-        # Update the global variable; later steps use the new path
+        # 更新全局变量，后续步骤使用新路径
         $script:installDir = $installDir
-        Write-Info "Install directory updated: $installDir"
+        Write-Info "已更新安装目录: $installDir"
     }
 
     $parentDir = Split-Path $installDir -Parent
@@ -384,32 +384,32 @@ function Clone-Repo {
         New-Item -ItemType Directory -Path $parentDir -Force | Out-Null
     }
 
-    # DNS warm-up
+    # DNS 预热
     $repoHost = ([uri]$RepoUrl).Host
-    Write-Info "Warming up DNS: ping $repoHost ..."
+    Write-Info "预热 DNS: ping $repoHost ..."
     $null = & ping -n 1 $repoHost 2>&1
     if ($LASTEXITCODE -ne 0) {
-        Write-Err "Cannot resolve the repository host: $repoHost"
-        Write-Info "Check your network connection and DNS settings"
+        Write-Err "无法解析仓库域名: $repoHost"
+        Write-Info "请检查网络连接和 DNS 设置"
         exit 1
     }
-    Write-OK "Host reachable: $repoHost"
+    Write-OK "域名连通: $repoHost"
 
-    # Retry the clone up to 3 times
+    # 最多重试 3 次克隆
     $maxRetries = 3
     $cloneOk = $false
 
     for ($attempt = 1; $attempt -le $maxRetries; $attempt++) {
         if ($attempt -gt 1) {
-            # Clean up leftovers from the previous failed attempt
+            # 清理上次失败残留
             Remove-Item $installDir -Recurse -Force -ErrorAction SilentlyContinue
-            Write-Info "Retry clone attempt $attempt / $maxRetries..."
+            Write-Info "第 $attempt / $maxRetries 次重试克隆..."
             Start-Sleep -Seconds 3
         } else {
-            Write-Info "Cloning: $RepoUrl (branch: $Branch)"
+            Write-Info "正在克隆: $RepoUrl (分支: $Branch)"
         }
 
-        # Use Start-Process directly; git's progress bar streams to the terminal
+        # 直接用 Start-Process，git 进度条会自动输出到终端
         $proc = Start-Process -FilePath "git" `
             -ArgumentList "clone", "--branch", $Branch, "--depth", "1", $RepoUrl, $installDir `
             -NoNewWindow -Wait -PassThru
@@ -419,43 +419,43 @@ function Clone-Repo {
             break
         }
 
-        Write-Warn "Clone failed (attempt $attempt / $maxRetries)"
+        Write-Warn "克隆失败 (第 $attempt / $maxRetries 次)"
     }
 
     if (-not $cloneOk) {
         Write-Host ""
-        Write-Err "Clone failed (retried $maxRetries times)"
+        Write-Err "克隆失败（已重试 $maxRetries 次）"
         Write-Info ""
-        Write-Info "Please check:"
-        Write-Info "  1. The repository URL is correct: $RepoUrl"
-        Write-Info "  2. Your network connection"
-        Write-Info "  3. For a private repo, configure an SSH key first"
+        Write-Info "请检查:"
+        Write-Info "  1. 仓库地址是否正确: $RepoUrl"
+        Write-Info "  2. 网络是否正常"
+        Write-Info "  3. 如为私有仓库，请先配置 SSH Key"
         Write-Info ""
-        Write-Info "Manual steps:"
+        Write-Info "手动操作:"
         Write-Info "  git clone $RepoUrl $installDir"
         exit 1
     }
-    Write-OK "Clone succeeded: $installDir"
+    Write-OK "克隆成功: $installDir"
 }
 
-# -- Install dependencies ------------------------------------------------------
+# -- 安装依赖 ----------------------------------------------------------------
 function Install-Deps {
-    Write-Step "Installing npm dependencies"
+    Write-Step "安装 npm 依赖"
 
     Push-Location $installDir
 
     if (-not (Test-Path package.json)) {
-        Write-Err "package.json not found; unexpected project layout"
+        Write-Err "未找到 package.json，项目结构异常"
         Pop-Location
         exit 1
     }
 
-    Write-Info "Installing dependencies, please wait..."
+    Write-Info "正在安装依赖，请稍候..."
     if (Invoke-Npm -SubCommand "install" -ExtraArgs @("--loglevel=error")) {
-        Write-OK "Dependencies installed"
+        Write-OK "依赖安装完成"
     } else {
-        Write-Err "Dependency installation failed"
-        Write-Info "Try clearing the cache and retrying: cd $installDir; Remove-Item -Recurse -Force node_modules; npm install"
+        Write-Err "依赖安装失败"
+        Write-Info "尝试清除缓存后重试: cd $installDir; Remove-Item -Recurse -Force node_modules; npm install"
         Pop-Location
         exit 1
     }
@@ -463,39 +463,39 @@ function Install-Deps {
     Pop-Location
 }
 
-# -- Build TypeScript -----------------------------------------------------------
+# -- 编译 TypeScript ----------------------------------------------------------
 function Build-Project {
-    Write-Step "Building TypeScript"
+    Write-Step "编译 TypeScript"
 
     Push-Location $installDir
 
-    # Clear Electron env interference (may be set by the WorkBuddy environment)
+    # 清除 Electron 环境变量干扰（WorkBuddy 环境可能设置）
     $oldElectron = $env:ELECTRON_RUN_AS_NODE
     $oldNodeOpts = $env:NODE_OPTIONS
     $env:ELECTRON_RUN_AS_NODE = ""
     $env:NODE_OPTIONS = ""
 
     try {
-        Write-Info "Building..."
-        if (-not (Invoke-Npm -SubCommand "run" -ExtraArgs @("build"))) { throw "npm run build failed" }
-        Write-OK "Build completed"
+        Write-Info "正在编译..."
+        if (-not (Invoke-Npm -SubCommand "run" -ExtraArgs @("build"))) { throw "npm run build 失败" }
+        Write-OK "编译完成"
     } catch {
-        Write-Err "Build failed: $_"
+        Write-Err "编译失败: $_"
         $manualBuild = if ($script:NpmCli) { "& `"$($script:NodeExe)`" `"$($script:NpmCli)`" run build" } else { "npm run build" }
-        Write-Info "Manual build: cd $installDir; `$env:ELECTRON_RUN_AS_NODE=''; $manualBuild"
+        Write-Info "手动编译: cd $installDir; `$env:ELECTRON_RUN_AS_NODE=''; $manualBuild"
         Pop-Location
         exit 1
     } finally {
-        # Restore the original environment variable
+        # 恢复原始环境变量
         $env:ELECTRON_RUN_AS_NODE = $oldElectron
         $env:NODE_OPTIONS = $oldNodeOpts
     }
 
-    # Verify the build output
+    # 验证编译产物
     if (Test-Path "$installDir\dist\index.js") {
-        Write-OK "Verified: dist\index.js generated"
+        Write-OK "验证通过: dist\index.js 已生成"
     } else {
-        Write-Err "Build output missing: dist\index.js does not exist"
+        Write-Err "编译产物缺失: dist\index.js 不存在"
         Pop-Location
         exit 1
     }
@@ -503,41 +503,41 @@ function Build-Project {
     Pop-Location
 }
 
-# -- Detect MCP client platforms -----------------------------------------------
+# -- 检测 MCP 客户端平台 -----------------------------------------------------
 function Detect-MCPPlatform {
-    Write-Step "Detecting MCP client platforms"
+    Write-Step "检测 MCP 客户端平台"
 
     $script:DetectedWB    = $false
     $script:DetectedCodex = $false
 
-    # WorkBuddy: check for the directory or mcp.json
+    # WorkBuddy: 检查目录或 mcp.json 是否存在
     $wbDir = "$env:USERPROFILE\.workbuddy"
     if (Test-Path $wbDir) {
         $script:DetectedWB = $true
-        Write-OK "WorkBuddy detected ($wbDir)"
+        Write-OK "检测到 WorkBuddy ($wbDir)"
     }
 
-    # Codex: check for the directory or binary
+    # Codex: 检查目录或二进制是否存在
     $codexDir = "$env:USERPROFILE\.codex"
     $codexBin = Get-Command codex -ErrorAction SilentlyContinue
     if ((Test-Path $codexDir) -or $codexBin) {
         $script:DetectedCodex = $true
-        Write-OK "Codex detected ($codexDir)"
+        Write-OK "检测到 Codex ($codexDir)"
     }
 
     if (-not $script:DetectedWB -and -not $script:DetectedCodex) {
-        Write-Warn "Neither WorkBuddy nor Codex detected; printing a generic MCP config"
+        Write-Warn "未检测到 WorkBuddy 或 Codex，将输出通用 MCP 配置"
     }
 }
 
-# -- Write the MCP config (merge into the existing one; node serializes it as standard JSON) -------------------------------
+# -- 写入 MCP 配置（合并到已有配置，由 node 序列化为标准 JSON）------------------------------------------------------------
 function Write-MCPConfig {
     param([string]$PlatformDir, [string]$NodeExe, [string]$DistJs)
 
     $targetPath = "$PlatformDir\mcp.json"
 
-    # Merge + serialization are fully delegated to node: guarantees standard JSON (2-space indent, properly escaped paths),
-    # avoiding PowerShell 5.1 ConvertTo-Json's broken indentation
+    # 合并 + 序列化全部交给 node：保证输出标准 JSON（2 空格缩进、路径正确转义），
+    # 不依赖 PowerShell 5.1 ConvertTo-Json 的错位缩进格式
     $nodeScript = @'
 const fs = require('fs');
 const target = process.argv[1];
@@ -560,21 +560,21 @@ fs.writeFileSync(target, JSON.stringify(config, null, 2) + '\n', 'utf8');
 
     & $NodeExe -e $nodeScript $targetPath $NodeExe $DistJs
     if ($LASTEXITCODE -ne 0) {
-        Write-Err "Failed to write the MCP config: $targetPath"
+        Write-Err "写入 MCP 配置失败: $targetPath"
         exit 1
     }
 }
 
-# -- Generate the WorkBuddy config -----------------------------------------------------
+# -- 生成 Workbuddy 配置 ------------------------------------------------------------
 function Generate-WbConfig {
-    Write-Step "Generating the WorkBuddy config"
+    Write-Step "生成 Workbuddy 配置"
 
-    # Consistently use the selected Node.js (system or official download; neither is IDE-bundled, both have fixed paths)
+    # 统一使用选定 Node.js（系统或官方下载，均非 IDE 捆绑、路径固定可排查）
     $defaultNode = (Get-Command node -ErrorAction SilentlyContinue).Source
     $nodeExe     = if ($script:NodeExe) { $script:NodeExe } else { $defaultNode }
     $distJs  = "$installDir\dist\index.js"
 
-    # Windows paths need backslashes escaped as \\ in JSON (for terminal display only)
+    # Windows 路径在 JSON 中需将反斜杠转义为 \\（仅用于终端提示展示）
     $nodeExeEscaped = $nodeExe.Replace('\', '\\')
     $distJsEscaped  = $distJs.Replace('\', '\\')
 
@@ -591,52 +591,52 @@ function Generate-WbConfig {
 
     $written = $false
 
-    # Write directly into the platform's mcp.json (using the selected Node.js)
+    # 直接写入对应平台的 mcp.json（统一使用选定 Node.js）
     if ($script:DetectedWB) {
         $wbDir = "$env:USERPROFILE\.workbuddy"
         if (-not (Test-Path $wbDir)) {
             New-Item -ItemType Directory -Path $wbDir -Force | Out-Null
         }
         Write-MCPConfig -PlatformDir $wbDir -NodeExe $nodeExe -DistJs $distJs
-        Write-OK "MCP config written: $wbDir\mcp.json"
-        Write-Info "Click 'Trust' for ip-switch in the WorkBuddy connector management page to enable it"
+        Write-OK "已写入 MCP 配置: $wbDir\mcp.json"
+        Write-Info "WorkBuddy 连接器管理页面点击「信任」ip-switch 即可使用"
         $written = $true
     }
 
     if (-not $written) {
-        Write-Warn "WorkBuddy or Codex platform directory not detected"
+        Write-Warn "未检测到 WorkBuddy 或 Codex 平台目录"
         Write-Host ""
-        Write-Host "MCP config content:" -ForegroundColor Cyan
+        Write-Host "MCP 配置内容:" -ForegroundColor Cyan
         Write-Host $configJson
         Write-Host ""
-        Write-Info "Manually add the config above to the corresponding client's mcp.json"
+        Write-Info "请将以上配置手动添加到对应客户端的 mcp.json 文件中"
     }
 }
 
 
 
-# -- Generate the Codex MCP direct config (installDir\.mcp.json) ------------------------
-#   (1) probe/validate Node.js (prefer $script:NodeExe, fall back to node on PATH)
-#   (2) validate that the build output installDir\dist\index.js exists
-#   (3) generate installDir\.mcp.json (full paths, overwriting the fragile command:"node" version shipped in the repo)
-# Also store the final node / dist paths in script-level variables for Install-CodexToml to reuse.
+# -- 生成 Codex MCP 直连配置（installDir\.mcp.json） ---------------------------
+#   ① 探测/校验 Node.js（优先 $script:NodeExe，回退 PATH 中的 node）
+#   ② 校验编译产物 installDir\dist\index.js 存在
+#   ③ 生成 installDir\.mcp.json（全路径写法，覆盖仓库自带的 command:"node" 脆弱版本）
+# 并把最终选定的 node / dist 路径写入脚本级变量供 Install-CodexToml 复用。
 function Install-CodexMcp {
-    Write-Step "Generating the Codex MCP direct config (.mcp.json)"
+    Write-Step "生成 Codex MCP 直连配置（.mcp.json）"
 
     $distJs    = "$installDir\dist\index.js"
     $codexNode = if ($script:NodeExe) { $script:NodeExe } else { (Get-Command node -ErrorAction SilentlyContinue).Source }
     if (-not $codexNode) {
-        Write-Err "Node.js not found; cannot generate the Codex MCP config"
+        Write-Err "未找到 Node.js，无法生成 Codex MCP 配置"
         exit 1
     }
 
-    # 1. Validate that the build output exists
+    # 1. 校验编译产物存在
     if (-not (Test-Path $distJs)) {
-        Write-Err "Build output missing: $distJs; build first (or drop -SkipBuild)"
+        Write-Err "缺少编译产物 $distJs，请先编译（或去掉 -SkipBuild）"
         exit 1
     }
 
-    # 2. Generate installDir\.mcp.json (full paths, overwriting the fragile command:"node" version shipped in the repo)
+    # 2. 生成 installDir\.mcp.json（全路径写法，覆盖仓库自带的 command:"node" 脆弱版本）
     $nodeEsc = $codexNode.Replace('\', '\\')
     $distEsc = $distJs.Replace('\', '\\')
     $cwdEsc  = $installDir.Replace('\', '\\')
@@ -655,33 +655,33 @@ function Install-CodexMcp {
 "@
     $dotMcp = "$installDir\.mcp.json"
     [System.IO.File]::WriteAllText($dotMcp, $mcpJson, (New-Object System.Text.UTF8Encoding($false)))
-    Write-OK "MCP config generated: $dotMcp"
+    Write-OK "已生成 MCP 配置: $dotMcp"
 
-    # 3. Expose for the later TOML config layer (script-level variables, visible across functions)
+    # 3. 输出供后续 TOML 配置层复用（脚本级变量，跨函数可见）
     $script:CodexMcpDist = $distJs
     $script:CodexMcpNode = $codexNode
 
-    # 4. Verify
+    # 4. 验证
     $dotMcp = "$installDir\.mcp.json"
     if (Test-Path $dotMcp) {
-        Write-OK "Codex MCP direct config ready: $dotMcp"
-        Write-Info "Takes effect after restarting Codex (plugin-page discovery is handled by the marketplace)"
+        Write-OK "Codex MCP 直连配置已就绪: $dotMcp"
+        Write-Info "重启 Codex 后生效（插件页发现由市场负责）"
     } else {
-        Write-Err "Failed to generate the MCP config; check $dotMcp"
+        Write-Err "MCP 配置生成失败，请检查 $dotMcp"
         exit 1
     }
 }
 
-# -- Ensure the Codex [user-level config.toml] registers the local marketplace, plugin, and ip-switch MCP (globally visible) ---
-#  Note: the standard usage of the Codex [project-level .codex/config.toml] (e.g. the codex-cli-best-practice repo)
-#  does put model/sandbox_mode/approval_policy/[mcp_servers.*]/[features]/[agents]/[profiles.*] at project level,
-#  but no example ever puts [marketplaces.*]/[plugins.*] at project level
+# -- 确保 Codex 【用户级 config.toml】 注册本地市场、插件与 ip-switch MCP（全局可见） ---
+#  另外：Codex 【项目级.codex/config.toml】 的标准用法：（如 codex-cli-best-practice 仓库）
+#  确实把 model/sandbox_mode/approval_policy/[mcp_servers.*]/[features]/[agents]/[profiles.*] 放在项目级，
+#  而从没有任何示例把 [marketplaces.*]/[plugins.*] 放【项目级】
 function Append-CodexUserConfig {
     param(
         [Parameter(Mandatory = $true)][string]$CodexConfig
     )
     if (-not (Test-Path $CodexConfig)) {
-        Write-Warning "$CodexConfig not found; skipping marketplace/plugin/MCP registration (created automatically on the first codex run)"
+        Write-Warning "未找到 $CodexConfig，跳过市场/插件/MCP 注册（首次运行 codex 后会自动创建）"
         return
     }
 
@@ -695,7 +695,7 @@ function Append-CodexUserConfig {
     if (-not $content.Contains('[plugins."ip-switch@local"]')) {
         $appended += "[plugins.`"ip-switch@local`"`]`nenabled = true`n"
     }
-    # Idempotently append [mcp_servers.ip-switch]: uses the node/dist paths already resolved by the script; works even when CC Switch is not running
+    # 幂等追加 [mcp_servers.ip-switch]：用脚本已解析的 node/dist 路径，CC Switch 未跑也能注册
     if (-not $content.Contains('[mcp_servers.ip-switch]')) {
         $mcpNode = $script:CodexMcpNode
         $mcpDist = $script:CodexMcpDist
@@ -703,86 +703,86 @@ function Append-CodexUserConfig {
         if ($mcpNode -and $mcpDist -and $mcpCwd) {
             $appended += "[mcp_servers.ip-switch]`ncommand = '$mcpNode'`nargs = ['$mcpDist']`ncwd = '$mcpCwd'`nstartup_timeout_sec = 30`nenabled = true`n"
         } else {
-            Write-Warning "Node/dist paths missing (prerequisite steps incomplete); skipping the user-level [mcp_servers.ip-switch] registration"
+            Write-Warning "缺少 Node/dist 路径（install 前置步骤未完成），跳过用户级 [mcp_servers.ip-switch] 注册"
         }
     }
 
     if ($appended.Count -eq 0) {
-        Write-Info "The ip-switch marketplace, plugin, and MCP are already in the user-level config.toml; skipping"
+        Write-Info "ip-switch 市场、插件与 MCP 已在用户级 config.toml 中，跳过"
         return
     }
 
     [System.IO.File]::AppendAllText($CodexConfig, "`n" + ($appended -join "`n") + "`n", (New-Object System.Text.UTF8Encoding($false)))
-    Write-OK "Registered the ip-switch marketplace, plugin, and mcp_servers into the user-level config.toml (globally visible; the mcp section is written by the script, no longer depending on CC Switch)"
+    Write-OK "已注册 ip-switch 市场、插件与 mcp_servers 到用户级 config.toml（全局可见；mcp 段由脚本写入，不再依赖 CC Switch）"
 }
 
-# -- Install the Codex user-level config (the only stable globally-visible channel) --------
-# Responsibility: register ip-switch into the user-level ~/.codex/config.toml:
+# -- 安装 Codex 用户级配置（全局可见的唯一稳定通道） ------------------------
+# 职责：把 ip-switch 注册到用户级 ~/.codex/config.toml：
 #       （[marketplaces.local] + [plugins."ip-switch@local"] + [mcp_servers.ip-switch]）。
-#     If any of the three is missing, check CC Switch's common config for the model: the common_config_codex field of the settings table in cc-switch.db
+#     如果此三项有缺失，请查看CC Switch 的 该模型的公共配置即cc-switch.db的 settings 表 common_config_codex 字段
 function Install-CodexToml {
-    Write-Step "Installing the Codex user-level config (the only stable globally-visible channel)"
+    Write-Step "安装 Codex 用户级配置（全局可见的唯一稳定通道）"
 
-    # The only stable channel = registration in the user-level ~/.codex/config.toml (marketplaces + plugins + mcp).
+    # 唯一稳定通道 = 用户级 ~/.codex/config.toml 的注册（marketplaces + plugins + mcp）。
     $codexDir = "$env:USERPROFILE\.codex"
     Append-CodexUserConfig -CodexConfig "$codexDir\config.toml"
 }
 
-# -- Create the desktop shortcut ---------------------------------------------------------
-# Split out of Install-CodexToml as a standalone function:
-#   (1) copy the codex_app.vbs launcher (runs silently via wscript, no console window)
-#   (2) copy the codex.ico icon file
-#   (3) create a desktop shortcut: wscript.exe + codex_app.vbs, launching the codex app with the ip-switch directory as workspace
+# -- 创建桌面快捷方式 ----------------------------------------------------------
+# 从 Install-CodexToml 拆出的独立函数：
+#   ① 复制 codex_app.vbs 启动脚本（wscript 静默运行，无控制台窗口）
+#   ② 复制 codex.ico 图标文件
+#   ③ 创建桌面快捷方式：wscript.exe + codex_app.vbs，以 ip-switch 目录为工作区启动 codex app
 function Install-CodexShotcut {
-    Write-Step "Creating the Codex desktop shortcut"
+    Write-Step "创建Codex桌面快捷方式"
 
     $shortcutName = 'Codex with ip-switch'
     $shortcutPath = [System.Environment]::GetFolderPath('Desktop') + '\\' + $shortcutName + '.lnk'
     $wscriptExe = "$env:SystemRoot\System32\wscript.exe"
     $vbsPath = "$installDir\codex_app.vbs"
 
-    # Copy the launcher script
+    # 复制启动脚本
     if (Test-Path '.\codex_app.vbs') {
         Copy-Item '.\codex_app.vbs' -Destination $vbsPath -Force
-        Write-Host "✓ Copied codex_app.vbs to $vbsPath" -ForegroundColor Green
+        Write-Host "✓ 已复制codex_app.vbs到 $vbsPath" -ForegroundColor Green
     } elseif (-not (Test-Path $vbsPath)) {
-        Write-Host "Warning: codex_app.vbs not found in the install directory" -ForegroundColor Yellow
+        Write-Host "警告: 安装目录下未找到codex_app.vbs文件" -ForegroundColor Yellow
     }
 
-    # Copy the icon file
+    # 复制图标文件
     $iconPath = "$installDir\codex.ico"
     if (Test-Path '.\codex.ico') {
         Copy-Item '.\codex.ico' -Destination $iconPath -Force
-        Write-Host "✓ Copied codex.ico to $iconPath" -ForegroundColor Green
+        Write-Host "✓ 已复制codex.ico到 $iconPath" -ForegroundColor Green
     } elseif (-not (Test-Path $iconPath)) {
-        Write-Host "Warning: codex.ico not found; the default icon will be used" -ForegroundColor Yellow
+        Write-Host "警告: 未找到codex.ico图标文件，将使用默认图标" -ForegroundColor Yellow
     }
 
-    # Create the shortcut
+    # 创建快捷方式
     $shell = New-Object -ComObject WScript.Shell
     $shortcut = $shell.CreateShortcut($shortcutPath)
     $shortcut.TargetPath = $wscriptExe
     $shortcut.Arguments = '"' + $vbsPath + '"'
-    $shortcut.Description = 'Launch Codex and auto-load the ip-switch MCP service'
+    $shortcut.Description = '启动 Codex 并自动加载 ip-switch MCP 服务'
     $shortcut.WorkingDirectory = $installDir
     if (Test-Path $iconPath) {
         $shortcut.IconLocation = "$iconPath,0"
     }
     $shortcut.Save()
 
-    Write-Host "✓ Desktop shortcut created: $shortcutPath" -ForegroundColor Green
+    Write-Host "✓ 已创建桌面快捷方式: $shortcutPath" -ForegroundColor Green
 }
 
-# -- Install the Codex plugin marketplace so ip-switch is discoverable in the plugin page/marketplace ------
+# -- 安装 Codex 插件市场（marketplace），使插件页/市场中可发现 ip-switch ------
 function Install-CodexMarketplace {
-    Write-Step "Installing the Codex plugin marketplace (ip-switch)"
+    Write-Step "安装 Codex 插件市场（ip-switch）"
     $codexRoot = "$env:USERPROFILE\.codex"
     $marketDir = "$codexRoot\marketplaces\local"
     $marketPluginDir = "$marketDir\plugins\ip-switch\.codex-plugin"
 
-    # 1. Marketplace manifest marketplace.json (modeled on Codex's built-in openai-bundled format)
-    #    Note: the plugin package only carries the manifests + .mcp.json; no bundled skill copy anymore --
-    #    the skill is provided by the standalone ~\.codex\skills\ip-switch\ channel, avoiding dual-channel duplication
+    # 1. 市场清单 marketplace.json（参考 Codex 自带 openai-bundled 格式）
+    #    注：插件包只装清单 + .mcp.json，不再打包 skill 副本——
+    #    skill 由 ~\.codex\skills\ip-switch\ 独立通道提供，避免双通道重复
     $marketJson = @"
 {
   "name": "local",
@@ -806,7 +806,7 @@ function Install-CodexMarketplace {
 }
 "@
 
-    # 2. In-market plugin manifest plugin.json (mcpServers points to the package's .mcp.json)
+    # 2. 市场内插件清单 plugin.json（mcpServers 使用插件包内 .mcp.json）
     $pluginJson = @"
 {
   "name": "ip-switch",
@@ -856,108 +856,108 @@ function Install-CodexMarketplace {
     Copy-Item -Path "$installDir\.mcp.json" -Destination "$marketDir\plugins\ip-switch\.mcp.json" -Force
     [System.IO.File]::WriteAllText("$marketDir\.agents\plugins\marketplace.json", $marketJson, (New-Object System.Text.UTF8Encoding($false)))
     [System.IO.File]::WriteAllText("$marketPluginDir\plugin.json", $pluginJson, (New-Object System.Text.UTF8Encoding($false)))
-    Write-OK "Marketplace manifest written: $marketDir\.agents\plugins\marketplace.json"
-    Write-OK "Plugin manifest written: $marketPluginDir\plugin.json"
+    Write-OK "已写入市场清单: $marketDir\.agents\plugins\marketplace.json"
+    Write-OK "已写入插件清单: $marketPluginDir\plugin.json"
 
-    # 3. This function only writes the manifest files (marketplace.json / plugin.json).
-    #    The [marketplaces.local] + [plugins."ip-switch@local"] + [mcp_servers.ip-switch] registration in config.toml
-    #    is handled by Append-CodexUserConfig (user-level, the only stable channel), not here.
-    Write-OK "Codex plugin manifests written (the config.toml registration is done by Append-CodexUserConfig)"
+    # 3. 本函数只写入插件清单文件（marketplace.json / plugin.json）。
+    #    config.toml 里的 [marketplaces.local] + [plugins."ip-switch@local"] + [mcp_servers.ip-switch]
+    #    注册由 Append-CodexUserConfig（用户级，唯一稳定通道）负责，不在此处。
+    Write-OK "Codex 插件清单已写入（config.toml 注册由 Append-CodexUserConfig 完成）"
 
-    # 5. Verify
+    # 5. 验证
     if ((Test-Path "$marketDir\.agents\plugins\marketplace.json") -and (Test-Path "$marketPluginDir\plugin.json")) {
-        Write-OK "Codex plugin marketplace installed: $marketDir"
-        Write-Info "After restarting Codex, IP Switch appears in the plugin page/marketplace"
+        Write-OK "Codex 插件市场已安装: $marketDir"
+        Write-Info "重启 Codex 后，插件页/市场中可见 IP Switch"
     } else {
-        Write-Err "Marketplace installation incomplete; check $marketDir"
+        Write-Err "插件市场安装不完整，请检查 $marketDir"
         exit 1
     }
 }
 
-# -- Install the ip-switch skill (WorkBuddy / Codex / any AI agent can open the config page) ----
-# Responsibilities:
-#   1. Flatten SKILL.md / skill.json (project root) + scripts/ (icon + scripts) into
-#      $env:USERPROFILE\.workbuddy\skills\ip-switch\ (auto-discovered by WorkBuddy)
-#   2. Create the <install-dir>\data\ runtime directory (replacing the old $env:USERPROFILE\.ip-switch\)
-#   3. Write INSTALL_DIR into .install-path.txt in the user-level copy (bootstrap anchor)
-#   4. Write <install-dir>\data\install-dir.txt (runtime config, used by --status)
-#   5. Mirror to $env:USERPROFILE\.codex\skills\ip-switch\ (only if that directory already exists)
-# Design:
-#   - Idempotent: overwrites on rerun (run again after git pull to get the new version)
-#   - Unconditional install: installs even when WorkBuddy is not detected, so users can run it manually from a terminal (Codex has no skill mechanism)
+# -- 安装 ip-switch skill（WorkBuddy / Codex / 任意 AI Agent 可直接唤起配置页） ----
+# 职责：
+#   1. 把 SKILL.md / skill.json（项目根） + scripts/（图标+脚本）合并平铺到
+#      $env:USERPROFILE\.workbuddy\skills\ip-switch\（WorkBuddy 自动发现）
+#   2. 创建 <install-dir>\data\ 运行时目录（取代之前的 $env:USERPROFILE\.ip-switch\）
+#   3. 把 INSTALL_DIR 写入用户级副本根目录的 .install-path.txt（bootstrap 锚点）
+#   4. 写 <install-dir>\data\install-dir.txt（运行时配置，给 --status 查询用）
+#   5. 镜像到 $env:USERPROFILE\.codex\skills\ip-switch\（若该目录已存在）
+# 设计：
+#   - 幂等：已存在则覆盖更新（git pull 后再跑即可拿到新版）
+#   - 无条件安装：即使没检测到 WB 也装，让用户能手动从终端跑（Codex 无 skill 机制）
 function Install-Skill {
-    Write-Step "Installing the ip-switch skill (AI-agent config page launcher)"
+    Write-Step "安装 ip-switch skill（AI Agent 唤起配置页）"
 
     $scriptsSrc = Join-Path $installDir "scripts"
     if (-not (Test-Path $scriptsSrc)) {
-        Write-Warn "Skill scripts directory not found: $scriptsSrc (skipping the skill install)"
+        Write-Warn "未找到 skill 脚本目录: $scriptsSrc（跳过 skill 安装）"
         return
     }
 
-    # 1. Create the <install-dir>\data\ runtime directory (replacing the old $env:USERPROFILE\.ip-switch\)
+    # 1. 创建 <install-dir>\data\ 运行时目录（取代之前的 $env:USERPROFILE\.ip-switch\）
     $dataDir = Join-Path $installDir "data"
     New-Item -ItemType Directory -Path $dataDir -Force | Out-Null
     $markerPath = Join-Path $dataDir "install-dir.txt"
     [System.IO.File]::WriteAllText($markerPath, $installDir, (New-Object System.Text.UTF8Encoding($false)))
-    Write-OK "install-dir marker written: $markerPath -> $installDir"
+    Write-OK "已写入 install-dir 标记: $markerPath -> $installDir"
 
-    # 2. Copy to the target location (WorkBuddy discovers via a flat scan of ~/.workbuddy/skills/<name>/)
-    #    Sources: project-root SKILL.md / skill.json + scripts\ + references\ (multilingual docs)
-    #    Target layout:
+    # 2. 复制到目标位置（WorkBuddy 读 ~/.workbuddy/skills/<name>/ 平铺发现）
+    #    源分三块：项目根的 SKILL.md / skill.json + scripts\ + references\（多语言文档）
+    #    目标布局：
     #       $env:USERPROFILE\.workbuddy\skills\ip-switch\
     #       ├── SKILL.md
     #       ├── skill.json
-    #       ├── .install-path.txt        <- bootstrap anchor (contains the absolute INSTALL_DIR path)
-    #       ├── scripts\                  <- kept as a subdirectory (not flattened)
+    #       ├── .install-path.txt        ← bootstrap 锚点（内容为 INSTALL_DIR 绝对路径）
+    #       ├── scripts\                  ← 保留作为子目录（不展平）
     #       │   ├── _icon.svg
     #       │   ├── open-ui.mjs
     #       │   ├── open-ui.sh
     #       │   └── open-ui.ps1
-    #       └── references\               <- multilingual docs (zh.md etc.), loaded on demand
+    #       └── references\               ← 多语言文档（zh.md 等），按需加载
     $workbuddyDest = Join-Path $env:USERPROFILE ".workbuddy\skills\ip-switch"
     $workbuddyScriptsDest = Join-Path $workbuddyDest "scripts"
     New-Item -ItemType Directory -Path $workbuddyDest -Force | Out-Null
     New-Item -ItemType Directory -Path $workbuddyScriptsDest -Force | Out-Null
     try {
-        # 2a. Root skill metadata -> target root
+        # 2a. 根目录的 skill 元数据 → 目标根目录
         foreach ($f in @("SKILL.md", "skill.json")) {
             $srcFile = Join-Path $installDir $f
             if (Test-Path $srcFile) {
                 Copy-Item -Path $srcFile -Destination $workbuddyDest -Force
             } else {
-                Write-Warn "Root file not found: $srcFile (skipping)"
+                Write-Warn "未找到根目录文件: $srcFile（跳过）"
             }
         }
 
-        # 2b. The whole scripts/ subdirectory -> the target scripts\ subdirectory (name preserved)
+        # 2b. scripts/ 整个子目录 → 目标的 scripts\ 子目录（保留目录名）
         Copy-Item -Path "$scriptsSrc\*" -Destination $workbuddyScriptsDest -Recurse -Force
-        Write-OK "Skill installed: $workbuddyDest (with scripts\ subdirectory)"
+        Write-OK "已安装 skill: $workbuddyDest（含 scripts\ 子目录）"
 
-        # 2b-2. references\ subdirectory (multilingual docs, e.g. zh.md) -> the target references\ subdirectory
+        # 2b-2. references\ 子目录（多语言文档，如 zh.md）→ 目标的 references\ 子目录
         $refsSrc = Join-Path $installDir "references"
         if (Test-Path $refsSrc) {
             $refsDest = Join-Path $workbuddyDest "references"
             New-Item -ItemType Directory -Path $refsDest -Force | Out-Null
             try {
                 Copy-Item -Path "$refsSrc\*" -Destination $refsDest -Recurse -Force
-                Write-OK "Skill multilingual docs installed: $refsDest"
+                Write-OK "已安装 skill 多语言文档: $refsDest"
             } catch {
-                Write-Warn "Failed to copy references: $refsSrc -> $refsDest (skipping; no functional impact)"
+                Write-Warn "复制 references 失败: $refsSrc → $refsDest（跳过，不影响功能）"
             }
         }
 
-        # 2c. Bootstrap anchor: write the absolute INSTALL_DIR path under the user-level copy's scripts\
-        #    open-ui.mjs reads this file first at startup to locate the ip-switch project
-        #    Placed under scripts\ (next to open-ui.mjs) to avoid confusion
+        # 2c. bootstrap 锚点：把 INSTALL_DIR 绝对路径写到用户级副本的 scripts\ 下
+        #    open-ui.mjs 启动时第一优先级读这个文件来定位 ip-switch 项目位置
+        #    放在 scripts\ 下（跟 open-ui.mjs 同目录）避免混淆
         $userMarker = Join-Path $workbuddyScriptsDest ".install-path.txt"
         [System.IO.File]::WriteAllText($userMarker, $installDir, (New-Object System.Text.UTF8Encoding($false)))
-        Write-OK "Bootstrap anchor written: $userMarker"
+        Write-OK "已写入 bootstrap 锚点: $userMarker"
     } catch {
-        Write-Err "Failed to copy the skill: $scriptsSrc -> $workbuddyScriptsDest ($_)"
+        Write-Err "复制 skill 失败: $scriptsSrc → $workbuddyScriptsDest ($_)"
         return
     }
 
-    # 3. If ~/.codex/skills already exists (takes effect if Codex enables skills later), mirror a copy
+    # 3. 如 ~/.codex/skills 已存在（Codex 后续若启用 skill 即生效），镜像一份
     $codexSkillsDir = Join-Path $env:USERPROFILE ".codex\skills"
     if (Test-Path $codexSkillsDir) {
         $codexDest = Join-Path $codexSkillsDir "ip-switch"
@@ -972,30 +972,30 @@ function Install-Skill {
                 }
             }
             Copy-Item -Path "$scriptsSrc\*" -Destination $codexScriptsDest -Recurse -Force
-            # The Codex mirror also carries the references\ multilingual docs
+            # Codex 镜像同样带 references\ 多语言文档
             $codexRefsSrc = Join-Path $installDir "references"
             if (Test-Path $codexRefsSrc) {
                 $codexRefsDest = Join-Path $codexDest "references"
                 New-Item -ItemType Directory -Path $codexRefsDest -Force | Out-Null
                 Copy-Item -Path "$codexRefsSrc\*" -Destination $codexRefsDest -Recurse -Force
             }
-            # The Codex mirror copy also needs the bootstrap anchor (placed under scripts\)
+            # Codex 镜像副本同样需要 bootstrap 锚点（放在 scripts\ 下）
             $codexMarker = Join-Path $codexScriptsDest ".install-path.txt"
             [System.IO.File]::WriteAllText($codexMarker, $installDir, (New-Object System.Text.UTF8Encoding($false)))
-            Write-OK "Mirrored to Codex: $codexScriptsDest (takes effect if Codex enables skills)"
+            Write-OK "已镜像到 Codex: $codexScriptsDest（如 Codex 启用 skill 即生效）"
         } catch {
-            Write-Warn "Failed to mirror to Codex: $_"
+            Write-Warn "镜像到 Codex 失败: $_"
         }
     }
 
-    Write-Info "How AI agents open it:"
-    Write-Info "  WorkBuddy: say \"Open the ip-switch config page\", \"Add an AWS account\", etc. in the chat"
-    Write-Info "  Any terminal: node $workbuddyScriptsDest\open-ui.mjs [aws|azure|oci|vultr]"
-    Write-Info "  Codex: say \"Open the ip-switch config page\", \"Add an AWS account\", etc. in the chat"
-    Write-Info "  Any terminal: node $codexScriptsDest\open-ui.mjs [aws|azure|oci|vultr]"
+    Write-Info "AI Agent 唤起方式:"
+    Write-Info "  WorkBuddy: 在对话里说「打开 ip-switch 配置」「添加 AWS 配置」等"
+    Write-Info "  任意终端: node $workbuddyScriptsDest\open-ui.mjs [aws|azure|oci|vultr]"
+    Write-Info "  Codex: 在对话里说「打开 ip-switch 配置」「添加 AWS 配置」等"
+    Write-Info "  任意终端: node $codexScriptsDest\open-ui.mjs [aws|azure|oci|vultr]"
 }
 
-# -- Restart the client app (WorkBuddy/Codex) so the MCP config takes effect immediately ----
+# -- 重启客户端应用（WorkBuddy/Codex），使 MCP 配置立即生效 -------------------
 function Restart-ClientApp {
     param(
         [string]$AppName,
@@ -1005,14 +1005,14 @@ function Restart-ClientApp {
         [string[]]$LaunchArgs = @()
     )
 
-    # 1) Match by process name first (common names like codex / ChatGPT / WorkBuddy / CodeBuddy)
+    # 1) 先按进程名匹配（常见名，如 codex / ChatGPT / WorkBuddy / CodeBuddy）
     $proc = $null
     foreach ($name in $ProcessNames) {
         $proc = Get-Process -Name $name -ErrorAction SilentlyContinue | Select-Object -First 1
         if ($proc) { break }
     }
 
-    # 2) If the process name does not match, fall back to executable-path keywords (paths are more stable than names)
+    # 2) 进程名没匹配上时，按可执行文件路径关键字兜底（路径比进程名稳定）
     if (-not $proc -and $PathKeywords.Count -gt 0) {
         foreach ($kw in $PathKeywords) {
             $proc = Get-Process -ErrorAction SilentlyContinue |
@@ -1022,25 +1022,25 @@ function Restart-ClientApp {
         }
     }
 
-    # 3) When spawning the child, redirect stdout/stderr to temp files to suppress Electron debug logs
+    # 3) 启动子进程时重定向 stdout/stderr 到临时文件，屏蔽 Electron 调试日志
     $logOut = Join-Path $env:TEMP "ip-switch-$AppName-out.log"
     $logErr = Join-Path $env:TEMP "ip-switch-$AppName-err.log"
     Remove-Item $logOut, $logErr -Force -ErrorAction SilentlyContinue
 
     if ($proc) {
         $exePath = $proc.Path
-        Write-Info "$AppName detected as running; restarting..."
+        Write-Info "检测到 $AppName 正在运行，正在重启..."
         Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
         Start-Sleep -Seconds 2
 
-        # Prefer restarting via the original process path; otherwise use the configured launch command
-        # -WindowStyle Hidden: prevents a console window flash when launching console programs (e.g. codex.exe CLI)
+        # 优先用原进程路径重启，其次用指定启动命令
+        # -WindowStyle Hidden: 防止启动控制台程序（如 codex.exe CLI）时闪现黑色弹窗
         if ($exePath -and (Test-Path $exePath)) {
             try {
                 Start-Process -FilePath $exePath -WindowStyle Hidden `
                     -RedirectStandardOutput $logOut -RedirectStandardError $logErr `
                     -ErrorAction Stop | Out-Null
-                Write-OK "$AppName restarted"
+                Write-OK "$AppName 已重新启动"
                 return
             } catch { }
         }
@@ -1049,34 +1049,34 @@ function Restart-ClientApp {
                 Start-Process -FilePath $LaunchExe -ArgumentList $LaunchArgs -WindowStyle Hidden `
                     -RedirectStandardOutput $logOut -RedirectStandardError $logErr `
                     -ErrorAction Stop | Out-Null
-                Write-OK "$AppName restarted"
+                Write-OK "$AppName 已重新启动"
                 return
             } catch { }
         }
-        Write-Warn "$AppName was closed but auto-restart failed; please open it manually"
+        Write-Warn "$AppName 进程已关闭，但自动重启失败，请手动打开"
     } else {
-        # Original process not running -> do nothing, keep the current state
-        Write-Info "$AppName is not running; skipping the restart (open it manually if needed)"
+        # 原进程未在运行 → 不做任何启动操作，保持现状
+        Write-Info "$AppName 未在运行，跳过重启（如需使用请手动打开）"
     }
 }
 
-# -- Post-install summary ------------------------------------------------------------
+# -- 安装完成后提示 ----------------------------------------------------------
 function Show-Success {
-    # Auto-restart the client so the MCP config takes effect immediately
+    # 自动重启客户端，使 MCP 配置立即生效
     Write-Host ""
-    Write-Host "Restart the client:" -ForegroundColor Yellow
+    Write-Host "重启客户端:" -ForegroundColor Yellow
     if ($script:DetectedWB) {
-        # Common process-name candidates + path-keyword fallback (path contains .workbuddy / CodeBuddy / WorkBuddy)
+        # 进程名常见候选 + 路径关键字兜底（路径含 .workbuddy / CodeBuddy / WorkBuddy）
         Restart-ClientApp -AppName "WorkBuddy" `
             -ProcessNames @("WorkBuddy", "CodeBuddy") `
             -PathKeywords @("\.workbuddy\", "CodeBuddy", "WorkBuddy")
     }
     if ($script:DetectedCodex) {
         $vbsPath = "$installDir\codex_app.vbs"
-        # The desktop process name may be codex / Codex / ChatGPT (Windows Store package exe name),
-        # the fallback matches paths containing OpenAI.Codex / OpenAI\Codex
+        # 桌面版进程名可能是 codex / Codex / ChatGPT（Windows 商店包 exe 名），
+        # 兜底按路径含 OpenAI.Codex / OpenAI\Codex 匹配
         if (Test-Path $vbsPath) {
-            # Launch via codex_app.vbs, which also brings up the ip-switch service
+            # 通过 codex_app.vbs 启动，可同时拉起 ip-switch 服务
             Restart-ClientApp -AppName "Codex" `
                 -ProcessNames @("codex", "Codex", "ChatGPT") `
                 -PathKeywords @("OpenAI.Codex", "OpenAI\Codex") `
@@ -1090,77 +1090,77 @@ function Show-Success {
     }
 
     if ($script:DetectedWB -and $script:DetectedCodex) {
-        $mcpHint = "  # Use via MCP tools (just chat in WorkBuddy/Codex)"
+        $mcpHint = "  # 通过 MCP 工具使用（在 WorkBuddy/Codex 中直接对话即可）"
     } elseif ($script:DetectedWB) {
-        $mcpHint = "  # Use via MCP tools (just chat in WorkBuddy)"
+        $mcpHint = "  # 通过 MCP 工具使用（在 WorkBuddy 中直接对话即可）"
     } elseif ($script:DetectedCodex) {
-        $mcpHint = "  # Use via MCP tools (just chat in Codex)"
+        $mcpHint = "  # 通过 MCP 工具使用（在 Codex 中直接对话即可）"
     } else {
-        $mcpHint = "  # After configuring the MCP client, use these commands via chat"
+        $mcpHint = "  # 配置 MCP 客户端后，即可通过对话使用以下指令"
     }
 
     $successBanner = @"
 
 +============================================================+
-|          ip-switch installed successfully!                       |
+|          ip-switch 安装成功!                                |
 +============================================================+
 
 "@
     Write-Host $successBanner -ForegroundColor Green
 
-    # Show paths for the actually installed platforms (WorkBuddy has no plugin dir, only mcp.json)
+    # 按实际安装的平台显示路径（WorkBuddy 无插件目录，只有 mcp.json）
     $wbConfig       = "$env:USERPROFILE\.workbuddy\mcp.json"
     $codexMarketDir = "$env:USERPROFILE\.codex\marketplaces\local"
     $skillDir       = "$env:USERPROFILE\.workbuddy\skills\ip-switch"
 
     if ($script:DetectedWB) {
-        Write-Host "WorkBuddy MCP config: $wbConfig"
+        Write-Host "WorkBuddy MCP 配置: $wbConfig"
     }
     if ($script:DetectedCodex) {
-        Write-Host "Codex marketplace manifest: $codexMarketDir"
-        Write-Host "Codex user-level registration: $env:USERPROFILE\.codex\config.toml (globally visible, written by Append-CodexUserConfig)"
+        Write-Host "Codex 市场清单:     $codexMarketDir"
+        Write-Host "Codex 用户级注册:   $env:USERPROFILE\.codex\config.toml（全局可见，由 Append-CodexUserConfig 写入）"
     }
     Write-Host "ip-switch skill: $skillDir"
-    Write-Host "                   (auto-discovered by WorkBuddy; from any terminal: node $skillDir\scripts\open-ui.mjs [aws|azure|oci|vultr])"
-    Write-Host "UI server:  node $installDir\ui\server.cjs"
-    Write-Host "UI URL:     printed to the terminal when the server starts"
+    Write-Host "                   (WorkBuddy 自动发现；任意终端可: node $skillDir\scripts\open-ui.mjs [aws|azure|oci|vultr])"
+    Write-Host "UI 服务器:  node $installDir\ui\server.cjs"
+    Write-Host "UI 地址:    启动后终端会显示实际地址"
     Write-Host ""
 
-    Write-Host "Usage:" -ForegroundColor Yellow
-    Write-Host "  # Start the UI config server (optional)"
+    Write-Host "使用方式:" -ForegroundColor Yellow
+    Write-Host "  # 启动 UI 配置服务器（可选）"
     Write-Host "  node $installDir\ui\server.cjs"
     Write-Host ""
-    Write-Host "  # Open the config page in a browser (see the server startup output for the URL)"
-    Write-Host "  start http://127.0.0.1:<port>"
+    Write-Host "  # 浏览器打开配置页面（地址见服务器启动输出）"
+    Write-Host "  start http://127.0.0.1:端口号"
     Write-Host ""
     Write-Host $mcpHint
-    Write-Host "  - List profiles:  \"List my cloud server profiles\""
-    Write-Host "  - Rotate IPs:     \"Rotate the IPs of all configured servers\""
-    Write-Host "  - Add a profile:  \"I want to add an AWS profile\""
+    Write-Host "  - 列出配置:   列出我的云服务器配置"
+    Write-Host "  - 轮换 IP:    轮换所有配置好的服务器的IP"
+    Write-Host "  - 添加配置:   我要添加一个 AWS 配置"
     Write-Host ""
 
-    Write-Host "Manual update:" -ForegroundColor Yellow
+    Write-Host "手动更新:" -ForegroundColor Yellow
     Write-Host "  cd $installDir; git pull; npm install; npm run build"
     Write-Host ""
 
-    Write-Host "Uninstall:" -ForegroundColor Yellow
+    Write-Host "卸载:" -ForegroundColor Yellow
     if ($script:DetectedWB) {
-        Write-Host "  Remove-Item -Force $wbConfig          # remove the WorkBuddy MCP config"
+        Write-Host "  Remove-Item -Force $wbConfig          # 删除 WorkBuddy MCP 配置"
     }
     if ($script:DetectedCodex) {
-        Write-Host "  Remove-Item -Recurse -Force $codexMarketDir  # remove the Codex marketplace manifests"
+        Write-Host "  Remove-Item -Recurse -Force $codexMarketDir  # 删除 Codex 市场清单"
     }
-    Write-Host "  Remove-Item -Recurse -Force $skillDir        # remove the ip-switch skill"
-    Write-Host "  Remove-Item -Recurse -Force (Join-Path $installDir 'data')  # remove runtime data (keep the source)"
-    Write-Host "  Remove-Item -Recurse -Force $installDir  # also remove the source if desired (wipes the data/ subdirectory too)"
+    Write-Host "  Remove-Item -Recurse -Force $skillDir        # 删除 ip-switch skill"
+    Write-Host "  Remove-Item -Recurse -Force (Join-Path $installDir 'data')  # 删除运行时数据（保留源码时用）"
+    Write-Host "  Remove-Item -Recurse -Force $installDir  # 如需同时删除源码（会一并清 data/ 子目录）"
     Write-Host ""
 }
 
-# -- Main flow ------------------------------------------------------------------
+# -- 主流程 ------------------------------------------------------------------
 function Main {
     Write-Host ""
     Write-Host "+============================================================+" -ForegroundColor Green
-    Write-Host "|   ip-switch automated deployment script v1.0                |" -ForegroundColor Green
+    Write-Host "|   ip-switch 自动部署脚本 v1.0                               |" -ForegroundColor Green
     Write-Host "+============================================================+" -ForegroundColor Green
     Write-Host ""
 
@@ -1181,12 +1181,12 @@ function Main {
         Install-CodexShotcut
         Install-CodexMarketplace
     }
-    # Skill install: a unified config-page launcher across WorkBuddy / Codex / any AI agent
-    # Unconditional install (installs even when WorkBuddy is not detected; users can run it from a terminal)
+    # skill 安装：跨 WorkBuddy / Codex / 任意 AI Agent 的统一配置页唤起入口
+    # 无条件安装（即使没检测到 WB 也装，用户可手动从终端跑）
     Install-Skill
     Show-Success
 
-    Write-OK "Deployment complete!"
+    Write-OK "部署完成!"
 }
 
 Main
