@@ -1,6 +1,6 @@
 ---
 name: ips-main
-description: Manage ip-switch multi-cloud accounts, credentials, and Cloudflare DNS. 配置管理 ip-switch 多云账号、凭据与 Cloudflare 域名解析。
+description: Manage accounts, credentials, and DNS / 管理多云账号、凭据与域名解析
 ---
 
 # ip-switch
