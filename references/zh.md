@@ -141,8 +141,8 @@ rotate_instance_ip({
 
 | Agent                  | Skill 根路径                        |
 | ---------------------- | -------------------------------- |
-| **WorkBuddy**          | `~/.workbuddy/skills/ip-switch/` |
-| **Codex 桌面端 / CLI**    | `~/.codex/skills/ip-switch/`     |
+| **WorkBuddy**          | `~/.workbuddy/skills/ips-main/` |
+| **Codex 桌面端 / CLI**    | `~/.codex/skills/ips-main/`     |
 | **项目内原件**（skill 未装时兜底） | `<install-dir>/scripts/`         |
 
 > install 脚本会自动镜像到两处（Codex 端**仅当 `~/.codex/skills` 已存在**才复制）。下表所有命令的 skill 根路径可互换为上述任一。
@@ -154,7 +154,7 @@ rotate_instance_ip({
 | 默认全功能表单·中文页                           | `node <skill-root>/scripts/open-ui.mjs zh`（config-form-zh.html）                                                                                                   | 同上                                    |
 | 只加 AWS（英文页）                   | `node <skill-root>/scripts/open-ui.mjs aws`（aws-config.html）                                                                                                  | 同上                                    |
 | 只加 Azure / OCI / Vultr（英文页）    | `… open-ui.mjs azure`（`oci` / `vultr` 同理；中文版把 URL 路径加 `-zh` 后缀即可）                                                                                                    | 同上                                    |
-| Windows PowerShell              | `& "$env:USERPROFILE\<skill-root相对路径>\scripts\open-ui.mjs" aws`（WorkBuddy = `.workbuddy\skills\ip-switch`，Codex = `.codex\skills\ip-switch`） | PowerShell 窗口可见日志                     |
+| Windows PowerShell              | `& "$env:USERPROFILE\<skill-root相对路径>\scripts\open-ui.mjs" aws`（WorkBuddy = `.workbuddy\skills\ips-main`，Codex = `.codex\skills\ips-main`） | PowerShell 窗口可见日志                     |
 | 静默模式（不打印 [INFO]，日志写文件）          | 加 `--quiet` / `-q`（vbs 已自动启用）                                                                                                                | 仅文件日志                                 |
 
 **页面语言选择与命名（2026-09-19 起，强制）**：**默认输出英文**。命名规则：英文页用原名，中文页加 `-zh` 后缀——
@@ -186,7 +186,7 @@ rotate_instance_ip({
 
 ### 6.1 多 Agent 用户视角（桌面端 / CLI / 手动）
 
-install 已把 skill 同时镜像到 `~/.workbuddy/skills/ip-switch/` 与 `~/.codex/skills/ip-switch/`，**两种 Agent 都能发现并使用**。以下按使用场景分述，每个场景 WorkBuddy / Codex 行为对照。
+install 已把 skill 同时镜像到 `~/.workbuddy/skills/ips-main/` 与 `~/.codex/skills/ips-main/`，**两种 Agent 都能发现并使用**。以下按使用场景分述，每个场景 WorkBuddy / Codex 行为对照。
 
 #### 1. 桌面端（最常见，外行首选）
 
@@ -194,8 +194,8 @@ install 已把 skill 同时镜像到 `~/.workbuddy/skills/ip-switch/` 与 `~/.co
 
 | Agent | 用户在对话框说 | AI 自动执行的命令 | 页面呈现方式 |
 |-------|---------------|-----------------|-----------|
-| **WorkBuddy 桌面端** | "帮我打开 ip-switch 配置页" / "添加一个 AWS 账号" / "改一下 Azure 凭据" | `node ~/.workbuddy/skills/ip-switch/scripts/open-ui.mjs aws` | `present_files` 打开 URL → 内置预览面板嵌入 |
-| **Codex 桌面端** | 同上 | `node ~/.codex/skills/ip-switch/scripts/open-ui.mjs aws` | `open_in_codex` → 右侧面板嵌入 |
+| **WorkBuddy 桌面端** | "帮我打开 ip-switch 配置页" / "添加一个 AWS 账号" / "改一下 Azure 凭据" | `node ~/.workbuddy/skills/ips-main/scripts/open-ui.mjs aws` | `present_files` 打开 URL → 内置预览面板嵌入 |
+| **Codex 桌面端** | 同上 | `node ~/.codex/skills/ips-main/scripts/open-ui.mjs aws` | `open_in_codex` → 右侧面板嵌入 |
 
 > **前提**：WorkBuddy 需在「连接器管理」页对 ip-switch 点「信任」并重启；Codex 需在插件页启用 "IP Switch"（详见 §7.1 排障）。
 
@@ -203,8 +203,8 @@ install 已把 skill 同时镜像到 `~/.workbuddy/skills/ip-switch/` 与 `~/.co
 
 | Agent | 命令 |
 |-------|------|
-| **Codex CLI** | `codex --profile ip-switch exec "添加一个 AWS 账号"`（profile 内已配 MCP server 与 skill 路径）；或直接 `node ~/.codex/skills/ip-switch/scripts/open-ui.mjs aws` |
-| **WorkBuddy**（无官方 CLI） | 直接调 skill 脚本：`node ~/.workbuddy/skills/ip-switch/scripts/open-ui.mjs aws`（UI 后台启动，URL 输出到 stdout，不弹浏览器） |
+| **Codex CLI** | `codex --profile ip-switch exec "添加一个 AWS 账号"`（profile 内已配 MCP server 与 skill 路径）；或直接 `node ~/.codex/skills/ips-main/scripts/open-ui.mjs aws` |
+| **WorkBuddy**（无官方 CLI） | 直接调 skill 脚本：`node ~/.workbuddy/skills/ips-main/scripts/open-ui.mjs aws`（UI 后台启动，URL 输出到 stdout，不弹浏览器） |
 
 #### 3. 手动（任何 OS / 任何人）
 
@@ -219,8 +219,8 @@ install 已把 skill 同时镜像到 `~/.workbuddy/skills/ip-switch/` 与 `~/.co
 
 | Agent | skill 根路径 |
 |-------|------------|
-| WorkBuddy | `~/.workbuddy/skills/ip-switch/` |
-| Codex | `~/.codex/skills/ip-switch/` |
+| WorkBuddy | `~/.workbuddy/skills/ips-main/` |
+| Codex | `~/.codex/skills/ips-main/` |
 | 项目内原件（兜底） | `<install-dir>/scripts/` |
 
 > 三个 skill 根**完全等价**——vbs / sh / ps1 / mjs 四套入口都装齐了，install 自动镜像。唯一区别就是路径前缀。
@@ -276,10 +276,10 @@ install 已把 skill 同时镜像到 `~/.workbuddy/skills/ip-switch/` 与 `~/.co
 ├── SKILL.md                          ← 英文技能入口（唯一源文件，agent 指令层）
 └── references/
     └── zh.md                         ← 本文件（详细手册，按需加载）
-~/.workbuddy/skills/ip-switch/        ← WorkBuddy skill 副本（install 创建）
-~/.codex/skills/ip-switch/            ← Codex 镜像（仅当 ~/.codex/skills 已存在）
+~/.workbuddy/skills/ips-main/        ← WorkBuddy skill 副本（install 创建）
+~/.codex/skills/ips-main/            ← Codex 镜像（仅当 ~/.codex/skills 已存在）
 ~/.workbuddy/mcp.json                 ← WorkBuddy MCP 注册
 ~/.codex/config.toml + ~/.codex/mcp.json + ~/.codex/marketplaces/local/  ← Codex MCP/插件注册
 ```
 
-卸载：`rm -rf <install-dir>/data`（清凭据，保留程序）；`rm -rf ~/.workbuddy/skills/ip-switch ~/.codex/skills/ip-switch`（卸 skill）；整卸再删 `<install-dir>` 并从 mcp.json / config.toml 移除 ip-switch 条目。
+卸载：`rm -rf <install-dir>/data`（清凭据，保留程序）；`rm -rf ~/.workbuddy/skills/ips-main ~/.codex/skills/ips-main`（卸 skill）；整卸再删 `<install-dir>` 并从 mcp.json / config.toml 移除 ip-switch 条目。

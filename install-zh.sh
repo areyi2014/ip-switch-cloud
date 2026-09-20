@@ -722,7 +722,7 @@ install_codex_marketplace() {
 
     # 1. 市场清单 marketplace.json（参考 Codex 自带 openai-bundled 格式）
     #    注：插件包只装清单 + .mcp.json，不再打包 skill 副本——
-    #    skill 由 ~/.codex/skills/ip-switch/ 独立通道提供，避免双通道重复
+    #    skill 由 ~/.codex/skills/ips-main/ 独立通道提供，避免双通道重复
     mkdir -p "$market_dir/.agents/plugins" "$market_plugin_dir"
     cp "$INSTALL_DIR/.mcp.json" "$market_dir/plugins/ip-switch/.mcp.json"
     cat > "$market_dir/.agents/plugins/marketplace.json" <<'EOF_MARKET'
@@ -813,7 +813,7 @@ EOF_PLUGIN
 # ── 安装 ip-switch skill（WorkBuddy / Codex / 任意 AI Agent 可直接唤起配置页） ──
 # 职责：
 #   1. 把 SKILL.md / skill.json（项目根） + scripts/（图标+脚本）合并平铺到
-#      ~/.workbuddy/skills/ip-switch/（WorkBuddy 自动发现）
+#      ~/.workbuddy/skills/ips-main/（WorkBuddy 自动发现）
 #   2. 创建 <install-dir>/data/ 运行时目录（取代之前的 ~/.ip-switch/）
 #   3. 把 INSTALL_DIR 写入用户级副本的 scripts/.install-path.txt（bootstrap 锚点）
 #   4. 写 <install-dir>/data/install-dir.txt（运行时配置，给 --status 查询用）
@@ -850,7 +850,7 @@ install_skill() {
     # 2. 复制到目标位置（WorkBuddy 读 ~/.workbuddy/skills/<name>/ 平铺发现）
     #    源分三块：项目根的 SKILL.md / skill.json + scripts/ + references/（多语言文档）
     #    目标布局：
-    #       ~/.workbuddy/skills/ip-switch/
+    #       ~/.workbuddy/skills/ips-main/
     #       ├── SKILL.md
     #       ├── skill.json
     #       ├── .install-path.txt        ← bootstrap 锚点（内容为 INSTALL_DIR 绝对路径）
@@ -860,7 +860,7 @@ install_skill() {
     #       │   ├── open-ui.sh
     #       │   └── open-ui.ps1
     #       └── references/              ← 多语言文档（zh.md 等），按需加载
-    local dest="$HOME/.workbuddy/skills/ip-switch"
+    local dest="$HOME/.workbuddy/skills/ips-main"
     mkdir -p "$dest/scripts"
 
     # 2a. 根目录的 skill 元数据（SKILL.md / skill.json）→ 目标根目录
@@ -907,7 +907,7 @@ install_skill() {
     # 4. 如果 ~/.codex/skills 目录已存在（Codex 后续可能支持 skill），也复制一份
     #    仅在该目录已存在时复制，避免给非 Codex 用户凭空创建
     if [ -d "$HOME/.codex/skills" ]; then
-        local codex_dest="$HOME/.codex/skills/ip-switch"
+        local codex_dest="$HOME/.codex/skills/ips-main"
         mkdir -p "$codex_dest/scripts"
         for f in SKILL.md skill.json; do
             [ -f "$INSTALL_DIR/$f" ] && cp -f "$INSTALL_DIR/$f" "$codex_dest/" 2>/dev/null
@@ -926,7 +926,7 @@ install_skill() {
 
     log_info "AI Agent 唤起方式:"
     log_info "  WorkBuddy: 在对话里说「打开 ip-switch 配置」「添加 AWS 配置」等"
-    log_info "  任意终端: node ~/.workbuddy/skills/ip-switch/scripts/open-ui.mjs [aws|azure|oci|vultr]"
+    log_info "  任意终端: node ~/.workbuddy/skills/ips-main/scripts/open-ui.mjs [aws|azure|oci|vultr]"
 }
 
 # ── 安装 ips-* 快捷指令技能（薄斜杠命令入口）────────────────────────────────
@@ -1018,7 +1018,7 @@ Codex 用户级注册:   ~/.codex/config.toml（全局可见，由 append_codex_
     fi
     # skill 路径（无条件安装；显示成当前 OS 的原生格式）
     local skill_path_win skill_path_unix
-    skill_path_unix="$HOME/.workbuddy/skills/ip-switch"
+    skill_path_unix="$HOME/.workbuddy/skills/ips-main"
     case "$skill_path_unix" in
         /[a-z]/*)
             local _drive="${skill_path_unix:1:1}"
