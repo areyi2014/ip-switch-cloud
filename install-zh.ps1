@@ -782,7 +782,7 @@ function Install-CodexMarketplace {
 
     # 1. 市场清单 marketplace.json（参考 Codex 自带 openai-bundled 格式）
     #    注：插件包只装清单 + .mcp.json，不再打包 skill 副本——
-    #    skill 由 ~\.codex\skills\ips-admin\ 独立通道提供，避免双通道重复
+    #    skill 由 ~\.codex\skills\ips-main\ 独立通道提供，避免双通道重复
     $marketJson = @"
 {
   "name": "local",
@@ -877,11 +877,11 @@ function Install-CodexMarketplace {
 # -- 安装 ip-switch skill（WorkBuddy / Codex / 任意 AI Agent 可直接唤起配置页） ----
 # 职责：
 #   1. 把 SKILL.md / skill.json（项目根） + scripts/（图标+脚本）合并平铺到
-#      $env:USERPROFILE\.workbuddy\skills\ips-admin\（WorkBuddy 自动发现）
+#      $env:USERPROFILE\.workbuddy\skills\ips-main\（WorkBuddy 自动发现）
 #   2. 创建 <install-dir>\data\ 运行时目录（取代之前的 $env:USERPROFILE\.ip-switch\）
 #   3. 把 INSTALL_DIR 写入用户级副本根目录的 .install-path.txt（bootstrap 锚点）
 #   4. 写 <install-dir>\data\install-dir.txt（运行时配置，给 --status 查询用）
-#   5. 镜像到 $env:USERPROFILE\.codex\skills\ips-admin\（若该目录已存在）
+#   5. 镜像到 $env:USERPROFILE\.codex\skills\ips-main\（若该目录已存在）
 # 设计：
 #   - 幂等：已存在则覆盖更新（git pull 后再跑即可拿到新版）
 #   - 无条件安装：即使没检测到 WB 也装，让用户能手动从终端跑（Codex 无 skill 机制）
@@ -904,7 +904,7 @@ function Install-Skill {
     # 2. 复制到目标位置（WorkBuddy 读 ~/.workbuddy/skills/<name>/ 平铺发现）
     #    源分三块：项目根的 SKILL.md / skill.json + scripts\ + references\（多语言文档）
     #    目标布局：
-    #       $env:USERPROFILE\.workbuddy\skills\ips-admin\
+    #       $env:USERPROFILE\.workbuddy\skills\ips-main\
     #       ├── SKILL.md
     #       ├── skill.json
     #       ├── .install-path.txt        ← bootstrap 锚点（内容为 INSTALL_DIR 绝对路径）
@@ -914,7 +914,7 @@ function Install-Skill {
     #       │   ├── open-ui.sh
     #       │   └── open-ui.ps1
     #       └── references\               ← 多语言文档（zh.md 等），按需加载
-    $workbuddyDest = Join-Path $env:USERPROFILE ".workbuddy\skills\ips-admin"
+    $workbuddyDest = Join-Path $env:USERPROFILE ".workbuddy\skills\ips-main"
     $workbuddyScriptsDest = Join-Path $workbuddyDest "scripts"
     New-Item -ItemType Directory -Path $workbuddyDest -Force | Out-Null
     New-Item -ItemType Directory -Path $workbuddyScriptsDest -Force | Out-Null
@@ -960,7 +960,7 @@ function Install-Skill {
     # 3. 如 ~/.codex/skills 已存在（Codex 后续若启用 skill 即生效），镜像一份
     $codexSkillsDir = Join-Path $env:USERPROFILE ".codex\skills"
     if (Test-Path $codexSkillsDir) {
-        $codexDest = Join-Path $codexSkillsDir "ips-admin"
+        $codexDest = Join-Path $codexSkillsDir "ips-main"
         $codexScriptsDest = Join-Path $codexDest "scripts"
         New-Item -ItemType Directory -Path $codexDest -Force | Out-Null
         New-Item -ItemType Directory -Path $codexScriptsDest -Force | Out-Null
@@ -1172,7 +1172,7 @@ function Show-Success {
     # 按实际安装的平台显示路径（WorkBuddy 无插件目录，只有 mcp.json）
     $wbConfig       = "$env:USERPROFILE\.workbuddy\mcp.json"
     $codexMarketDir = "$env:USERPROFILE\.codex\marketplaces\local"
-    $skillDir       = "$env:USERPROFILE\.workbuddy\skills\ips-admin"
+    $skillDir       = "$env:USERPROFILE\.workbuddy\skills\ips-main"
 
     if ($script:DetectedWB) {
         Write-Host "WorkBuddy MCP 配置: $wbConfig"

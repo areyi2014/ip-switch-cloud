@@ -4,7 +4,7 @@
 
 ## 步骤
 
-1. 定位安装目录：读 `~/.workbuddy/skills/ips-admin/scripts/.install-path.txt` 首行（兜底：`~/.codex/skills/ips-admin/scripts/.install-path.txt`）。
+1. 定位安装目录：读 `~/.workbuddy/skills/ips-main/scripts/.install-path.txt` 首行（兜底：`~/.codex/skills/ips-main/scripts/.install-path.txt`）。
 2. 运行 `node <install-dir>/scripts/open-ui.mjs [aws|azure|oci|vultr]`，从 stdout 读取本地 URL。脚本设计上**默认不弹系统浏览器**。
 3. 立即把页面**嵌入回复**（自动打开，绝不只贴链接等用户点），按客户端选择：
    - **WorkBuddy**：调 `present_files` 传 `http://127.0.0.1:<port>/...` URL —— 页面嵌入内置预览面板（同源 fetch 正常，保存按钮可直接写配置）。**禁用 `show_widget`**（其沙箱 CSP 拦截 fetch）。
@@ -17,7 +17,7 @@
 ## 约定
 
 - 绝不在对话中索要或复述明文凭据；表单是唯一的凭据输入口。
-- 完整手册：主技能 `ips-admin`（英文）/ 其 `references/zh.md`（中文）。
+- 完整手册：主技能 `ips-main`（英文）/ 其 `references/zh.md`（中文）。
 
 ## 扩展
 

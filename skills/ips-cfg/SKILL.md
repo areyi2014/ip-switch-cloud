@@ -11,7 +11,7 @@ Thin quick-command entry. Locates the ip-switch install dir, starts the local UI
 
 ## Steps
 
-1. Locate the install dir: read the first line of `~/.workbuddy/skills/ips-admin/scripts/.install-path.txt` (fallback: `~/.codex/skills/ips-admin/scripts/.install-path.txt`).
+1. Locate the install dir: read the first line of `~/.workbuddy/skills/ips-main/scripts/.install-path.txt` (fallback: `~/.codex/skills/ips-main/scripts/.install-path.txt`).
 2. Run `node <install-dir>/scripts/open-ui.mjs [aws|azure|oci|vultr]` and read the local URL from stdout. The script never opens a system browser by design.
 3. Embed the page in the reply immediately (auto-open; never just paste a link), per client:
    - **WorkBuddy**: call `present_files` with the `http://127.0.0.1:<port>/...` URL — the page embeds into the built-in preview panel (same-origin fetch works, Save buttons write config directly). Never embed with `show_widget` (its sandbox CSP blocks fetch).
@@ -24,7 +24,7 @@ Thin quick-command entry. Locates the ip-switch install dir, starts the local UI
 ## Conventions
 
 - Never ask for or repeat plaintext credentials in the conversation; the form is the only credential input.
-- Full manual: the main `ips-admin` skill (English) or its `references/zh.md` (Chinese).
+- Full manual: the main `ips-main` skill (English) or its `references/zh.md` (Chinese).
 
 ## Extending
 
