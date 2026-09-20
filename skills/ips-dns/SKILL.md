@@ -1,9 +1,11 @@
 ---
 name: ips-dns
-description: Update a Cloudflare DNS A record to point at a given IP via the ip-switch MCP server. Trigger words: DNS update, DNS record, A record, point domain to IP.
+description: Update Cloudflare DNS records / 更新 Cloudflare 域名解析记录
 ---
 
 # ips-dns — Update Cloudflare DNS record
+
+Trigger words: DNS update, DNS record, A record, point domain to IP.
 
 Thin quick-command entry for the `ip-switch` MCP server.
 
