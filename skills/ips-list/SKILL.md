@@ -1,6 +1,6 @@
 ---
 name: ips-list
-description: List regional instances / 列出区域实例
+description: List regional instances (ip-switch) / 列出区域实例（ip-switch）
 ---
 
 # ips-list — List instances

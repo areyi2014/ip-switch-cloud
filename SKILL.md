@@ -1,6 +1,6 @@
 ---
 name: ips-main
-description: Main skill & fallback for ip-switch / ip-switch 主技能与兜底
+description: Main skill & fallback (ip-switch) / 主技能与兜底（ip-switch）
 ---
 
 # ip-switch

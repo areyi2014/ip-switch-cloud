@@ -1,6 +1,6 @@
 ---
 name: ips-rotate
-description: Rotate instance public IP / 轮换实例公网 IP
+description: Rotate instance public IP (ip-switch) / 轮换实例公网 IP（ip-switch）
 ---
 
 # ips-rotate — Rotate instance public IP
