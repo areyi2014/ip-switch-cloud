@@ -782,7 +782,7 @@ function Install-CodexMarketplace {
 
     # 1. Marketplace manifest marketplace.json (modeled on Codex's built-in openai-bundled format)
     #    Note: the plugin package only carries the manifests + .mcp.json; no bundled skill copy anymore --
-    #    the skill is provided by the standalone ~\.codex\skills\ips-main\ channel, avoiding dual-channel duplication
+    #    the skill is provided by the standalone ~\.codex\skills\ips-admin\ channel, avoiding dual-channel duplication
     $marketJson = @"
 {
   "name": "local",
@@ -877,11 +877,11 @@ function Install-CodexMarketplace {
 # -- Install the ip-switch skill (WorkBuddy / Codex / any AI agent can open the config page) ----
 # Responsibilities:
 #   1. Flatten SKILL.md / skill.json (project root) + scripts/ (icon + scripts) into
-#      $env:USERPROFILE\.workbuddy\skills\ips-main\ (auto-discovered by WorkBuddy)
+#      $env:USERPROFILE\.workbuddy\skills\ips-admin\ (auto-discovered by WorkBuddy)
 #   2. Create the <install-dir>\data\ runtime directory (replacing the old $env:USERPROFILE\.ip-switch\)
 #   3. Write INSTALL_DIR into .install-path.txt in the user-level copy (bootstrap anchor)
 #   4. Write <install-dir>\data\install-dir.txt (runtime config, used by --status)
-#   5. Mirror to $env:USERPROFILE\.codex\skills\ips-main\ (only if that directory already exists)
+#   5. Mirror to $env:USERPROFILE\.codex\skills\ips-admin\ (only if that directory already exists)
 # Design:
 #   - Idempotent: overwrites on rerun (run again after git pull to get the new version)
 #   - Unconditional install: installs even when WorkBuddy is not detected, so users can run it manually from a terminal (Codex has no skill mechanism)
@@ -904,7 +904,7 @@ function Install-Skill {
     # 2. Copy to the target location (WorkBuddy discovers via a flat scan of ~/.workbuddy/skills/<name>/)
     #    Sources: project-root SKILL.md / skill.json + scripts\ + references\ (multilingual docs)
     #    Target layout:
-    #       $env:USERPROFILE\.workbuddy\skills\ips-main\
+    #       $env:USERPROFILE\.workbuddy\skills\ips-admin\
     #       ├── SKILL.md
     #       ├── skill.json
     #       ├── .install-path.txt        <- bootstrap anchor (contains the absolute INSTALL_DIR path)
@@ -914,7 +914,7 @@ function Install-Skill {
     #       │   ├── open-ui.sh
     #       │   └── open-ui.ps1
     #       └── references\               <- multilingual docs (zh.md etc.), loaded on demand
-    $workbuddyDest = Join-Path $env:USERPROFILE ".workbuddy\skills\ips-main"
+    $workbuddyDest = Join-Path $env:USERPROFILE ".workbuddy\skills\ips-admin"
     $workbuddyScriptsDest = Join-Path $workbuddyDest "scripts"
     New-Item -ItemType Directory -Path $workbuddyDest -Force | Out-Null
     New-Item -ItemType Directory -Path $workbuddyScriptsDest -Force | Out-Null
@@ -960,7 +960,7 @@ function Install-Skill {
     # 3. If ~/.codex/skills already exists (takes effect if Codex enables skills later), mirror a copy
     $codexSkillsDir = Join-Path $env:USERPROFILE ".codex\skills"
     if (Test-Path $codexSkillsDir) {
-        $codexDest = Join-Path $codexSkillsDir "ips-main"
+        $codexDest = Join-Path $codexSkillsDir "ips-admin"
         $codexScriptsDest = Join-Path $codexDest "scripts"
         New-Item -ItemType Directory -Path $codexDest -Force | Out-Null
         New-Item -ItemType Directory -Path $codexScriptsDest -Force | Out-Null
@@ -1173,7 +1173,7 @@ function Show-Success {
     # Show paths for the actually installed platforms (WorkBuddy has no plugin dir, only mcp.json)
     $wbConfig       = "$env:USERPROFILE\.workbuddy\mcp.json"
     $codexMarketDir = "$env:USERPROFILE\.codex\marketplaces\local"
-    $skillDir       = "$env:USERPROFILE\.workbuddy\skills\ips-main"
+    $skillDir       = "$env:USERPROFILE\.workbuddy\skills\ips-admin"
 
     if ($script:DetectedWB) {
         Write-Host "WorkBuddy MCP config: $wbConfig"
