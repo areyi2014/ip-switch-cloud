@@ -1,5 +1,5 @@
 ---
-name: ips-admin
+name: ips-main
 description: Main skill & fallback for ip-switch / ip-switch 主技能与兜底
 ---
 
