@@ -1,6 +1,6 @@
 ---
 name: ips-dns
-description: Update Cloudflare DNS records / 更新 Cloudflare 域名解析记录
+description: Update Cloudflare DNS records (ip-switch) / 更新 Cloudflare 域名解析记录（ip-switch）
 ---
 
 # ips-dns — Update Cloudflare DNS record

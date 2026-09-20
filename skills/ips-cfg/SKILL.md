@@ -1,6 +1,6 @@
 ---
 name: ips-cfg
-description: Open credential config page / 打开凭据配置页
+description: Open credential config page (ip-switch) / 打开凭据配置页（ip-switch）
 ---
 
 # ips-cfg — Open the credential config page
