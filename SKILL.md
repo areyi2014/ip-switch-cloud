@@ -14,6 +14,17 @@ This skill owns the configuration entry point and operation routing. For the det
 - After the user saves, call `list_profiles` to verify the profile was created and that `cloudflareConfigured` matches expectations.
 - For destructive operations (deleting a profile, releasing a public IP), confirm the target with the user first.
 
+## Quick-Command Skills (ips-*)
+
+This skill is the full manual. Four thin sibling skills expose the frequent operations as slash commands in the WorkBuddy input box (type `/ips` to filter the list):
+
+- `/ips-rotate` — rotate an instance public IP
+- `/ips-dns` — update a Cloudflare DNS record
+- `/ips-cfg` — open this config page (embedded in the reply)
+- `/ips-list` — list instances in a region
+
+They are thin routers only: each is a few-line SKILL.md that calls the `ip-switch` MCP tools, keeping the client-side security-scan surface minimal. To add a new command, create a sibling directory under the repo's `skills/` (SKILL.md in English + `references/zh.md` in Chinese); both installers auto-install every `ips-*` directory.
+
 ## Opening the Config Page
 
 1. Pick the page language by the user's input language (mandatory, since 2026-09-19). File naming: English pages use plain names, Chinese pages carry a `-zh` suffix.
