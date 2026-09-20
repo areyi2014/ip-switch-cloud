@@ -10,6 +10,23 @@ Supported platforms: Workbuddy / Codex + AWS / Azure / Oracle OCI / Vultr + Clou
 
 ---
 
+## Quick-Command Skills (ips-*)
+
+Besides the MCP server, the installer also deploys four thin skills that surface the frequent operations as slash commands in the WorkBuddy input box (type `/ips` to filter the list):
+
+| Slash Command | Function | Backing MCP Tool |
+|---|---|---|
+| `/ips-rotate` | Rotate an instance public IP | `rotate_instance_ip` |
+| `/ips-dns` | Update a Cloudflare DNS record | `update_dns` / `rotate_ip_and_update_dns` |
+| `/ips-cfg` | Open the credential config page (embedded in the reply) | `open-ui` launcher + `list_profiles` |
+| `/ips-list` | List instances in a region | `list_instances` / `get_instance_info` |
+
+Each skill is a few-line `SKILL.md` (English, with a bilingual one-line description for the slash menu) plus `references/zh.md` (Chinese manual). They are thin routers only — they just call the `ip-switch` MCP tools, keeping the client-side security-scan surface minimal.
+
+To add a new quick command, create a sibling directory under the repo's `skills/` (`SKILL.md` in English + `references/zh.md` in Chinese); every installer auto-installs all `ips-*` directories, so no installer changes are needed.
+
+---
+
 ## Quick Download & Installation
 
 > Requires **Node.js >= 18** (download the LTS from [nodejs.org](https://nodejs.org/)). If git is not installed, the script installs it automatically.
@@ -56,6 +73,7 @@ An MCP service for rotating cloud public IPs — lets AI Agents batch-rotate pub
 
 ## Table of Contents
 
+- [Quick-Command Skills (ips-*)](#quick-command-skills-ips)
 - [System Requirements](#system-requirements)
 - [One-Click Installation](#one-click-installation)
   - [macOS / Ubuntu](#macos--ubuntu)
@@ -66,7 +84,6 @@ An MCP service for rotating cloud public IPs — lets AI Agents batch-rotate pub
   - [Environment Variables](#environment-variables)
 - [Verify Installation](#verify-installation)
 - [Configure Cloud Servers (UI)](#configure-cloud-servers-ui)
-- [Quick-Command Skills (ips-*)](#quick-command-skills-ips)
 - [Usage](#usage)
 - [Update & Uninstall](#update--uninstall)
 - [FAQ](#faq)
@@ -376,23 +393,6 @@ You can also open the `ui/config-form.html` file directly (in that case saving f
 - The region dropdown supports "Other region (manual input)"
 - Checking "Enable Cloudflare DNS" expands API Token + Zone ID inputs
 - Each profile can bind its own independent Cloudflare credentials
-
----
-
-## Quick-Command Skills (ips-*)
-
-Besides the MCP server, the installer also deploys four thin skills that surface the frequent operations as slash commands in the WorkBuddy input box (type `/ips` to filter the list):
-
-| Slash Command | Function | Backing MCP Tool |
-|---|---|---|
-| `/ips-rotate` | Rotate an instance public IP | `rotate_instance_ip` |
-| `/ips-dns` | Update a Cloudflare DNS record | `update_dns` / `rotate_ip_and_update_dns` |
-| `/ips-cfg` | Open the credential config page (embedded in the reply) | `open-ui` launcher + `list_profiles` |
-| `/ips-list` | List instances in a region | `list_instances` / `get_instance_info` |
-
-Each skill is a few-line `SKILL.md` (English, with a bilingual one-line description for the slash menu) plus `references/zh.md` (Chinese manual). They are thin routers only — they just call the `ip-switch` MCP tools, keeping the client-side security-scan surface minimal.
-
-To add a new quick command, create a sibling directory under the repo's `skills/` (`SKILL.md` in English + `references/zh.md` in Chinese); every installer auto-installs all `ips-*` directories, so no installer changes are needed.
 
 ---
 

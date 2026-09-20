@@ -10,6 +10,23 @@
 
 ---
 
+## 快捷指令技能（ips-*）
+
+除 MCP 服务外，安装脚本还会部署 4 个薄技能，把高频操作做成 WorkBuddy 输入框里的斜杠快捷指令（敲 `/ips` 即可过滤出全部）：
+
+| 斜杠指令 | 功能 | 背后的 MCP 工具 |
+|---|---|---|
+| `/ips-rotate` | 轮换实例公网 IP | `rotate_instance_ip` |
+| `/ips-dns` | 更新 Cloudflare 域名解析记录 | `update_dns` / `rotate_ip_and_update_dns` |
+| `/ips-cfg` | 打开凭据配置页（嵌入回复） | `open-ui` 启动脚本 + `list_profiles` |
+| `/ips-list` | 列出区域实例 | `list_instances` / `get_instance_info` |
+
+每个技能只有几行的 `SKILL.md`（英文，description 为「英文 / 中文」一行双语供菜单展示）加 `references/zh.md`（中文手册）。它们只是薄路由——只负责调用 `ip-switch` MCP 工具，把客户端安全扫描面压到最小。
+
+新增快捷指令：在仓库 `skills/` 下建一个同级目录（`SKILL.md` 英文 + `references/zh.md` 中文）即可，所有安装脚本会自动安装所有 `ips-*` 目录，无需改动安装脚本。
+
+---
+
 ## 快速下载安装
 
 > 需要 **Node.js >= 18**（[nodejs.org](https://nodejs.org/) 下载 LTS）。若未安装 git，脚本会自动安装。
@@ -56,6 +73,7 @@ bash install-ip-switch.sh
 
 ## 目录
 
+- [快捷指令技能（ips-*）](#快捷指令技能ips)
 - [系统要求](#系统要求)
 - [一键安装](#一键安装)
   - [macOS / Ubuntu](#macos--ubuntu)
@@ -66,7 +84,6 @@ bash install-ip-switch.sh
   - [环境变量说明](#环境变量说明)
 - [验证安装](#验证安装)
 - [配置云服务器（UI）](#配置云服务器ui)
-- [快捷指令技能（ips-*）](#快捷指令技能ips)
 - [使用方式](#使用方式)
 - [更新与卸载](#更新与卸载)
 - [常见问题](#常见问题)
@@ -376,23 +393,6 @@ node ui/server.cjs
 - 区域下拉支持「其他区域 (手动输入)」
 - 勾选「启用 Cloudflare 域名解析」后展开 API Token + Zone ID 输入框
 - 每个 profile 可绑定独立的 Cloudflare 凭据
-
----
-
-## 快捷指令技能（ips-*）
-
-除 MCP 服务外，安装脚本还会部署 4 个薄技能，把高频操作做成 WorkBuddy 输入框里的斜杠快捷指令（敲 `/ips` 即可过滤出全部）：
-
-| 斜杠指令 | 功能 | 背后的 MCP 工具 |
-|---|---|---|
-| `/ips-rotate` | 轮换实例公网 IP | `rotate_instance_ip` |
-| `/ips-dns` | 更新 Cloudflare 域名解析记录 | `update_dns` / `rotate_ip_and_update_dns` |
-| `/ips-cfg` | 打开凭据配置页（嵌入回复） | `open-ui` 启动脚本 + `list_profiles` |
-| `/ips-list` | 列出区域实例 | `list_instances` / `get_instance_info` |
-
-每个技能只有几行的 `SKILL.md`（英文，description 为「英文 / 中文」一行双语供菜单展示）加 `references/zh.md`（中文手册）。它们只是薄路由——只负责调用 `ip-switch` MCP 工具，把客户端安全扫描面压到最小。
-
-新增快捷指令：在仓库 `skills/` 下建一个同级目录（`SKILL.md` 英文 + `references/zh.md` 中文）即可，所有安装脚本会自动安装所有 `ips-*` 目录，无需改动安装脚本。
 
 ---
 
