@@ -1,9 +1,11 @@
 ---
 name: ips-rotate
-description: Rotate the public IP of a cloud instance (AWS / Azure / OCI / Vultr) via the ip-switch MCP server. Trigger words: rotate IP, change public IP, new IP, swap IP.
+description: Rotate instance public IP / 轮换实例公网 IP
 ---
 
 # ips-rotate — Rotate instance public IP
+
+Trigger words: rotate IP, change public IP, new IP, swap IP.
 
 Thin quick-command entry for the `ip-switch` MCP server. The MCP tools do the work; this skill only routes.
 

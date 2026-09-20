@@ -1,9 +1,11 @@
 ---
 name: ips-cfg
-description: Open the ip-switch credential config page and embed it in the chat reply (never a system-browser popup). Trigger words: config page, credentials, add account, edit AccessKey, Cloudflare token.
+description: Open credential config page / 打开凭据配置页
 ---
 
 # ips-cfg — Open the credential config page
+
+Trigger words: config page, credentials, add account, edit AccessKey, Cloudflare token.
 
 Thin quick-command entry. Locates the ip-switch install dir, starts the local UI server, and embeds the page in the reply.
 
