@@ -66,6 +66,7 @@ bash install-ip-switch.sh
   - [环境变量说明](#环境变量说明)
 - [验证安装](#验证安装)
 - [配置云服务器（UI）](#配置云服务器ui)
+- [快捷指令技能（ips-*）](#快捷指令技能ips)
 - [使用方式](#使用方式)
 - [更新与卸载](#更新与卸载)
 - [常见问题](#常见问题)
@@ -353,9 +354,12 @@ node ui/server.cjs
 
 然后浏览器打开 `http://127.0.0.1:<端口>`（端口由系统自动分配，启动时在终端打印），即可在可视化界面中填写和保存配置。
 
-> **约定**: 配置表单**永远用浏览器打开**，不要使用 WorkBuddy 内嵌窗口（沙箱限制）。
+> **约定（2026-09-12 起）**：在 agent 客户端（WorkBuddy / Codex）中，配置页必须**嵌入 agent 回复**，绝不弹系统浏览器新窗口：
 >
-> 原因：AI 对话平台的内嵌 widget（如 WorkBuddy 的 `show_widget`）运行在沙箱中，CSP 策略会拦截 `fetch` 请求，导致保存按钮无法写入配置文件。浏览器中同源 `fetch` 不受限制。
+> - **WorkBuddy**：agent 调 `present_files` 传入 `http://127.0.0.1:<端口>/...` URL，页面嵌入内置预览面板（同源 fetch 正常，保存按钮可直接写配置）。
+> - **Codex 桌面端**：agent 用 `open_in_codex` 打开 URL，放右侧面板。
+> - **禁用 `show_widget` 内嵌**——其沙箱 CSP 拦截 `fetch` 请求，保存按钮失效（下面这条技术原因仍然成立）。
+> - 系统浏览器仅保留给桌面 `open-ui.vbs` 双击快捷方式使用（该场景没有 agent 回复可嵌入）。
 
 服务提供以下接口：
 
@@ -375,10 +379,41 @@ node ui/server.cjs
 
 ---
 
+## 快捷指令技能（ips-*）
+
+除 MCP 服务外，安装脚本还会部署 4 个薄技能，把高频操作做成 WorkBuddy 输入框里的斜杠快捷指令（敲 `/ips` 即可过滤出全部）：
+
+| 斜杠指令 | 功能 | 背后的 MCP 工具 |
+|---|---|---|
+| `/ips-rotate` | 轮换实例公网 IP | `rotate_instance_ip` |
+| `/ips-dns` | 更新 Cloudflare 域名解析记录 | `update_dns` / `rotate_ip_and_update_dns` |
+| `/ips-cfg` | 打开凭据配置页（嵌入回复） | `open-ui` 启动脚本 + `list_profiles` |
+| `/ips-list` | 列出区域实例 | `list_instances` / `get_instance_info` |
+
+每个技能只有几行的 `SKILL.md`（英文，description 为「英文 / 中文」一行双语供菜单展示）加 `references/zh.md`（中文手册）。它们只是薄路由——只负责调用 `ip-switch` MCP 工具，把客户端安全扫描面压到最小。
+
+新增快捷指令：在仓库 `skills/` 下建一个同级目录（`SKILL.md` 英文 + `references/zh.md` 中文）即可，所有安装脚本会自动安装所有 `ips-*` 目录，无需改动安装脚本。
+
+---
+
 ## 项目结构
 
 ```
 ip-switch/
+├── SKILL.md              # 主技能入口（英文）：配置页唤起 + 操作路由
+├── skill.json            # 技能市场元数据（双语展示字段）
+├── references/
+│   └── zh.md             # 主技能中文手册（按需加载）
+├── skills/               # 快捷指令技能（MCP 工具的薄路由）
+│   ├── ips-rotate/       # /ips-rotate — 轮换实例公网 IP
+│   ├── ips-dns/          # /ips-dns — 更新 Cloudflare 域名解析记录
+│   ├── ips-cfg/          # /ips-cfg — 打开凭据配置页
+│   └── ips-list/         # /ips-list — 列出区域实例
+├── scripts/              # open-ui.mjs 启动脚本（含 .vbs / .ps1 / .sh 包装）
+├── install.ps1           # Windows 安装脚本（英文）
+├── install-zh.ps1        # Windows 安装脚本（中文）
+├── install.sh            # macOS / Ubuntu 安装脚本（英文）
+├── install-zh.sh         # macOS / Ubuntu 安装脚本（中文）
 ├── src/
 │   ├── index.ts          # MCP Server 入口（stdio 传输）
 │   ├── tools.ts          # 14 个 MCP 工具定义
@@ -448,6 +483,8 @@ Cloudflare 凭据存储在 profile 内，不再有全局字段。每个 profile 
 | 「轮换所有已配置服务器的 IP」        | 一键轮换所有 IP + 更新 DNS  |
 | 「轮换 aws-ty 的 IP 并更新 DNS」   | 轮换指定配置并同步 DNS      |
 | 「删除 aws-ty 配置」               | 移除指定配置               |
+
+在 WorkBuddy 中，高频操作还有专属的斜杠快捷指令（`/ips-rotate`、`/ips-dns`、`/ips-cfg`、`/ips-list`）——见[快捷指令技能（ips-\*）](#快捷指令技能ips)。
 
 **MCP 工具完整列表（13 个）**
 

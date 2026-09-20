@@ -66,6 +66,7 @@ An MCP service for rotating cloud public IPs — lets AI Agents batch-rotate pub
   - [Environment Variables](#environment-variables)
 - [Verify Installation](#verify-installation)
 - [Configure Cloud Servers (UI)](#configure-cloud-servers-ui)
+- [Quick-Command Skills (ips-*)](#quick-command-skills-ips)
 - [Usage](#usage)
 - [Update & Uninstall](#update--uninstall)
 - [FAQ](#faq)
@@ -353,9 +354,12 @@ node ui/server.cjs
 
 Then open `http://127.0.0.1:<port>` in your browser (the port is auto-assigned by the system and printed to the terminal on startup) to fill in and save configs in the visual interface.
 
-> **Convention**: Always open the config form in a **browser**, not in the WorkBuddy embedded window (sandbox limitation).
+> **Convention (since 2026-09-12)**: In agent clients (WorkBuddy / Codex), the config page must be **embedded in the agent's reply** — never popped up in a system browser window:
 >
-> Reason: Embedded widgets of AI chat platforms (e.g. WorkBuddy's `show_widget`) run in a sandbox where CSP policy blocks `fetch` requests, so the save button cannot write the config file. Same-origin `fetch` in a browser is unrestricted.
+> - **WorkBuddy**: the agent calls `present_files` with the `http://127.0.0.1:<port>/...` URL; the page embeds into the built-in preview panel (same-origin fetch works, the save button writes the config directly).
+> - **Codex desktop**: the agent opens the URL with `open_in_codex`, placed in the right panel.
+> - Do **not** embed with `show_widget` — its sandbox CSP blocks `fetch` requests, breaking the save button (the technical reason stated below still holds).
+> - Opening in a system browser is reserved for the desktop `open-ui.vbs` double-click shortcut, which has no agent reply to embed into.
 
 The server exposes the following endpoints:
 
@@ -375,10 +379,41 @@ You can also open the `ui/config-form.html` file directly (in that case saving f
 
 ---
 
+## Quick-Command Skills (ips-*)
+
+Besides the MCP server, the installer also deploys four thin skills that surface the frequent operations as slash commands in the WorkBuddy input box (type `/ips` to filter the list):
+
+| Slash Command | Function | Backing MCP Tool |
+|---|---|---|
+| `/ips-rotate` | Rotate an instance public IP | `rotate_instance_ip` |
+| `/ips-dns` | Update a Cloudflare DNS record | `update_dns` / `rotate_ip_and_update_dns` |
+| `/ips-cfg` | Open the credential config page (embedded in the reply) | `open-ui` launcher + `list_profiles` |
+| `/ips-list` | List instances in a region | `list_instances` / `get_instance_info` |
+
+Each skill is a few-line `SKILL.md` (English, with a bilingual one-line description for the slash menu) plus `references/zh.md` (Chinese manual). They are thin routers only — they just call the `ip-switch` MCP tools, keeping the client-side security-scan surface minimal.
+
+To add a new quick command, create a sibling directory under the repo's `skills/` (`SKILL.md` in English + `references/zh.md` in Chinese); every installer auto-installs all `ips-*` directories, so no installer changes are needed.
+
+---
+
 ## Project Structure
 
 ```
 ip-switch/
+├── SKILL.md              # Main skill entry (English): config-page launch + operation routing
+├── skill.json            # Skill marketplace metadata (bilingual display fields)
+├── references/
+│   └── zh.md             # Chinese manual for the main skill (loaded on demand)
+├── skills/               # Quick-command skills (thin routers over the MCP tools)
+│   ├── ips-rotate/       # /ips-rotate — rotate an instance public IP
+│   ├── ips-dns/          # /ips-dns — update a Cloudflare DNS record
+│   ├── ips-cfg/          # /ips-cfg — open the credential config page
+│   └── ips-list/         # /ips-list — list instances in a region
+├── scripts/              # open-ui.mjs launcher (+ .vbs / .ps1 / .sh wrappers)
+├── install.ps1           # Windows installer (English)
+├── install-zh.ps1        # Windows installer (Chinese)
+├── install.sh            # macOS / Ubuntu installer (English)
+├── install-zh.sh         # macOS / Ubuntu installer (Chinese)
 ├── src/
 │   ├── index.ts          # MCP Server entry (stdio transport)
 │   ├── tools.ts          # 14 MCP tool definitions
@@ -448,6 +483,8 @@ Operate it directly through AI conversation. Common commands:
 | "Rotate the IPs of all configured servers" | One-click rotate all IPs + update DNS |
 | "Rotate aws-ty's IP and update DNS" | Rotate the specified profile and sync DNS |
 | "Delete the aws-ty profile" | Remove the specified profile |
+
+In WorkBuddy, the frequent operations also have dedicated slash quick commands (`/ips-rotate`, `/ips-dns`, `/ips-cfg`, `/ips-list`) — see [Quick-Command Skills (ips-\*)](#quick-command-skills-ips).
 
 **Complete list of MCP tools (13)**
 
