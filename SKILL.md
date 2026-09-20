@@ -1,13 +1,13 @@
 ---
 name: ips-admin
-description: Manage accounts, credentials, and DNS / 管理多云账号、凭据与域名解析
+description: Main skill & fallback for ip-switch / ip-switch 主技能与兜底
 ---
 
 # ip-switch
 
 Trigger words: config page, credentials, AccessKey, Cloudflare token, AWS, Azure, OCI, Vultr.
 
-This skill owns the configuration entry point and operation routing. For the detailed tool matrix, parameter reference, and troubleshooting steps, read [references/zh.md](references/zh.md) (Chinese manual) on demand.
+This skill is the **main skill** of the `ips-*` family and its **fallback**: when no thin `ips-*` quick-command skill matches the user's request, route the task through this skill. It owns the configuration entry point and operation routing. For the detailed tool matrix, parameter reference, and troubleshooting steps, read [references/zh.md](references/zh.md) (Chinese manual) on demand.
 
 ## Usage Principles
 
