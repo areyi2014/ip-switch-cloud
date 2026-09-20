@@ -50,6 +50,8 @@ ip-switch 是一个 **MCP（Model Context Protocol）服务**，安装后被注�
 
 它们只是薄路由：每个只有几行的 SKILL.md，内容是调用 `ip-switch` MCP 工具，把客户端安全扫描面压到最小。新增指令：在仓库 `skills/` 下建一个同级目录（SKILL.md 英文 + `references/zh.md` 中文），两个安装脚本会自动安装所有 `ips-*` 目录。
 
+**菜单备注说明**：这些指令在 `/` 菜单里的 description 显示为 frontmatter 中写死的静态字符串，**不跟随客户端界面语言切换**（中英文界面看到的是同一行）。因此 description 采用「英文 / 中文」一行双语格式，兼顾两类用户；SKILL.md 正文仍保持纯英文（指令层不国际化）。
+
 ## 4. MCP 服务总览（13 个工具）
 
 | 组        | 工具                         | 一句话                                                          | 依赖已保存的 profile？                   |
