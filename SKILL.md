@@ -1,5 +1,5 @@
 ---
-name: ips-main
+name: ips-admin
 description: Manage accounts, credentials, and DNS / 管理多云账号、凭据与域名解析
 ---
 

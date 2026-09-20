@@ -722,7 +722,7 @@ install_codex_marketplace() {
 
     # 1. Marketplace manifest marketplace.json (modeled on Codex's built-in openai-bundled format)
     #    Note: the plugin package only carries the manifests + .mcp.json; no bundled skill copy anymore --
-    #    the skill is provided by the standalone ~/.codex/skills/ips-main/ channel, avoiding dual-channel duplication
+    #    the skill is provided by the standalone ~/.codex/skills/ips-admin/ channel, avoiding dual-channel duplication
     mkdir -p "$market_dir/.agents/plugins" "$market_plugin_dir"
     cp "$INSTALL_DIR/.mcp.json" "$market_dir/plugins/ip-switch/.mcp.json"
     cat > "$market_dir/.agents/plugins/marketplace.json" <<'EOF_MARKET'
@@ -813,7 +813,7 @@ EOF_PLUGIN
 # -- Install the ip-switch skill (WorkBuddy / Codex / any AI agent can open the config page) ----
 # Responsibilities:
 #   1. Flatten SKILL.md / skill.json (project root) + scripts/ (icon + scripts) into
-#      ~/.workbuddy/skills/ips-main/ (auto-discovered by WorkBuddy)
+#      ~/.workbuddy/skills/ips-admin/ (auto-discovered by WorkBuddy)
 #   2. Create the <install-dir>/data/ runtime directory (replacing the old ~/.ip-switch/)
 #   3. Write INSTALL_DIR into the user-level copy's scripts/.install-path.txt (bootstrap anchor)
 #   4. Write <install-dir>/data/install-dir.txt (runtime config, used by --status)
@@ -850,7 +850,7 @@ install_skill() {
     # 2. Copy to the target location (WorkBuddy discovers via a flat scan of ~/.workbuddy/skills/<name>/)
     #    Sources: project-root SKILL.md / skill.json + scripts/ + references/ (multilingual docs)
     #    Target layout:
-    #       ~/.workbuddy/skills/ips-main/
+    #       ~/.workbuddy/skills/ips-admin/
     #       ├── SKILL.md
     #       ├── skill.json
     #       ├── .install-path.txt        <- bootstrap anchor (contains the absolute INSTALL_DIR path)
@@ -860,7 +860,7 @@ install_skill() {
     #       │   ├── open-ui.sh
     #       │   └── open-ui.ps1
     #       └── references/              <- multilingual docs (zh.md etc.), loaded on demand
-    local dest="$HOME/.workbuddy/skills/ips-main"
+    local dest="$HOME/.workbuddy/skills/ips-admin"
     mkdir -p "$dest/scripts"
 
     # 2a. Root skill metadata (SKILL.md / skill.json) -> target root
@@ -907,7 +907,7 @@ install_skill() {
     # 4. If ~/.codex/skills already exists (Codex may support skills later), copy a mirror there too
     #    Only copy when the directory already exists, avoiding creating it for non-Codex users
     if [ -d "$HOME/.codex/skills" ]; then
-        local codex_dest="$HOME/.codex/skills/ips-main"
+        local codex_dest="$HOME/.codex/skills/ips-admin"
         mkdir -p "$codex_dest/scripts"
         for f in SKILL.md skill.json; do
             [ -f "$INSTALL_DIR/$f" ] && cp -f "$INSTALL_DIR/$f" "$codex_dest/" 2>/dev/null
@@ -926,7 +926,7 @@ install_skill() {
 
     log_info "How AI agents open it:"
     log_info "  WorkBuddy: say \"Open the ip-switch config page\", \"Add an AWS account\", etc. in the chat"
-    log_info "  Any terminal: node ~/.workbuddy/skills/ips-main/scripts/open-ui.mjs [aws|azure|oci|vultr]"
+    log_info "  Any terminal: node ~/.workbuddy/skills/ips-admin/scripts/open-ui.mjs [aws|azure|oci|vultr]"
 }
 
 # -- Install the ips-* quick-command skills (thin slash-command entries) --------------------
@@ -1019,7 +1019,7 @@ Codex user-level registration: ~/.codex/config.toml (globally visible, written b
     fi
     # Skill path (installed unconditionally; shown in the native format of the current OS)
     local skill_path_win skill_path_unix
-    skill_path_unix="$HOME/.workbuddy/skills/ips-main"
+    skill_path_unix="$HOME/.workbuddy/skills/ips-admin"
     case "$skill_path_unix" in
         /[a-z]/*)
             local _drive="${skill_path_unix:1:1}"
