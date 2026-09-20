@@ -1,5 +1,5 @@
 ---
-name: ip-switch
+name: ips-main
 description: Configure and manage multi-cloud accounts, credentials, and Cloudflare DNS for ip-switch; use when opening the AWS, Azure, OCI, Vultr, or full-featured config page is needed. 配置管理 ip-switch 多云账号、凭据与 Cloudflare 域名解析；用于打开 AWS / Azure / OCI / Vultr 或全功能配置页。
 ---
 
