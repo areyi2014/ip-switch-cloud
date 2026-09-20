@@ -995,6 +995,67 @@ function Install-Skill {
     Write-Info "  任意终端: node $codexScriptsDest\open-ui.mjs [aws|azure|oci|vultr]"
 }
 
+# -- 安装 ips-* 快捷指令技能（薄斜杠命令入口）------------------------------------------------
+# <installDir>\skills\ 下每个子目录是一个薄快捷指令技能：
+#   skills\ips-rotate\  skills\ips-dns\  skills\ips-cfg\  skills\ips-list\  ...
+# 每个技能布局：SKILL.md（英文）+ references\zh.md（中文，按需加载）。
+# 扩展性：下方循环会自动安装所有 ips-* 目录——新增快捷指令只需放一个新目录，无需改安装脚本。
+# 目标位置：
+#   $env:USERPROFILE\.workbuddy\skills\ips-<name>\   （WorkBuddy 平铺发现 → /ips-... 斜杠菜单）
+#   $env:USERPROFILE\.codex\skills\ips-<name>\       （Codex 镜像，仅当 .codex\skills 已存在）
+function Install-QuickSkills {
+    $quickSrc = Join-Path $installDir "skills"
+    if (-not (Test-Path $quickSrc)) {
+        Write-Warn "未找到快捷指令目录: $quickSrc（跳过快捷指令安装）"
+        return
+    }
+
+    Get-ChildItem -Path $quickSrc -Directory | Where-Object { $_.Name -like "ips-*" } | ForEach-Object {
+        $name = $_.Name
+        $skillMd = Join-Path $_.FullName "SKILL.md"
+        if (-not (Test-Path $skillMd)) {
+            Write-Warn "快捷指令 ${name}: 缺少 SKILL.md（跳过）"
+            return
+        }
+
+        # 1. WorkBuddy 副本
+        $qdest = Join-Path $env:USERPROFILE ".workbuddy\skills\$name"
+        New-Item -ItemType Directory -Path $qdest -Force | Out-Null
+        try {
+            Copy-Item -Path $skillMd -Destination $qdest -Force
+            $refs = Join-Path $_.FullName "references"
+            if (Test-Path $refs) {
+                $refsDest = Join-Path $qdest "references"
+                New-Item -ItemType Directory -Path $refsDest -Force | Out-Null
+                Copy-Item -Path "$refs\*" -Destination $refsDest -Recurse -Force
+            }
+            Write-OK "快捷指令已安装: $qdest（斜杠命令 /$name）"
+        } catch {
+            Write-Err "快捷指令安装失败: $($_.FullName) -> $qdest ($_)"
+            return
+        }
+
+        # 2. Codex 镜像（仅当 .codex\skills 已存在）
+        $codexSkillsDir = Join-Path $env:USERPROFILE ".codex\skills"
+        if (Test-Path $codexSkillsDir) {
+            $qcodex = Join-Path $codexSkillsDir $name
+            New-Item -ItemType Directory -Path $qcodex -Force | Out-Null
+            try {
+                Copy-Item -Path $skillMd -Destination $qcodex -Force
+                $refs = Join-Path $_.FullName "references"
+                if (Test-Path $refs) {
+                    $refsDest = Join-Path $qcodex "references"
+                    New-Item -ItemType Directory -Path $refsDest -Force | Out-Null
+                    Copy-Item -Path "$refs\*" -Destination $refsDest -Recurse -Force
+                }
+                Write-OK "快捷指令已镜像到 Codex: $qcodex"
+            } catch {
+                Write-Warn "快捷指令镜像到 Codex 失败: $_"
+            }
+        }
+    }
+}
+
 # -- 重启客户端应用（WorkBuddy/Codex），使 MCP 配置立即生效 -------------------
 function Restart-ClientApp {
     param(
@@ -1184,6 +1245,8 @@ function Main {
     # skill 安装：跨 WorkBuddy / Codex / 任意 AI Agent 的统一配置页唤起入口
     # 无条件安装（即使没检测到 WB 也装，用户可手动从终端跑）
     Install-Skill
+    # 快捷指令技能（ips-*）：高频 MCP 操作的薄斜杠命令入口
+    Install-QuickSkills
     Show-Success
 
     Write-OK "部署完成!"

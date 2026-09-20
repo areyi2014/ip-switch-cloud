@@ -995,6 +995,68 @@ function Install-Skill {
     Write-Info "  Any terminal: node $codexScriptsDest\open-ui.mjs [aws|azure|oci|vultr]"
 }
 
+# -- Install the ips-* quick-command skills (thin slash-command entries) ---------------------
+# Each subdirectory under <installDir>\skills\ is one thin quick-command skill:
+#   skills\ips-rotate\  skills\ips-dns\  skills\ips-cfg\  skills\ips-list\  ...
+# Layout per skill: SKILL.md (English) + references\zh.md (Chinese, loaded on demand).
+# Extensibility: the loop below auto-installs every ips-* directory -- adding a new
+# quick command means dropping a new directory here, no installer edit required.
+# Targets:
+#   $env:USERPROFILE\.workbuddy\skills\ips-<name>\   (WorkBuddy flat-scan discovery -> /ips-... slash menu)
+#   $env:USERPROFILE\.codex\skills\ips-<name>\       (mirror, only when .codex\skills already exists)
+function Install-QuickSkills {
+    $quickSrc = Join-Path $installDir "skills"
+    if (-not (Test-Path $quickSrc)) {
+        Write-Warn "Quick skills directory not found: $quickSrc (skipping the quick-skill install)"
+        return
+    }
+
+    Get-ChildItem -Path $quickSrc -Directory | Where-Object { $_.Name -like "ips-*" } | ForEach-Object {
+        $name = $_.Name
+        $skillMd = Join-Path $_.FullName "SKILL.md"
+        if (-not (Test-Path $skillMd)) {
+            Write-Warn "Quick skill ${name}: SKILL.md missing (skipping)"
+            return
+        }
+
+        # 1. WorkBuddy copy
+        $qdest = Join-Path $env:USERPROFILE ".workbuddy\skills\$name"
+        New-Item -ItemType Directory -Path $qdest -Force | Out-Null
+        try {
+            Copy-Item -Path $skillMd -Destination $qdest -Force
+            $refs = Join-Path $_.FullName "references"
+            if (Test-Path $refs) {
+                $refsDest = Join-Path $qdest "references"
+                New-Item -ItemType Directory -Path $refsDest -Force | Out-Null
+                Copy-Item -Path "$refs\*" -Destination $refsDest -Recurse -Force
+            }
+            Write-OK "Quick skill installed: $qdest (slash command /$name)"
+        } catch {
+            Write-Err "Failed to install quick skill: $($_.FullName) -> $qdest ($_)"
+            return
+        }
+
+        # 2. Codex mirror (only when .codex\skills already exists)
+        $codexSkillsDir = Join-Path $env:USERPROFILE ".codex\skills"
+        if (Test-Path $codexSkillsDir) {
+            $qcodex = Join-Path $codexSkillsDir $name
+            New-Item -ItemType Directory -Path $qcodex -Force | Out-Null
+            try {
+                Copy-Item -Path $skillMd -Destination $qcodex -Force
+                $refs = Join-Path $_.FullName "references"
+                if (Test-Path $refs) {
+                    $refsDest = Join-Path $qcodex "references"
+                    New-Item -ItemType Directory -Path $refsDest -Force | Out-Null
+                    Copy-Item -Path "$refs\*" -Destination $refsDest -Recurse -Force
+                }
+                Write-OK "Quick skill mirrored to Codex: $qcodex"
+            } catch {
+                Write-Warn "Failed to mirror quick skill to Codex: $_"
+            }
+        }
+    }
+}
+
 # -- Restart the client app (WorkBuddy/Codex) so the MCP config takes effect immediately ----
 function Restart-ClientApp {
     param(
@@ -1184,6 +1246,8 @@ function Main {
     # Skill install: a unified config-page launcher across WorkBuddy / Codex / any AI agent
     # Unconditional install (installs even when WorkBuddy is not detected; users can run it from a terminal)
     Install-Skill
+    # Quick-command skills (ips-*): thin slash-command entries for the frequent MCP operations
+    Install-QuickSkills
     Show-Success
 
     Write-OK "Deployment complete!"

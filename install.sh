@@ -929,6 +929,60 @@ install_skill() {
     log_info "  Any terminal: node ~/.workbuddy/skills/ip-switch/scripts/open-ui.mjs [aws|azure|oci|vultr]"
 }
 
+# -- Install the ips-* quick-command skills (thin slash-command entries) --------------------
+# Each subdirectory under <INSTALL_DIR>/skills/ is one thin quick-command skill:
+#   skills/ips-rotate/  skills/ips-dns/  skills/ips-cfg/  skills/ips-list/  ...
+# Layout per skill: SKILL.md (English) + references/zh.md (Chinese, loaded on demand).
+# Extensibility: the loop below auto-installs every ips-* directory -- adding a new
+# quick command means dropping a new directory here, no installer edit required.
+# Targets:
+#   ~/.workbuddy/skills/ips-<name>/   (WorkBuddy flat-scan discovery -> /ips-... slash menu)
+#   ~/.codex/skills/ips-<name>/       (mirror, only when ~/.codex/skills already exists)
+install_quick_skills() {
+    local quick_src="$INSTALL_DIR/skills"
+    if [ ! -d "$quick_src" ]; then
+        log_warn "Quick skills directory not found: ${quick_src} (skipping the quick-skill install)"
+        return 0
+    fi
+
+    local src name qdest qcodex
+    for src in "$quick_src"/*/; do
+        [ -d "$src" ] || continue
+        name="$(basename "$src")"
+        # Only install the ips-* quick-command family; ignore any other directories
+        case "$name" in
+            ips-*) ;;
+            *) continue;;
+        esac
+        [ -f "$src/SKILL.md" ] || { log_warn "Quick skill ${name}: SKILL.md missing (skipping)"; continue; }
+
+        # 1. WorkBuddy copy
+        qdest="$HOME/.workbuddy/skills/$name"
+        mkdir -p "$qdest"
+        if ! cp -f "$src/SKILL.md" "$qdest/" 2>/dev/null; then
+            log_error "Failed to install quick skill: $src -> $qdest"
+            continue
+        fi
+        if [ -d "$src/references" ]; then
+            mkdir -p "$qdest/references"
+            cp -R "$src/references/." "$qdest/references/" 2>/dev/null
+        fi
+        log_ok "Quick skill installed: ${qdest} (slash command /${name})"
+
+        # 2. Codex mirror (only when ~/.codex/skills already exists)
+        if [ -d "$HOME/.codex/skills" ]; then
+            qcodex="$HOME/.codex/skills/$name"
+            mkdir -p "$qcodex"
+            cp -f "$src/SKILL.md" "$qcodex/" 2>/dev/null
+            if [ -d "$src/references" ]; then
+                mkdir -p "$qcodex/references"
+                cp -R "$src/references/." "$qcodex/references/" 2>/dev/null
+            fi
+            log_ok "Quick skill mirrored to Codex: ${qcodex}"
+        fi
+    done
+}
+
 # -- Post-install summary ------------------------------------------------------------------
 print_success() {
     # Show paths for the actually installed platforms (WorkBuddy has no plugin dir, only mcp.json)
@@ -1058,6 +1112,8 @@ main() {
     # Skill install: a unified config-page launcher across WorkBuddy / Codex / any AI agent
     # Unconditional install (installs even when WorkBuddy is not detected; users can run it from a terminal)
     install_skill
+    # Quick-command skills (ips-*): thin slash-command entries for the frequent MCP operations
+    install_quick_skills
     print_success
 
     log_ok "Deployment complete!"

@@ -929,6 +929,59 @@ install_skill() {
     log_info "  任意终端: node ~/.workbuddy/skills/ip-switch/scripts/open-ui.mjs [aws|azure|oci|vultr]"
 }
 
+# ── 安装 ips-* 快捷指令技能（薄斜杠命令入口）────────────────────────────────
+# <INSTALL_DIR>/skills/ 下每个子目录是一个薄快捷指令技能：
+#   skills/ips-rotate/  skills/ips-dns/  skills/ips-cfg/  skills/ips-list/  ...
+# 每个技能布局：SKILL.md（英文）+ references/zh.md（中文，按需加载）。
+# 扩展性：下方循环会自动安装所有 ips-* 目录——新增快捷指令只需放一个新目录，无需改安装脚本。
+# 目标位置：
+#   ~/.workbuddy/skills/ips-<name>/   （WorkBuddy 平铺发现 → /ips-... 斜杠菜单）
+#   ~/.codex/skills/ips-<name>/       （Codex 镜像，仅当 ~/.codex/skills 已存在）
+install_quick_skills() {
+    local quick_src="$INSTALL_DIR/skills"
+    if [ ! -d "$quick_src" ]; then
+        log_warn "未找到快捷指令目录: ${quick_src}（跳过快捷指令安装）"
+        return 0
+    fi
+
+    local src name qdest qcodex
+    for src in "$quick_src"/*/; do
+        [ -d "$src" ] || continue
+        name="$(basename "$src")"
+        # 只安装 ips-* 快捷指令家族；忽略其他目录
+        case "$name" in
+            ips-*) ;;
+            *) continue;;
+        esac
+        [ -f "$src/SKILL.md" ] || { log_warn "快捷指令 ${name}: 缺少 SKILL.md（跳过）"; continue; }
+
+        # 1. WorkBuddy 副本
+        qdest="$HOME/.workbuddy/skills/$name"
+        mkdir -p "$qdest"
+        if ! cp -f "$src/SKILL.md" "$qdest/" 2>/dev/null; then
+            log_error "快捷指令安装失败: $src -> $qdest"
+            continue
+        fi
+        if [ -d "$src/references" ]; then
+            mkdir -p "$qdest/references"
+            cp -R "$src/references/." "$qdest/references/" 2>/dev/null
+        fi
+        log_ok "快捷指令已安装: ${qdest}（斜杠命令 /${name}）"
+
+        # 2. Codex 镜像（仅当 ~/.codex/skills 已存在）
+        if [ -d "$HOME/.codex/skills" ]; then
+            qcodex="$HOME/.codex/skills/$name"
+            mkdir -p "$qcodex"
+            cp -f "$src/SKILL.md" "$qcodex/" 2>/dev/null
+            if [ -d "$src/references" ]; then
+                mkdir -p "$qcodex/references"
+                cp -R "$src/references/." "$qcodex/references/" 2>/dev/null
+            fi
+            log_ok "快捷指令已镜像到 Codex: ${qcodex}"
+        fi
+    done
+}
+
 # ── 安装完成后提示 ───────────────────────────────────────────────────────────
 print_success() {
     # 按实际安装的平台显示路径（WorkBuddy 无插件目录，只有 mcp.json）
@@ -1058,6 +1111,8 @@ main() {
     # skill 安装：跨 WorkBuddy / Codex / 任意 AI Agent 的统一配置页唤起入口
     # 无条件安装（即使没检测到 WB 也装，用户可手动从终端跑）
     install_skill
+    # 快捷指令技能（ips-*）：高频 MCP 操作的薄斜杠命令入口
+    install_quick_skills
     print_success
 
     log_ok "部署完成!"

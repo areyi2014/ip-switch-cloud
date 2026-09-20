@@ -39,6 +39,17 @@ ip-switch 是一个 **MCP（Model Context Protocol）服务**，安装后被注�
 
 **执行前必须探活**：先调 `list_profiles` 确认服务在线、确认有没有可用的 profile（如果工具调用失败/返回空，见 §7）。
 
+### 3.1 快捷指令家族（ips-*）
+
+本技能是完整手册。高频操作拆成了 4 个薄同级技能，在 WorkBuddy 输入框敲 `/ips` 即可过滤出全部快捷指令：
+
+- `/ips-rotate` — 轮换实例公网 IP
+- `/ips-dns` — 更新 Cloudflare 域名解析记录
+- `/ips-cfg` — 打开凭据配置页（嵌入回复）
+- `/ips-list` — 列出区域实例
+
+它们只是薄路由：每个只有几行的 SKILL.md，内容是调用 `ip-switch` MCP 工具，把客户端安全扫描面压到最小。新增指令：在仓库 `skills/` 下建一个同级目录（SKILL.md 英文 + `references/zh.md` 中文），两个安装脚本会自动安装所有 `ips-*` 目录。
+
 ## 4. MCP 服务总览（13 个工具）
 
 | 组        | 工具                         | 一句话                                                          | 依赖已保存的 profile？                   |
