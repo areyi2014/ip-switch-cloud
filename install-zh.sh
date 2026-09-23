@@ -23,6 +23,9 @@ BRANCH="${BRANCH:-main}"
 INSTALL_DIR="${INSTALL_DIR:-$HOME/ip-switch}"
 NODE_MIN_VERSION=18
 PROJECT_NAME="ip-switch"
+# 客户端选择："" = 运行时交互选择；"all" = 所有支持的客户端；"none" = 跳过客户端集成；
+# 也可以用逗号列表，如 "workbuddy,codex"。可通过 --clients 传入（优先于环境变量）。
+CLIENTS="${CLIENTS:-}"
 
 # ── 辅助函数 ─────────────────────────────────────────────────────────────────
 log_info()  { echo -e "${BLUE}[INFO]${NC}  $1"; }
@@ -422,6 +425,99 @@ detect_mcp_platform() {
     fi
 }
 
+# ── 让用户选择安装到哪些客户端 ─────────────────────────────────────────────
+# 选择优先级：--clients/CLIENTS 参数 > 交互式选择 > 检测到的客户端。
+# 结果存入 SELECT_WB / SELECT_CODEX；只有被选中的客户端才会写入 MCP 配置、
+# 技能、市场清单等。检测到≠安装，避免默认全装。
+select_clients() {
+    log_step "选择要安装的客户端"
+
+    if [ -n "$CLIENTS" ]; then
+        SELECT_WB=false
+        SELECT_CODEX=false
+        case "$CLIENTS" in
+            all|ALL)
+                SELECT_WB=true
+                SELECT_CODEX=true
+                ;;
+            *)
+                local c
+                IFS=',' read -ra _client_list <<< "$CLIENTS"
+                for c in "${_client_list[@]}"; do
+                    case "$(echo "$c" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')" in
+                        workbuddy|wb) SELECT_WB=true ;;
+                        codex)        SELECT_CODEX=true ;;
+                        none|n|"")    ;;
+                        *) log_warn "未知客户端 '$c'（支持: workbuddy, codex, all, none）" ;;
+                    esac
+                done
+                ;;
+        esac
+        log_info "--clients 指定的客户端: workbuddy=$SELECT_WB codex=$SELECT_CODEX"
+        return
+    fi
+
+    # 非交互式终端（如 curl | bash）：回退为检测到的客户端
+    if ! [ -t 0 ]; then
+        SELECT_WB="$DETECTED_WB"
+        SELECT_CODEX="$DETECTED_CODEX"
+        log_info "非交互式终端，默认安装到已检测到的客户端"
+        return
+    fi
+
+    echo ""
+    echo "检测到的 AI Agent 客户端:"
+    if $DETECTED_WB; then
+        echo "  1) WorkBuddy   ($HOME/.workbuddy)"
+    fi
+    if $DETECTED_CODEX; then
+        echo "  2) Codex       ($HOME/.codex)"
+    fi
+    if ! $DETECTED_WB && ! $DETECTED_CODEX; then
+        echo "  （未检测到任何客户端）"
+    fi
+    echo ""
+    local ans
+    read -r -p "安装到哪些客户端？[1 / 2 / 1,2 / a=全部 / 回车=默认(已检测到的) / n=不装]: " ans
+    SELECT_WB=false
+    SELECT_CODEX=false
+    case "$(echo "$ans" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')" in
+        ""|default|d)
+            SELECT_WB="$DETECTED_WB"
+            SELECT_CODEX="$DETECTED_CODEX"
+            ;;
+        a|all)
+            SELECT_WB=true
+            SELECT_CODEX=true
+            ;;
+        n|none)
+            ;;
+        *)
+            local c
+            IFS=',' read -ra _client_list <<< "$ans"
+            for c in "${_client_list[@]}"; do
+                case "$c" in
+                    1|workbuddy|wb) SELECT_WB=true ;;
+                    2|codex)        SELECT_CODEX=true ;;
+                    "") ;;
+                    *) log_warn "未知的选项 '$c'（已忽略）" ;;
+                esac
+            done
+            ;;
+    esac
+
+    if $SELECT_WB; then
+        log_ok "将安装到: WorkBuddy"
+    fi
+    if $SELECT_CODEX; then
+        log_ok "将安装到: Codex"
+    fi
+    if ! $SELECT_WB && ! $SELECT_CODEX; then
+        log_warn "未选择任何客户端，仅安装源码并编译（跳过客户端集成）"
+        log_info "之后可重新运行安装脚本，或用 --clients workbuddy,codex 指定客户端"
+    fi
+}
+
 # ── 写入 MCP 配置（合并到已有配置，node 序列化为标准 JSON）─────────────
 write_mcp_config_file() {
     local target_dir="$1"
@@ -475,14 +571,14 @@ generate_wb_config() {
     local written=false
 
     # 直接写入对应平台的 mcp.json（统一使用选定 Node.js）
-    if $DETECTED_WB; then
+    if $SELECT_WB; then
         write_mcp_config_file "$HOME/.workbuddy" "$node_exe" "$dist_js"
         log_ok "已写入 MCP 配置: ~/.workbuddy/mcp.json"
         log_info "WorkBuddy 连接器管理页面点击「信任」ip-switch 即可使用"
         written=true
     fi
 
-    if $DETECTED_CODEX; then
+    if $SELECT_CODEX; then
         write_mcp_config_file "$HOME/.codex" "$node_exe" "$dist_js"
         log_ok "已写入 MCP 配置: ~/.codex/mcp.json"
         log_info "重启 Codex 使配置生效"
@@ -502,7 +598,7 @@ generate_wb_config() {
 }
 EOF_CONFIG
 )
-        log_warn "未检测到 WorkBuddy 或 Codex 平台目录"
+        log_warn "未选择任何客户端，未写入 MCP 配置"
         echo ""
         echo "${CYAN}MCP 配置内容:${NC}"
         echo "$json_content"
@@ -820,8 +916,8 @@ EOF_PLUGIN
 #   5. 脚本赋可执行位（.sh / .mjs / .ps1 都标 +x，避免 Codex CLI 调不到）
 # 设计：
 #   - 幂等：已存在则覆盖更新（git pull 后再跑即可拿到新版）
-#   - 无条件安装：即使没检测到 WB 也装，让用户能手动从终端跑（Codex 无 skill 机制）
-#   - 也写到 ~/.codex/skills/（如果该目录存在）—— Codex 后续若支持 skill 也可即用
+#   - 按选择安装：只把 skill 复制到用户选中的客户端（select_clients），
+#     未选中时不写 ~/.workbuddy 或 ~/.codex 的任何内容。
 install_skill() {
     log_step "安装 ip-switch skill（AI Agent 唤起配置页）"
 
@@ -847,7 +943,14 @@ install_skill() {
     printf '%s\n' "$marker_dir_unix" > "$INSTALL_DIR/data/install-dir.txt"
     log_ok "已写入 install-dir 标记: ${INSTALL_DIR}/data/install-dir.txt -> ${marker_dir_unix}"
 
-    # 2. 复制到目标位置（WorkBuddy 读 ~/.workbuddy/skills/<name>/ 平铺发现）
+    # 2. 复制到目标位置（只复制到用户选中的客户端）
+    if ! $SELECT_WB && ! $SELECT_CODEX; then
+        log_warn "未选择任何客户端，跳过 skill 安装"
+        return 0
+    fi
+
+    if $SELECT_WB; then
+    # WorkBuddy 读 ~/.workbuddy/skills/<name>/ 平铺发现
     #    源分三块：项目根的 SKILL.md / skill.json + scripts/ + references/（多语言文档）
     #    目标布局：
     #       ~/.workbuddy/skills/ips-main/
@@ -903,10 +1006,10 @@ install_skill() {
     # 3. 给 scripts/ 里的脚本赋可执行位（macOS/Linux/Git Bash 必需）
     find "$dest/scripts" -maxdepth 1 -type f \( -name "*.sh" -o -name "*.mjs" -o -name "*.ps1" \) -exec chmod +x {} \;
     log_ok "已设置脚本可执行位: ${dest}/scripts/"
+    fi
 
-    # 4. 如果 ~/.codex/skills 目录已存在（Codex 后续可能支持 skill），也复制一份
-    #    仅在该目录已存在时复制，避免给非 Codex 用户凭空创建
-    if [ -d "$HOME/.codex/skills" ]; then
+    # 4. Codex 镜像（仅当用户选择了 Codex）
+    if $SELECT_CODEX; then
         local codex_dest="$HOME/.codex/skills/ips-main"
         mkdir -p "$codex_dest/scripts"
         for f in SKILL.md skill.json; do
@@ -924,9 +1027,11 @@ install_skill() {
             log_ok "已镜像到 Codex: ${codex_dest}/scripts/（如 Codex 启用 skill 即生效）"
     fi
 
-    log_info "AI Agent 唤起方式:"
-    log_info "  WorkBuddy: 在对话里说「打开 ip-switch 配置」「添加 AWS 配置」等"
-    log_info "  任意终端: node ~/.workbuddy/skills/ips-main/scripts/open-ui.mjs [aws|azure|oci|vultr]"
+    if $SELECT_WB; then
+        log_info "AI Agent 唤起方式:"
+        log_info "  WorkBuddy: 在对话里说「打开 ip-switch 配置」「添加 AWS 配置」等"
+        log_info "  任意终端: node ~/.workbuddy/skills/ips-main/scripts/open-ui.mjs [aws|azure|oci|vultr]"
+    fi
 }
 
 # ── 安装 ips-* 快捷指令技能（薄斜杠命令入口）────────────────────────────────
@@ -944,6 +1049,11 @@ install_quick_skills() {
         return 0
     fi
 
+    if ! $SELECT_WB && ! $SELECT_CODEX; then
+        log_warn "未选择任何客户端，跳过快捷指令安装"
+        return 0
+    fi
+
     local src name qdest qcodex
     for src in "$quick_src"/*/; do
         [ -d "$src" ] || continue
@@ -955,7 +1065,8 @@ install_quick_skills() {
         esac
         [ -f "$src/SKILL.md" ] || { log_warn "快捷指令 ${name}: 缺少 SKILL.md（跳过）"; continue; }
 
-        # 1. WorkBuddy 副本
+        # 1. WorkBuddy 副本（仅当用户选择了 WorkBuddy）
+        if $SELECT_WB; then
         qdest="$HOME/.workbuddy/skills/$name"
         mkdir -p "$qdest"
         if ! cp -f "$src/SKILL.md" "$qdest/" 2>/dev/null; then
@@ -967,9 +1078,10 @@ install_quick_skills() {
             cp -R "$src/references/." "$qdest/references/" 2>/dev/null
         fi
         log_ok "快捷指令已安装: ${qdest}（斜杠命令 /${name}）"
+        fi
 
-        # 2. Codex 镜像（仅当 ~/.codex/skills 已存在）
-        if [ -d "$HOME/.codex/skills" ]; then
+        # 2. Codex 镜像（仅当用户选择了 Codex）
+        if $SELECT_CODEX; then
             qcodex="$HOME/.codex/skills/$name"
             mkdir -p "$qcodex"
             cp -f "$src/SKILL.md" "$qcodex/" 2>/dev/null
@@ -995,11 +1107,11 @@ print_success() {
     fi
 
     local mcp_hint=""
-    if $DETECTED_WB && $DETECTED_CODEX; then
+    if $SELECT_WB && $SELECT_CODEX; then
         mcp_hint="  # 通过 MCP 工具使用（在 WorkBuddy/Codex 中直接对话即可）"
-    elif $DETECTED_WB; then
+    elif $SELECT_WB; then
         mcp_hint="  # 通过 MCP 工具使用（在 WorkBuddy 中直接对话即可）"
-    elif $DETECTED_CODEX; then
+    elif $SELECT_CODEX; then
         mcp_hint="  # 通过 MCP 工具使用（在 Codex 中直接对话即可）"
     else
         mcp_hint="  # 配置 MCP 客户端后，即可通过对话使用以下指令"
@@ -1007,16 +1119,16 @@ print_success() {
 
     # 动态构建"安装位置"与"卸载命令"（只显示实际安装的平台）
     local install_locations=""
-    if $DETECTED_WB; then
+    if $SELECT_WB; then
         install_locations="${install_locations}WorkBuddy MCP 配置: ${wb_config}
 "
     fi
-    if $DETECTED_CODEX; then
+    if $SELECT_CODEX; then
         install_locations="${install_locations}Codex 市场清单:     ${codex_market_dir}
 Codex 用户级注册:   ~/.codex/config.toml（全局可见，由 append_codex_user_config 写入）
 "
     fi
-    # skill 路径（无条件安装；显示成当前 OS 的原生格式）
+    # skill 路径（仅当选择了客户端才显示；显示成当前 OS 的原生格式）
     local skill_path_win skill_path_unix
     skill_path_unix="$HOME/.workbuddy/skills/ips-main"
     case "$skill_path_unix" in
@@ -1028,22 +1140,26 @@ Codex 用户级注册:   ~/.codex/config.toml（全局可见，由 append_codex_
             ;;
         *) skill_path_win="$skill_path_unix" ;;
     esac
+    if $SELECT_WB || $SELECT_CODEX; then
     install_locations="${install_locations}ip-switch skill: ${skill_path_unix}
                        (WorkBuddy 自动发现；任意终端: node ${skill_path_unix}/scripts/open-ui.mjs)
 "
+    fi
 
     local uninstall_cmds=""
-    if $DETECTED_WB; then
+    if $SELECT_WB; then
         uninstall_cmds="${uninstall_cmds}  rm -f ${wb_config}            # 删除 WorkBuddy MCP 配置
 "
     fi
-    if $DETECTED_CODEX; then
+    if $SELECT_CODEX; then
         uninstall_cmds="${uninstall_cmds}  rm -rf ${codex_market_dir}       # 删除 Codex 市场清单
 "
     fi
-    # skill 卸载命令
+    # skill 卸载命令（仅当选择了客户端才显示）
+    if $SELECT_WB || $SELECT_CODEX; then
     uninstall_cmds="${uninstall_cmds}  rm -rf ${skill_path_unix}      # 删除 ip-switch skill
 "
+    fi
 
     cat <<EOF
 
@@ -1075,10 +1191,10 @@ ${uninstall_cmds}  rm -rf ${INSTALL_DIR}      # 删除源码（可选，会同�
 
 ${YELLOW}重启客户端:${NC}
 EOF
-    if $DETECTED_WB; then
+    if $SELECT_WB; then
         echo "  重启 WorkBuddy 后 MCP 配置生效"
     fi
-    if $DETECTED_CODEX; then
+    if $SELECT_CODEX; then
         echo "  重启 Codex 后插件页可见 IP Switch"
     fi
     echo ""
@@ -1096,20 +1212,21 @@ main() {
     check_npm
     check_git
     detect_mcp_platform
+    select_clients
     clone_repo
     install_deps
     build_project
-    if $DETECTED_WB; then
+    if $SELECT_WB || $SELECT_CODEX; then
         generate_wb_config
     fi
-    if $DETECTED_CODEX; then
+    if $SELECT_CODEX; then
         install_codex_mcp
         install_codex_toml
         install_codex_shotcut
         install_codex_marketplace
     fi
     # skill 安装：跨 WorkBuddy / Codex / 任意 AI Agent 的统一配置页唤起入口
-    # 无条件安装（即使没检测到 WB 也装，用户可手动从终端跑）
+    # 按选择安装：只复制到用户选中的客户端（select_clients）
     install_skill
     # 快捷指令技能（ips-*）：高频 MCP 操作的薄斜杠命令入口
     install_quick_skills
@@ -1129,6 +1246,8 @@ while [ $# -gt 0 ]; do
             INSTALL_DIR="$2"; shift 2;;
         --skip-build)
             SKIP_BUILD=true; shift;;
+        --clients)
+            CLIENTS="$2"; shift 2;;
         --help|-h)
             echo "用法: $0 [选项]"
             echo ""
@@ -1136,6 +1255,8 @@ while [ $# -gt 0 ]; do
             echo "  --repo-url URL     指定仓库地址（默认 gitee）"
             echo "  --branch NAME      指定分支（默认 main）"
             echo "  --install-dir DIR  指定安装目录（默认 ~/ip-switch）"
+            echo "  --clients LIST     要安装到的客户端: workbuddy,codex,all,none"
+            echo "                     （默认：交互式选择已检测到的客户端）"
             echo "  --skip-build       跳过编译步骤"
             echo "  -h, --help         显示帮助"
             exit 0;;

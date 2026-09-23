@@ -95,12 +95,18 @@ bash install-ip-switch.sh
 
 ### 自定义参数
 
+安装脚本会检测本机已安装的 AI Agent 客户端（WorkBuddy、Codex），并列出清单让你交互式选择装到哪些客户端——**未选中的客户端不会写入任何内容**。也可以通过参数预先指定：
+
 Windows PowerShell：
 
 ```powershell
 & "$env:TEMP\install-ip-switch.ps1" -InstallDir "D:\tools\ip-switch"
 & "$env:TEMP\install-ip-switch.ps1" -RepoUrl "https://gitee.com/areyi2014/ip-switch.git"
 & "$env:TEMP\install-ip-switch.ps1" -Branch develop
+& "$env:TEMP\install-ip-switch.ps1" -Clients workbuddy          # 只装 WorkBuddy
+& "$env:TEMP\install-ip-switch.ps1" -Clients codex,workbuddy    # 两个都装，不再询问
+& "$env:TEMP\install-ip-switch.ps1" -Clients all                # 所有支持的客户端
+& "$env:TEMP\install-ip-switch.ps1" -Clients none               # 只装源码，跳过客户端集成
 & "$env:TEMP\install-ip-switch.ps1" -SkipBuild
 & "$env:TEMP\install-ip-switch.ps1" -Help
 ```
@@ -111,8 +117,15 @@ macOS / Ubuntu：
 bash install-ip-switch.sh --install-dir /opt/ip-switch
 bash install-ip-switch.sh --repo-url https://gitee.com/areyi2014/ip-switch.git
 bash install-ip-switch.sh --branch develop
+bash install-ip-switch.sh --clients workbuddy,codex   # 两个都装，不再询问
+bash install-ip-switch.sh --clients all               # 所有支持的客户端
 bash install-ip-switch.sh --skip-build
 ```
+
+说明：
+
+- 如果未检测到任何客户端，安装脚本会提示并只安装源码（跳过 MCP 配置与 skill）。
+- 非交互式终端（如 `curl ... | bash`）下不弹选择菜单，自动回退为"安装到已检测到的客户端"。
 
 ---
 

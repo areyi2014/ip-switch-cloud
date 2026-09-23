@@ -10,6 +10,9 @@ param(
     [string]$RepoUrl    = "https://gitee.com/areyi2014/ip-switch.git",
     [string]$Branch     = "main",
     [string]$installDir = "$env:USERPROFILE\ip-switch",
+    # Client selection: "" = interactive selection at runtime; "all" = every supported
+    # client; "none" = skip client integration; or a comma list, e.g. "workbuddy,codex"
+    [string]$Clients    = "",
     [switch]$SkipBuild  = $false,
     [switch]$Help       = $false
 )
@@ -22,6 +25,8 @@ Options:
   -RepoUrl URL     Repository URL (default: gitee)
   -Branch NAME     Branch name (default: main)
   -installDir DIR  Install directory (default: ~\ip-switch)
+  -Clients LIST    Clients to install into: workbuddy,codex,all,none
+                   (default: interactive selection of the detected clients)
   -SkipBuild       Skip the build step
   -Help            Show help
 
@@ -530,6 +535,86 @@ function Detect-MCPPlatform {
     }
 }
 
+# -- Let the user choose which clients to install into -------------------------------
+# Selection priority: -Clients argument > interactive prompt > detected clients.
+# Results are stored in $script:SelWB / $script:SelCodex; only the selected clients
+# get MCP configs, skills, marketplace manifests, etc. Detection alone no longer installs.
+function Select-Clients {
+    Write-Step "Selecting target clients"
+
+    if ($Clients) {
+        $script:SelWB    = $false
+        $script:SelCodex = $false
+        $normalized = $Clients.ToLower()
+        if ($normalized -eq 'all') {
+            $script:SelWB    = $true
+            $script:SelCodex = $true
+        } else {
+            foreach ($c in ($normalized -split ',')) {
+                switch ($c.Trim()) {
+                    'workbuddy' { $script:SelWB    = $true }
+                    'wb'        { $script:SelWB    = $true }
+                    'codex'     { $script:SelCodex = $true }
+                    'none'      { }
+                    'n'         { }
+                    ''          { }
+                    default { Write-Warn "Unknown client '$c' (supported: workbuddy, codex, all, none)" }
+                }
+            }
+        }
+        Write-Info "Clients selected via -Clients: workbuddy=$script:SelWB codex=$script:SelCodex"
+        return
+    }
+
+    # Interactive selection
+    Write-Host ""
+    Write-Host "Detected AI-agent clients:"
+    if ($script:DetectedWB) {
+        Write-Host "  1) WorkBuddy   ($env:USERPROFILE\.workbuddy)"
+    }
+    if ($script:DetectedCodex) {
+        Write-Host "  2) Codex       ($env:USERPROFILE\.codex)"
+    }
+    if (-not $script:DetectedWB -and -not $script:DetectedCodex) {
+        Write-Host "  (none detected)"
+    }
+    Write-Host ""
+    $script:SelWB    = $false
+    $script:SelCodex = $false
+    $ans = (Read-Host "Install into which clients? [1 / 2 / 1,2 / a=all / Enter=default(detected) / n=none]").Trim().ToLower()
+    switch -Regex ($ans) {
+        '^(|default|d)$' {
+            $script:SelWB    = $script:DetectedWB
+            $script:SelCodex = $script:DetectedCodex
+        }
+        '^(a|all)$' {
+            $script:SelWB    = $true
+            $script:SelCodex = $true
+        }
+        '^(n|none)$' { }
+        default {
+            foreach ($c in ($ans -split ',')) {
+                switch ($c.Trim()) {
+                    '1'         { $script:SelWB    = $true }
+                    'workbuddy' { $script:SelWB    = $true }
+                    'wb'        { $script:SelWB    = $true }
+                    '2'         { $script:SelCodex = $true }
+                    'codex'     { $script:SelCodex = $true }
+                    ''          { }
+                    default { Write-Warn "Unknown selection '$c' (ignored)" }
+                }
+            }
+        }
+    }
+
+    if ($script:SelWB)    { Write-OK "Will install into: WorkBuddy" }
+    if ($script:SelCodex) { Write-OK "Will install into: Codex" }
+    if (-not $script:SelWB -and -not $script:SelCodex) {
+        Write-Warn "No client selected; only the source build will be installed (client integration skipped)"
+        Write-Info "Rerun the installer later, or pass -Clients workbuddy,codex to add clients"
+    }
+}
+
 # -- Write the MCP config (merge into the existing one; node serializes it as standard JSON) -------------------------------
 function Write-MCPConfig {
     param([string]$PlatformDir, [string]$NodeExe, [string]$DistJs)
@@ -592,7 +677,7 @@ function Generate-WbConfig {
     $written = $false
 
     # Write directly into the platform's mcp.json (using the selected Node.js)
-    if ($script:DetectedWB) {
+    if ($script:SelWB) {
         $wbDir = "$env:USERPROFILE\.workbuddy"
         if (-not (Test-Path $wbDir)) {
             New-Item -ItemType Directory -Path $wbDir -Force | Out-Null
@@ -604,7 +689,7 @@ function Generate-WbConfig {
     }
 
     if (-not $written) {
-        Write-Warn "WorkBuddy or Codex platform directory not detected"
+        Write-Warn "No client selected; no MCP config was written"
         Write-Host ""
         Write-Host "MCP config content:" -ForegroundColor Cyan
         Write-Host $configJson
@@ -881,10 +966,11 @@ function Install-CodexMarketplace {
 #   2. Create the <install-dir>\data\ runtime directory (replacing the old $env:USERPROFILE\.ip-switch\)
 #   3. Write INSTALL_DIR into .install-path.txt in the user-level copy (bootstrap anchor)
 #   4. Write <install-dir>\data\install-dir.txt (runtime config, used by --status)
-#   5. Mirror to $env:USERPROFILE\.codex\skills\ips-main\ (only if that directory already exists)
+#   5. Mirror to $env:USERPROFILE\.codex\skills\ips-main\ (only when Codex is selected)
 # Design:
 #   - Idempotent: overwrites on rerun (run again after git pull to get the new version)
-#   - Unconditional install: installs even when WorkBuddy is not detected, so users can run it manually from a terminal (Codex has no skill mechanism)
+#   - Selection-based: skills are copied only into the clients the user selected
+#     (Select-Clients). Nothing is written to ~\.workbuddy or ~\.codex otherwise.
 function Install-Skill {
     Write-Step "Installing the ip-switch skill (AI-agent config page launcher)"
 
@@ -901,7 +987,14 @@ function Install-Skill {
     [System.IO.File]::WriteAllText($markerPath, $installDir, (New-Object System.Text.UTF8Encoding($false)))
     Write-OK "install-dir marker written: $markerPath -> $installDir"
 
-    # 2. Copy to the target location (WorkBuddy discovers via a flat scan of ~/.workbuddy/skills/<name>/)
+    # 2. Copy to the target locations (only for the clients the user selected)
+    if (-not $script:SelWB -and -not $script:SelCodex) {
+        Write-Warn "No client selected; skipping the skill install"
+        return
+    }
+
+    if ($script:SelWB) {
+    # 2. WorkBuddy copy (WorkBuddy discovers via a flat scan of ~/.workbuddy/skills/<name>/)
     #    Sources: project-root SKILL.md / skill.json + scripts\ + references\ (multilingual docs)
     #    Target layout:
     #       $env:USERPROFILE\.workbuddy\skills\ips-main\
@@ -956,10 +1049,11 @@ function Install-Skill {
         Write-Err "Failed to copy the skill: $scriptsSrc -> $workbuddyScriptsDest ($_)"
         return
     }
+    }
 
-    # 3. If ~/.codex/skills already exists (takes effect if Codex enables skills later), mirror a copy
+    # 3. Codex mirror (only when the user selected Codex)
     $codexSkillsDir = Join-Path $env:USERPROFILE ".codex\skills"
-    if (Test-Path $codexSkillsDir) {
+    if ($script:SelCodex) {
         $codexDest = Join-Path $codexSkillsDir "ips-main"
         $codexScriptsDest = Join-Path $codexDest "scripts"
         New-Item -ItemType Directory -Path $codexDest -Force | Out-Null
@@ -988,11 +1082,15 @@ function Install-Skill {
         }
     }
 
-    Write-Info "How AI agents open it:"
-    Write-Info "  WorkBuddy: say \"Open the ip-switch config page\", \"Add an AWS account\", etc. in the chat"
-    Write-Info "  Any terminal: node $workbuddyScriptsDest\open-ui.mjs [aws|azure|oci|vultr]"
-    Write-Info "  Codex: say \"Open the ip-switch config page\", \"Add an AWS account\", etc. in the chat"
-    Write-Info "  Any terminal: node $codexScriptsDest\open-ui.mjs [aws|azure|oci|vultr]"
+    if ($script:SelWB) {
+        Write-Info "How AI agents open it:"
+        Write-Info "  WorkBuddy: say \"Open the ip-switch config page\", \"Add an AWS account\", etc. in the chat"
+        Write-Info "  Any terminal: node $workbuddyScriptsDest\open-ui.mjs [aws|azure|oci|vultr]"
+    }
+    if ($script:SelCodex) {
+        Write-Info "  Codex: say \"Open the ip-switch config page\", \"Add an AWS account\", etc. in the chat"
+        Write-Info "  Any terminal: node $codexScriptsDest\open-ui.mjs [aws|azure|oci|vultr]"
+    }
 }
 
 # -- Install the ips-* quick-command skills (thin slash-command entries) ---------------------
@@ -1011,6 +1109,11 @@ function Install-QuickSkills {
         return
     }
 
+    if (-not $script:SelWB -and -not $script:SelCodex) {
+        Write-Warn "No client selected; skipping the quick-skill install"
+        return
+    }
+
     Get-ChildItem -Path $quickSrc -Directory | Where-Object { $_.Name -like "ips-*" } | ForEach-Object {
         $name = $_.Name
         $skillMd = Join-Path $_.FullName "SKILL.md"
@@ -1019,7 +1122,8 @@ function Install-QuickSkills {
             return
         }
 
-        # 1. WorkBuddy copy
+        # 1. WorkBuddy copy (only when the user selected WorkBuddy)
+        if ($script:SelWB) {
         $qdest = Join-Path $env:USERPROFILE ".workbuddy\skills\$name"
         New-Item -ItemType Directory -Path $qdest -Force | Out-Null
         try {
@@ -1035,10 +1139,11 @@ function Install-QuickSkills {
             Write-Err "Failed to install quick skill: $($_.FullName) -> $qdest ($_)"
             return
         }
+        }
 
-        # 2. Codex mirror (only when .codex\skills already exists)
+        # 2. Codex mirror (only when the user selected Codex)
         $codexSkillsDir = Join-Path $env:USERPROFILE ".codex\skills"
-        if (Test-Path $codexSkillsDir) {
+        if ($script:SelCodex) {
             $qcodex = Join-Path $codexSkillsDir $name
             New-Item -ItemType Directory -Path $qcodex -Force | Out-Null
             try {
@@ -1127,13 +1232,13 @@ function Show-Success {
     # Auto-restart the client so the MCP config takes effect immediately
     Write-Host ""
     Write-Host "Restart the client:" -ForegroundColor Yellow
-    if ($script:DetectedWB) {
+    if ($script:SelWB) {
         # Common process-name candidates + path-keyword fallback (path contains .workbuddy / CodeBuddy / WorkBuddy)
         Restart-ClientApp -AppName "WorkBuddy" `
             -ProcessNames @("WorkBuddy", "CodeBuddy") `
             -PathKeywords @("\.workbuddy\", "CodeBuddy", "WorkBuddy")
     }
-    if ($script:DetectedCodex) {
+    if ($script:SelCodex) {
         $vbsPath = "$installDir\codex_app.vbs"
         # The desktop process name may be codex / Codex / ChatGPT (Windows Store package exe name),
         # the fallback matches paths containing OpenAI.Codex / OpenAI\Codex
@@ -1151,11 +1256,11 @@ function Show-Success {
         }
     }
 
-    if ($script:DetectedWB -and $script:DetectedCodex) {
+    if ($script:SelWB -and $script:SelCodex) {
         $mcpHint = "  # Use via MCP tools (just chat in WorkBuddy/Codex)"
-    } elseif ($script:DetectedWB) {
+    } elseif ($script:SelWB) {
         $mcpHint = "  # Use via MCP tools (just chat in WorkBuddy)"
-    } elseif ($script:DetectedCodex) {
+    } elseif ($script:SelCodex) {
         $mcpHint = "  # Use via MCP tools (just chat in Codex)"
     } else {
         $mcpHint = "  # After configuring the MCP client, use these commands via chat"
@@ -1175,15 +1280,17 @@ function Show-Success {
     $codexMarketDir = "$env:USERPROFILE\.codex\marketplaces\local"
     $skillDir       = "$env:USERPROFILE\.workbuddy\skills\ips-main"
 
-    if ($script:DetectedWB) {
+    if ($script:SelWB) {
         Write-Host "WorkBuddy MCP config: $wbConfig"
     }
-    if ($script:DetectedCodex) {
+    if ($script:SelCodex) {
         Write-Host "Codex marketplace manifest: $codexMarketDir"
         Write-Host "Codex user-level registration: $env:USERPROFILE\.codex\config.toml (globally visible, written by Append-CodexUserConfig)"
     }
-    Write-Host "ip-switch skill: $skillDir"
-    Write-Host "                   (auto-discovered by WorkBuddy; from any terminal: node $skillDir\scripts\open-ui.mjs [aws|azure|oci|vultr])"
+    if ($script:SelWB -or $script:SelCodex) {
+        Write-Host "ip-switch skill: $skillDir"
+        Write-Host "                   (auto-discovered by WorkBuddy; from any terminal: node $skillDir\scripts\open-ui.mjs [aws|azure|oci|vultr])"
+    }
     Write-Host "UI server:  node $installDir\ui\server.cjs"
     Write-Host "UI URL:     printed to the terminal when the server starts"
     Write-Host ""
@@ -1206,13 +1313,15 @@ function Show-Success {
     Write-Host ""
 
     Write-Host "Uninstall:" -ForegroundColor Yellow
-    if ($script:DetectedWB) {
+    if ($script:SelWB) {
         Write-Host "  Remove-Item -Force $wbConfig          # remove the WorkBuddy MCP config"
     }
-    if ($script:DetectedCodex) {
+    if ($script:SelCodex) {
         Write-Host "  Remove-Item -Recurse -Force $codexMarketDir  # remove the Codex marketplace manifests"
     }
-    Write-Host "  Remove-Item -Recurse -Force $skillDir        # remove the ip-switch skill"
+    if ($script:SelWB -or $script:SelCodex) {
+        Write-Host "  Remove-Item -Recurse -Force $skillDir        # remove the ip-switch skill"
+    }
     Write-Host "  Remove-Item -Recurse -Force (Join-Path $installDir 'data')  # remove runtime data (keep the source)"
     Write-Host "  Remove-Item -Recurse -Force $installDir  # also remove the source if desired (wipes the data/ subdirectory too)"
     Write-Host ""
@@ -1229,22 +1338,23 @@ function Main {
     Check-Npm
     Check-Git
     Detect-MCPPlatform
+    Select-Clients
     Clone-Repo
     Install-Deps
     if (-not $SkipBuild) {
         Build-Project
     }
-    if ($script:DetectedWB) {
+    if ($script:SelWB -or $script:SelCodex) {
         Generate-WbConfig
     }
-    if ($script:DetectedCodex) {
+    if ($script:SelCodex) {
         Install-CodexMcp
         Install-CodexToml
         Install-CodexShotcut
         Install-CodexMarketplace
     }
     # Skill install: a unified config-page launcher across WorkBuddy / Codex / any AI agent
-    # Unconditional install (installs even when WorkBuddy is not detected; users can run it from a terminal)
+    # Selection-based: copies go only into the clients the user selected (Select-Clients)
     Install-Skill
     # Quick-command skills (ips-*): thin slash-command entries for the frequent MCP operations
     Install-QuickSkills

@@ -10,6 +10,9 @@ param(
     [string]$RepoUrl    = "https://gitee.com/areyi2014/ip-switch.git",
     [string]$Branch     = "main",
     [string]$installDir = "$env:USERPROFILE\ip-switch",
+    # 客户端选择："" = 运行时交互选择；"all" = 所有支持的客户端；"none" = 跳过客户端集成；
+    # 也可以用逗号列表，如 "workbuddy,codex"
+    [string]$Clients    = "",
     [switch]$SkipBuild  = $false,
     [switch]$Help       = $false
 )
@@ -22,6 +25,8 @@ if ($Help) {
   -RepoUrl URL     指定仓库地址（默认 gitee）
   -Branch NAME     指定分支（默认 main）
   -installDir DIR  指定安装目录（默认 ~\ip-switch）
+  -Clients LIST    要安装到的客户端: workbuddy,codex,all,none
+                   （默认：交互式选择已检测到的客户端）
   -SkipBuild       跳过编译步骤
   -Help            显示帮助
 
@@ -530,6 +535,86 @@ function Detect-MCPPlatform {
     }
 }
 
+# -- 让用户选择安装到哪些客户端 -----------------------------------------------------------
+# 选择优先级：-Clients 参数 > 交互式选择 > 检测到的客户端。
+# 结果存入 $script:SelWB / $script:SelCodex；只有被选中的客户端才会写入
+# MCP 配置、技能、市场清单等。检测到≠安装，避免默认全装。
+function Select-Clients {
+    Write-Step "选择要安装的客户端"
+
+    if ($Clients) {
+        $script:SelWB    = $false
+        $script:SelCodex = $false
+        $normalized = $Clients.ToLower()
+        if ($normalized -eq 'all') {
+            $script:SelWB    = $true
+            $script:SelCodex = $true
+        } else {
+            foreach ($c in ($normalized -split ',')) {
+                switch ($c.Trim()) {
+                    'workbuddy' { $script:SelWB    = $true }
+                    'wb'        { $script:SelWB    = $true }
+                    'codex'     { $script:SelCodex = $true }
+                    'none'      { }
+                    'n'         { }
+                    ''          { }
+                    default { Write-Warn "未知客户端 '$c'（支持: workbuddy, codex, all, none）" }
+                }
+            }
+        }
+        Write-Info "-Clients 指定的客户端: workbuddy=$script:SelWB codex=$script:SelCodex"
+        return
+    }
+
+    # 交互式选择
+    Write-Host ""
+    Write-Host "检测到的 AI Agent 客户端:"
+    if ($script:DetectedWB) {
+        Write-Host "  1) WorkBuddy   ($env:USERPROFILE\.workbuddy)"
+    }
+    if ($script:DetectedCodex) {
+        Write-Host "  2) Codex       ($env:USERPROFILE\.codex)"
+    }
+    if (-not $script:DetectedWB -and -not $script:DetectedCodex) {
+        Write-Host "  （未检测到任何客户端）"
+    }
+    Write-Host ""
+    $script:SelWB    = $false
+    $script:SelCodex = $false
+    $ans = (Read-Host "安装到哪些客户端？[1 / 2 / 1,2 / a=全部 / 回车=默认(已检测到的) / n=不装]").Trim().ToLower()
+    switch -Regex ($ans) {
+        '^(|default|d)$' {
+            $script:SelWB    = $script:DetectedWB
+            $script:SelCodex = $script:DetectedCodex
+        }
+        '^(a|all)$' {
+            $script:SelWB    = $true
+            $script:SelCodex = $true
+        }
+        '^(n|none)$' { }
+        default {
+            foreach ($c in ($ans -split ',')) {
+                switch ($c.Trim()) {
+                    '1'         { $script:SelWB    = $true }
+                    'workbuddy' { $script:SelWB    = $true }
+                    'wb'        { $script:SelWB    = $true }
+                    '2'         { $script:SelCodex = $true }
+                    'codex'     { $script:SelCodex = $true }
+                    ''          { }
+                    default { Write-Warn "未知的选项 '$c'（已忽略）" }
+                }
+            }
+        }
+    }
+
+    if ($script:SelWB)    { Write-OK "将安装到: WorkBuddy" }
+    if ($script:SelCodex) { Write-OK "将安装到: Codex" }
+    if (-not $script:SelWB -and -not $script:SelCodex) {
+        Write-Warn "未选择任何客户端，仅安装源码并编译（跳过客户端集成）"
+        Write-Info "之后可重新运行安装脚本，或用 -Clients workbuddy,codex 指定客户端"
+    }
+}
+
 # -- 写入 MCP 配置（合并到已有配置，由 node 序列化为标准 JSON）------------------------------------------------------------
 function Write-MCPConfig {
     param([string]$PlatformDir, [string]$NodeExe, [string]$DistJs)
@@ -592,7 +677,7 @@ function Generate-WbConfig {
     $written = $false
 
     # 直接写入对应平台的 mcp.json（统一使用选定 Node.js）
-    if ($script:DetectedWB) {
+    if ($script:SelWB) {
         $wbDir = "$env:USERPROFILE\.workbuddy"
         if (-not (Test-Path $wbDir)) {
             New-Item -ItemType Directory -Path $wbDir -Force | Out-Null
@@ -604,7 +689,7 @@ function Generate-WbConfig {
     }
 
     if (-not $written) {
-        Write-Warn "未检测到 WorkBuddy 或 Codex 平台目录"
+        Write-Warn "未选择任何客户端，未写入 MCP 配置"
         Write-Host ""
         Write-Host "MCP 配置内容:" -ForegroundColor Cyan
         Write-Host $configJson
@@ -881,10 +966,11 @@ function Install-CodexMarketplace {
 #   2. 创建 <install-dir>\data\ 运行时目录（取代之前的 $env:USERPROFILE\.ip-switch\）
 #   3. 把 INSTALL_DIR 写入用户级副本根目录的 .install-path.txt（bootstrap 锚点）
 #   4. 写 <install-dir>\data\install-dir.txt（运行时配置，给 --status 查询用）
-#   5. 镜像到 $env:USERPROFILE\.codex\skills\ips-main\（若该目录已存在）
+#   5. 镜像到 $env:USERPROFILE\.codex\skills\ips-main\（仅当用户选择了 Codex）
 # 设计：
 #   - 幂等：已存在则覆盖更新（git pull 后再跑即可拿到新版）
-#   - 无条件安装：即使没检测到 WB 也装，让用户能手动从终端跑（Codex 无 skill 机制）
+#   - 按选择安装：只把 skill 复制到用户选中的客户端（Select-Clients），
+#     未选中时不写 ~\.workbuddy 或 ~\.codex 的任何内容。
 function Install-Skill {
     Write-Step "安装 ip-switch skill（AI Agent 唤起配置页）"
 
@@ -901,7 +987,14 @@ function Install-Skill {
     [System.IO.File]::WriteAllText($markerPath, $installDir, (New-Object System.Text.UTF8Encoding($false)))
     Write-OK "已写入 install-dir 标记: $markerPath -> $installDir"
 
-    # 2. 复制到目标位置（WorkBuddy 读 ~/.workbuddy/skills/<name>/ 平铺发现）
+    # 2. 复制到目标位置（只复制到用户选中的客户端）
+    if (-not $script:SelWB -and -not $script:SelCodex) {
+        Write-Warn "未选择任何客户端，跳过 skill 安装"
+        return
+    }
+
+    if ($script:SelWB) {
+    # WorkBuddy 副本（WorkBuddy 读 ~\.workbuddy\skills\<name>\ 平铺发现）
     #    源分三块：项目根的 SKILL.md / skill.json + scripts\ + references\（多语言文档）
     #    目标布局：
     #       $env:USERPROFILE\.workbuddy\skills\ips-main\
@@ -956,10 +1049,11 @@ function Install-Skill {
         Write-Err "复制 skill 失败: $scriptsSrc → $workbuddyScriptsDest ($_)"
         return
     }
+    }
 
-    # 3. 如 ~/.codex/skills 已存在（Codex 后续若启用 skill 即生效），镜像一份
+    # 3. Codex 镜像（仅当用户选择了 Codex）
     $codexSkillsDir = Join-Path $env:USERPROFILE ".codex\skills"
-    if (Test-Path $codexSkillsDir) {
+    if ($script:SelCodex) {
         $codexDest = Join-Path $codexSkillsDir "ips-main"
         $codexScriptsDest = Join-Path $codexDest "scripts"
         New-Item -ItemType Directory -Path $codexDest -Force | Out-Null
@@ -988,11 +1082,15 @@ function Install-Skill {
         }
     }
 
-    Write-Info "AI Agent 唤起方式:"
-    Write-Info "  WorkBuddy: 在对话里说「打开 ip-switch 配置」「添加 AWS 配置」等"
-    Write-Info "  任意终端: node $workbuddyScriptsDest\open-ui.mjs [aws|azure|oci|vultr]"
-    Write-Info "  Codex: 在对话里说「打开 ip-switch 配置」「添加 AWS 配置」等"
-    Write-Info "  任意终端: node $codexScriptsDest\open-ui.mjs [aws|azure|oci|vultr]"
+    if ($script:SelWB) {
+        Write-Info "AI Agent 唤起方式:"
+        Write-Info "  WorkBuddy: 在对话里说「打开 ip-switch 配置」「添加 AWS 配置」等"
+        Write-Info "  任意终端: node $workbuddyScriptsDest\open-ui.mjs [aws|azure|oci|vultr]"
+    }
+    if ($script:SelCodex) {
+        Write-Info "  Codex: 在对话里说「打开 ip-switch 配置」「添加 AWS 配置」等"
+        Write-Info "  任意终端: node $codexScriptsDest\open-ui.mjs [aws|azure|oci|vultr]"
+    }
 }
 
 # -- 安装 ips-* 快捷指令技能（薄斜杠命令入口）------------------------------------------------
@@ -1010,6 +1108,11 @@ function Install-QuickSkills {
         return
     }
 
+    if (-not $script:SelWB -and -not $script:SelCodex) {
+        Write-Warn "未选择任何客户端，跳过快捷指令安装"
+        return
+    }
+
     Get-ChildItem -Path $quickSrc -Directory | Where-Object { $_.Name -like "ips-*" } | ForEach-Object {
         $name = $_.Name
         $skillMd = Join-Path $_.FullName "SKILL.md"
@@ -1018,7 +1121,8 @@ function Install-QuickSkills {
             return
         }
 
-        # 1. WorkBuddy 副本
+        # 1. WorkBuddy 副本（仅当用户选择了 WorkBuddy）
+        if ($script:SelWB) {
         $qdest = Join-Path $env:USERPROFILE ".workbuddy\skills\$name"
         New-Item -ItemType Directory -Path $qdest -Force | Out-Null
         try {
@@ -1034,10 +1138,11 @@ function Install-QuickSkills {
             Write-Err "快捷指令安装失败: $($_.FullName) -> $qdest ($_)"
             return
         }
+        }
 
-        # 2. Codex 镜像（仅当 .codex\skills 已存在）
+        # 2. Codex 镜像（仅当用户选择了 Codex）
         $codexSkillsDir = Join-Path $env:USERPROFILE ".codex\skills"
-        if (Test-Path $codexSkillsDir) {
+        if ($script:SelCodex) {
             $qcodex = Join-Path $codexSkillsDir $name
             New-Item -ItemType Directory -Path $qcodex -Force | Out-Null
             try {
@@ -1126,13 +1231,13 @@ function Show-Success {
     # 自动重启客户端，使 MCP 配置立即生效
     Write-Host ""
     Write-Host "重启客户端:" -ForegroundColor Yellow
-    if ($script:DetectedWB) {
+    if ($script:SelWB) {
         # 进程名常见候选 + 路径关键字兜底（路径含 .workbuddy / CodeBuddy / WorkBuddy）
         Restart-ClientApp -AppName "WorkBuddy" `
             -ProcessNames @("WorkBuddy", "CodeBuddy") `
             -PathKeywords @("\.workbuddy\", "CodeBuddy", "WorkBuddy")
     }
-    if ($script:DetectedCodex) {
+    if ($script:SelCodex) {
         $vbsPath = "$installDir\codex_app.vbs"
         # 桌面版进程名可能是 codex / Codex / ChatGPT（Windows 商店包 exe 名），
         # 兜底按路径含 OpenAI.Codex / OpenAI\Codex 匹配
@@ -1150,11 +1255,11 @@ function Show-Success {
         }
     }
 
-    if ($script:DetectedWB -and $script:DetectedCodex) {
+    if ($script:SelWB -and $script:SelCodex) {
         $mcpHint = "  # 通过 MCP 工具使用（在 WorkBuddy/Codex 中直接对话即可）"
-    } elseif ($script:DetectedWB) {
+    } elseif ($script:SelWB) {
         $mcpHint = "  # 通过 MCP 工具使用（在 WorkBuddy 中直接对话即可）"
-    } elseif ($script:DetectedCodex) {
+    } elseif ($script:SelCodex) {
         $mcpHint = "  # 通过 MCP 工具使用（在 Codex 中直接对话即可）"
     } else {
         $mcpHint = "  # 配置 MCP 客户端后，即可通过对话使用以下指令"
@@ -1174,15 +1279,17 @@ function Show-Success {
     $codexMarketDir = "$env:USERPROFILE\.codex\marketplaces\local"
     $skillDir       = "$env:USERPROFILE\.workbuddy\skills\ips-main"
 
-    if ($script:DetectedWB) {
+    if ($script:SelWB) {
         Write-Host "WorkBuddy MCP 配置: $wbConfig"
     }
-    if ($script:DetectedCodex) {
+    if ($script:SelCodex) {
         Write-Host "Codex 市场清单:     $codexMarketDir"
         Write-Host "Codex 用户级注册:   $env:USERPROFILE\.codex\config.toml（全局可见，由 Append-CodexUserConfig 写入）"
     }
-    Write-Host "ip-switch skill: $skillDir"
-    Write-Host "                   (WorkBuddy 自动发现；任意终端可: node $skillDir\scripts\open-ui.mjs [aws|azure|oci|vultr])"
+    if ($script:SelWB -or $script:SelCodex) {
+        Write-Host "ip-switch skill: $skillDir"
+        Write-Host "                   (WorkBuddy 自动发现；任意终端可: node $skillDir\scripts\open-ui.mjs [aws|azure|oci|vultr])"
+    }
     Write-Host "UI 服务器:  node $installDir\ui\server.cjs"
     Write-Host "UI 地址:    启动后终端会显示实际地址"
     Write-Host ""
@@ -1205,13 +1312,15 @@ function Show-Success {
     Write-Host ""
 
     Write-Host "卸载:" -ForegroundColor Yellow
-    if ($script:DetectedWB) {
+    if ($script:SelWB) {
         Write-Host "  Remove-Item -Force $wbConfig          # 删除 WorkBuddy MCP 配置"
     }
-    if ($script:DetectedCodex) {
+    if ($script:SelCodex) {
         Write-Host "  Remove-Item -Recurse -Force $codexMarketDir  # 删除 Codex 市场清单"
     }
-    Write-Host "  Remove-Item -Recurse -Force $skillDir        # 删除 ip-switch skill"
+    if ($script:SelWB -or $script:SelCodex) {
+        Write-Host "  Remove-Item -Recurse -Force $skillDir        # 删除 ip-switch skill"
+    }
     Write-Host "  Remove-Item -Recurse -Force (Join-Path $installDir 'data')  # 删除运行时数据（保留源码时用）"
     Write-Host "  Remove-Item -Recurse -Force $installDir  # 如需同时删除源码（会一并清 data/ 子目录）"
     Write-Host ""
@@ -1228,22 +1337,23 @@ function Main {
     Check-Npm
     Check-Git
     Detect-MCPPlatform
+    Select-Clients
     Clone-Repo
     Install-Deps
     if (-not $SkipBuild) {
         Build-Project
     }
-    if ($script:DetectedWB) {
+    if ($script:SelWB -or $script:SelCodex) {
         Generate-WbConfig
     }
-    if ($script:DetectedCodex) {
+    if ($script:SelCodex) {
         Install-CodexMcp
         Install-CodexToml
         Install-CodexShotcut
         Install-CodexMarketplace
     }
     # skill 安装：跨 WorkBuddy / Codex / 任意 AI Agent 的统一配置页唤起入口
-    # 无条件安装（即使没检测到 WB 也装，用户可手动从终端跑）
+    # 按选择安装：只复制到用户选中的客户端（Select-Clients）
     Install-Skill
     # 快捷指令技能（ips-*）：高频 MCP 操作的薄斜杠命令入口
     Install-QuickSkills
