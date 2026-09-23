@@ -1,10 +1,10 @@
-# ip-switch
+# IPSwitch
 
 [English](README.md) | [简体中文](README-zh.md)
 
 ---
 
-An AI Agent plugin for effortless rotation of cloud public IPs — batch-rotate public IPs of cloud servers (AWS / Azure / Oracle / Vultr) with one click and sync DNS records, eliminating the tedium of logging into and configuring multiple web platforms.
+IPSwitch (command name: `ip-switch`) is an AI Agent plugin for effortless rotation of cloud public IPs — batch-rotate public IPs of cloud servers (AWS / Azure / Oracle / Vultr) with one click and sync DNS records, eliminating the tedium of logging into and configuring multiple web platforms.
 
 Supported platforms: Workbuddy / Codex + AWS / Azure / Oracle OCI / Vultr + Cloudflare DNS
 
