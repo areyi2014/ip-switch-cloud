@@ -1,10 +1,10 @@
-# IPSwitch
+# ip-switch
 
 [English](README.md) | [简体中文](README-zh.md)
 
 ---
 
-IPSwitch（命令名：`ip-switch`）是一个对多个云公网 IP 轻松轮换的 AI Agent 插件 —— 一键批量轮换云服务器公网 IP（AWS / Azure / Oracle / Vultr），并同步更新域名解析，免除了多个网络平台登录与配置的繁琐操作。
+对多个云公网IP轻松轮换的 AI Agent插件 —— 一键批量轮换云服务器公网IP（AWS / Azure / Oracle / Vultr），并同步更新域名解析，免除了多个网络平台登录与配置的繁琐操作。
 
 支持平台：Workbuddy / Codex + AWS / Azure / Oracle OCI / Vultr + Cloudflare DNS
 
@@ -66,7 +66,7 @@ bash install-ip-switch.sh
 
 ---
 
-# IPSwitch 安装指南
+# ip-switch 安装指南
 
 对多个云公网 IP 轮换的 MCP 服务 —— 让 AI Agent 一键批量轮换云服务器公网IP（AWS / Azure / OCI / Vultr），并同步更新域名解析。
 
