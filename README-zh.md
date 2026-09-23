@@ -66,7 +66,7 @@ bash install-ip-switch.sh
 
 ---
 
-# ip-switch 安装指南
+# IPSwitch 安装指南
 
 对多个云公网 IP 轮换的 MCP 服务 —— 让 AI Agent 一键批量轮换云服务器公网IP（AWS / Azure / OCI / Vultr），并同步更新域名解析。
 

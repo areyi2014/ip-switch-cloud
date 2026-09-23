@@ -66,7 +66,7 @@ The script automatically: checks the environment (installs git if missing) → c
 
 ---
 
-# ip-switch Installation Guide
+# IPSwitch Installation Guide
 
 An MCP service for rotating cloud public IPs — lets AI Agents batch-rotate public IPs of cloud servers (AWS / Azure / OCI / Vultr) with one click and sync DNS records.
 
