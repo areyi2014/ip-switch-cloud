@@ -95,12 +95,18 @@ bash install-ip-switch.sh
 
 ### Custom Parameters
 
+The installer detects installed AI-agent clients (WorkBuddy, Codex) and lets you pick which ones to install into interactively — nothing is installed into a client you do not select. You can also pre-select via a parameter:
+
 Windows PowerShell:
 
 ```powershell
 & "$env:TEMP\install-ip-switch.ps1" -InstallDir "D:\tools\ip-switch"
 & "$env:TEMP\install-ip-switch.ps1" -RepoUrl "https://gitee.com/areyi2014/ip-switch.git"
 & "$env:TEMP\install-ip-switch.ps1" -Branch develop
+& "$env:TEMP\install-ip-switch.ps1" -Clients workbuddy          # WorkBuddy only
+& "$env:TEMP\install-ip-switch.ps1" -Clients codex,workbuddy    # both, no prompt
+& "$env:TEMP\install-ip-switch.ps1" -Clients all                # every supported client
+& "$env:TEMP\install-ip-switch.ps1" -Clients none               # source build only
 & "$env:TEMP\install-ip-switch.ps1" -SkipBuild
 & "$env:TEMP\install-ip-switch.ps1" -Help
 ```
@@ -111,8 +117,15 @@ macOS / Ubuntu:
 bash install-ip-switch.sh --install-dir /opt/ip-switch
 bash install-ip-switch.sh --repo-url https://gitee.com/areyi2014/ip-switch.git
 bash install-ip-switch.sh --branch develop
+bash install-ip-switch.sh --clients workbuddy,codex   # both, no prompt
+bash install-ip-switch.sh --clients all               # every supported client
 bash install-ip-switch.sh --skip-build
 ```
+
+Notes:
+
+- If no client is detected, the installer warns you and installs only the source build (MCP config / skills are skipped).
+- In a non-interactive shell (e.g. `curl ... | bash`), the installer falls back to the detected clients instead of prompting.
 
 ---
 

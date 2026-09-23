@@ -23,6 +23,10 @@ BRANCH="${BRANCH:-main}"
 INSTALL_DIR="${INSTALL_DIR:-$HOME/ip-switch}"
 NODE_MIN_VERSION=18
 PROJECT_NAME="ip-switch"
+# Client selection: "" = interactive selection at runtime; "all" = every supported
+# client; "none" = skip client integration; or a comma list, e.g. "workbuddy,codex".
+# Also settable via --clients (overrides the env var).
+CLIENTS="${CLIENTS:-}"
 
 # -- Helper functions ------------------------------------------------------------------
 log_info()  { echo -e "${BLUE}[INFO]${NC}  $1"; }
@@ -422,6 +426,99 @@ detect_mcp_platform() {
     fi
 }
 
+# -- Let the user choose which clients to install into ---------------------------------
+# Selection priority: --clients/CLIENTS argument > interactive prompt > detected clients.
+# Results are stored in SELECT_WB / SELECT_CODEX; only the selected clients get
+# MCP configs, skills, marketplace manifests, etc. Detection alone no longer installs.
+select_clients() {
+    log_step "Selecting target clients"
+
+    if [ -n "$CLIENTS" ]; then
+        SELECT_WB=false
+        SELECT_CODEX=false
+        case "$CLIENTS" in
+            all|ALL)
+                SELECT_WB=true
+                SELECT_CODEX=true
+                ;;
+            *)
+                local c
+                IFS=',' read -ra _client_list <<< "$CLIENTS"
+                for c in "${_client_list[@]}"; do
+                    case "$(echo "$c" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')" in
+                        workbuddy|wb) SELECT_WB=true ;;
+                        codex)        SELECT_CODEX=true ;;
+                        none|n|"")    ;;
+                        *) log_warn "Unknown client '$c' (supported: workbuddy, codex, all, none)" ;;
+                    esac
+                done
+                ;;
+        esac
+        log_info "Clients selected via --clients: workbuddy=$SELECT_WB codex=$SELECT_CODEX"
+        return
+    fi
+
+    # Non-interactive shell (e.g. curl | bash): fall back to the detected clients
+    if ! [ -t 0 ]; then
+        SELECT_WB="$DETECTED_WB"
+        SELECT_CODEX="$DETECTED_CODEX"
+        log_info "Non-interactive shell; defaulting to the detected clients"
+        return
+    fi
+
+    echo ""
+    echo "Detected AI-agent clients:"
+    if $DETECTED_WB; then
+        echo "  1) WorkBuddy   ($HOME/.workbuddy)"
+    fi
+    if $DETECTED_CODEX; then
+        echo "  2) Codex       ($HOME/.codex)"
+    fi
+    if ! $DETECTED_WB && ! $DETECTED_CODEX; then
+        echo "  (none detected)"
+    fi
+    echo ""
+    local ans
+    read -r -p "Install into which clients? [1 / 2 / 1,2 / a=all / Enter=default(detected) / n=none]: " ans
+    SELECT_WB=false
+    SELECT_CODEX=false
+    case "$(echo "$ans" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')" in
+        ""|default|d)
+            SELECT_WB="$DETECTED_WB"
+            SELECT_CODEX="$DETECTED_CODEX"
+            ;;
+        a|all)
+            SELECT_WB=true
+            SELECT_CODEX=true
+            ;;
+        n|none)
+            ;;
+        *)
+            local c
+            IFS=',' read -ra _client_list <<< "$ans"
+            for c in "${_client_list[@]}"; do
+                case "$c" in
+                    1|workbuddy|wb) SELECT_WB=true ;;
+                    2|codex)        SELECT_CODEX=true ;;
+                    "") ;;
+                    *) log_warn "Unknown selection '$c' (ignored)" ;;
+                esac
+            done
+            ;;
+    esac
+
+    if $SELECT_WB; then
+        log_ok "Will install into: WorkBuddy"
+    fi
+    if $SELECT_CODEX; then
+        log_ok "Will install into: Codex"
+    fi
+    if ! $SELECT_WB && ! $SELECT_CODEX; then
+        log_warn "No client selected; only the source build will be installed (client integration skipped)"
+        log_info "Rerun the installer later, or pass --clients workbuddy,codex to add clients"
+    fi
+}
+
 # -- Write the MCP config (merge into the existing one; node serializes it as standard JSON) --------
 write_mcp_config_file() {
     local target_dir="$1"
@@ -475,14 +572,14 @@ generate_wb_config() {
     local written=false
 
     # Write directly into the platform's mcp.json (using the selected Node.js)
-    if $DETECTED_WB; then
+    if $SELECT_WB; then
         write_mcp_config_file "$HOME/.workbuddy" "$node_exe" "$dist_js"
         log_ok "MCP config written: ~/.workbuddy/mcp.json"
         log_info "Click 'Trust' for ip-switch in the WorkBuddy connector management page to enable it"
         written=true
     fi
 
-    if $DETECTED_CODEX; then
+    if $SELECT_CODEX; then
         write_mcp_config_file "$HOME/.codex" "$node_exe" "$dist_js"
         log_ok "MCP config written: ~/.codex/mcp.json"
         log_info "Restart Codex for the config to take effect"
@@ -502,7 +599,7 @@ generate_wb_config() {
 }
 EOF_CONFIG
 )
-        log_warn "WorkBuddy or Codex platform directory not detected"
+        log_warn "No client selected; no MCP config was written"
         echo ""
         echo "${CYAN}MCP config content:${NC}"
         echo "$json_content"
@@ -820,8 +917,8 @@ EOF_PLUGIN
 #   5. Mark scripts executable (+x on .sh / .mjs / .ps1 so the Codex CLI can invoke them)
 # Design:
 #   - Idempotent: overwrites on rerun (run again after git pull to get the new version)
-#   - Unconditional install: installs even when WorkBuddy is not detected, so users can run it manually from a terminal (Codex has no skill mechanism)
-#   - Also write to ~/.codex/skills/ (if that directory exists) -- ready to use if Codex supports skills later
+#   - Selection-based: skills are copied only into the clients the user selected
+#     (select_clients). Nothing is written to ~/.workbuddy or ~/.codex otherwise.
 install_skill() {
     log_step "Installing the ip-switch skill (AI-agent config page launcher)"
 
@@ -847,7 +944,14 @@ install_skill() {
     printf '%s\n' "$marker_dir_unix" > "$INSTALL_DIR/data/install-dir.txt"
     log_ok "install-dir marker written: ${INSTALL_DIR}/data/install-dir.txt -> ${marker_dir_unix}"
 
-    # 2. Copy to the target location (WorkBuddy discovers via a flat scan of ~/.workbuddy/skills/<name>/)
+    # 2. Copy to the target locations (only for the clients the user selected)
+    if ! $SELECT_WB && ! $SELECT_CODEX; then
+        log_warn "No client selected; skipping the skill install"
+        return 0
+    fi
+
+    if $SELECT_WB; then
+    # 2. WorkBuddy copy (WorkBuddy discovers via a flat scan of ~/.workbuddy/skills/<name>/)
     #    Sources: project-root SKILL.md / skill.json + scripts/ + references/ (multilingual docs)
     #    Target layout:
     #       ~/.workbuddy/skills/ips-main/
@@ -903,10 +1007,10 @@ install_skill() {
     # 3. Mark the scripts in scripts/ executable (required on macOS/Linux/Git Bash)
     find "$dest/scripts" -maxdepth 1 -type f \( -name "*.sh" -o -name "*.mjs" -o -name "*.ps1" \) -exec chmod +x {} \;
     log_ok "Executable bit set: ${dest}/scripts/"
+    fi
 
-    # 4. If ~/.codex/skills already exists (Codex may support skills later), copy a mirror there too
-    #    Only copy when the directory already exists, avoiding creating it for non-Codex users
-    if [ -d "$HOME/.codex/skills" ]; then
+    # 4. Codex mirror (only when the user selected Codex)
+    if $SELECT_CODEX; then
         local codex_dest="$HOME/.codex/skills/ips-main"
         mkdir -p "$codex_dest/scripts"
         for f in SKILL.md skill.json; do
@@ -924,9 +1028,11 @@ install_skill() {
             log_ok "Mirrored to Codex: ${codex_dest}/scripts/ (takes effect if Codex enables skills)"
     fi
 
-    log_info "How AI agents open it:"
-    log_info "  WorkBuddy: say \"Open the ip-switch config page\", \"Add an AWS account\", etc. in the chat"
-    log_info "  Any terminal: node ~/.workbuddy/skills/ips-main/scripts/open-ui.mjs [aws|azure|oci|vultr]"
+    if $SELECT_WB; then
+        log_info "How AI agents open it:"
+        log_info "  WorkBuddy: say \"Open the ip-switch config page\", \"Add an AWS account\", etc. in the chat"
+        log_info "  Any terminal: node ~/.workbuddy/skills/ips-main/scripts/open-ui.mjs [aws|azure|oci|vultr]"
+    fi
 }
 
 # -- Install the ips-* quick-command skills (thin slash-command entries) --------------------
@@ -945,6 +1051,11 @@ install_quick_skills() {
         return 0
     fi
 
+    if ! $SELECT_WB && ! $SELECT_CODEX; then
+        log_warn "No client selected; skipping the quick-skill install"
+        return 0
+    fi
+
     local src name qdest qcodex
     for src in "$quick_src"/*/; do
         [ -d "$src" ] || continue
@@ -956,7 +1067,8 @@ install_quick_skills() {
         esac
         [ -f "$src/SKILL.md" ] || { log_warn "Quick skill ${name}: SKILL.md missing (skipping)"; continue; }
 
-        # 1. WorkBuddy copy
+        # 1. WorkBuddy copy (only when the user selected WorkBuddy)
+        if $SELECT_WB; then
         qdest="$HOME/.workbuddy/skills/$name"
         mkdir -p "$qdest"
         if ! cp -f "$src/SKILL.md" "$qdest/" 2>/dev/null; then
@@ -968,9 +1080,10 @@ install_quick_skills() {
             cp -R "$src/references/." "$qdest/references/" 2>/dev/null
         fi
         log_ok "Quick skill installed: ${qdest} (slash command /${name})"
+        fi
 
-        # 2. Codex mirror (only when ~/.codex/skills already exists)
-        if [ -d "$HOME/.codex/skills" ]; then
+        # 2. Codex mirror (only when the user selected Codex)
+        if $SELECT_CODEX; then
             qcodex="$HOME/.codex/skills/$name"
             mkdir -p "$qcodex"
             cp -f "$src/SKILL.md" "$qcodex/" 2>/dev/null
@@ -996,11 +1109,11 @@ print_success() {
     fi
 
     local mcp_hint=""
-    if $DETECTED_WB && $DETECTED_CODEX; then
+    if $SELECT_WB && $SELECT_CODEX; then
         mcp_hint="  # Use via MCP tools (just chat in WorkBuddy/Codex)"
-    elif $DETECTED_WB; then
+    elif $SELECT_WB; then
         mcp_hint="  # Use via MCP tools (just chat in WorkBuddy)"
-    elif $DETECTED_CODEX; then
+    elif $SELECT_CODEX; then
         mcp_hint="  # Use via MCP tools (just chat in Codex)"
     else
         mcp_hint="  # After configuring the MCP client, use these commands via chat"
@@ -1008,16 +1121,16 @@ print_success() {
 
     # Dynamically build the "install locations" and "uninstall commands" (only show installed platforms)
     local install_locations=""
-    if $DETECTED_WB; then
+    if $SELECT_WB; then
         install_locations="${install_locations}WorkBuddy MCP config: ${wb_config}
 "
     fi
-    if $DETECTED_CODEX; then
+    if $SELECT_CODEX; then
         install_locations="${install_locations}Codex marketplace manifest: ${codex_market_dir}
 Codex user-level registration: ~/.codex/config.toml (globally visible, written by append_codex_user_config)
 "
     fi
-    # Skill path (installed unconditionally; shown in the native format of the current OS)
+    # Skill path (only shown when a client was selected; shown in the native format of the current OS)
     local skill_path_win skill_path_unix
     skill_path_unix="$HOME/.workbuddy/skills/ips-main"
     case "$skill_path_unix" in
@@ -1029,22 +1142,26 @@ Codex user-level registration: ~/.codex/config.toml (globally visible, written b
             ;;
         *) skill_path_win="$skill_path_unix" ;;
     esac
+    if $SELECT_WB || $SELECT_CODEX; then
     install_locations="${install_locations}ip-switch skill: ${skill_path_unix}
                        (auto-discovered by WorkBuddy; from any terminal: node ${skill_path_unix}/scripts/open-ui.mjs)
 "
+    fi
 
     local uninstall_cmds=""
-    if $DETECTED_WB; then
+    if $SELECT_WB; then
         uninstall_cmds="${uninstall_cmds}  rm -f ${wb_config}            # remove the WorkBuddy MCP config
 "
     fi
-    if $DETECTED_CODEX; then
+    if $SELECT_CODEX; then
         uninstall_cmds="${uninstall_cmds}  rm -rf ${codex_market_dir}       # remove the Codex marketplace manifests
 "
     fi
-    # Skill uninstall command
+    # Skill uninstall command (only shown when a client was selected)
+    if $SELECT_WB || $SELECT_CODEX; then
     uninstall_cmds="${uninstall_cmds}  rm -rf ${skill_path_unix}      # remove the ip-switch skill
 "
+    fi
 
     cat <<EOF
 
@@ -1076,10 +1193,10 @@ ${uninstall_cmds}  rm -rf ${INSTALL_DIR}      # remove the source (optional; wip
 
 ${YELLOW}Restart the client:${NC}
 EOF
-    if $DETECTED_WB; then
+    if $SELECT_WB; then
         echo "  Restart WorkBuddy for the MCP config to take effect"
     fi
-    if $DETECTED_CODEX; then
+    if $SELECT_CODEX; then
         echo "  Restart Codex to see IP Switch in the plugin page"
     fi
     echo ""
@@ -1097,20 +1214,21 @@ main() {
     check_npm
     check_git
     detect_mcp_platform
+    select_clients
     clone_repo
     install_deps
     build_project
-    if $DETECTED_WB; then
+    if $SELECT_WB || $SELECT_CODEX; then
         generate_wb_config
     fi
-    if $DETECTED_CODEX; then
+    if $SELECT_CODEX; then
         install_codex_mcp
         install_codex_toml
         install_codex_shotcut
         install_codex_marketplace
     fi
     # Skill install: a unified config-page launcher across WorkBuddy / Codex / any AI agent
-    # Unconditional install (installs even when WorkBuddy is not detected; users can run it from a terminal)
+    # Selection-based: copies go only into the clients the user selected (select_clients)
     install_skill
     # Quick-command skills (ips-*): thin slash-command entries for the frequent MCP operations
     install_quick_skills
@@ -1130,6 +1248,8 @@ while [ $# -gt 0 ]; do
             INSTALL_DIR="$2"; shift 2;;
         --skip-build)
             SKIP_BUILD=true; shift;;
+        --clients)
+            CLIENTS="$2"; shift 2;;
         --help|-h)
             echo "Usage: $0 [options]"
             echo ""
@@ -1137,6 +1257,8 @@ while [ $# -gt 0 ]; do
             echo "  --repo-url URL     Repository URL (default: gitee)"
             echo "  --branch NAME      Branch name (default: main)"
             echo "  --install-dir DIR  Install directory (default: ~/ip-switch)"
+            echo "  --clients LIST     Clients to install into: workbuddy,codex,all,none"
+            echo "                     (default: interactive selection of the detected clients)"
             echo "  --skip-build       Skip the build step"
             echo "  -h, --help         Show help"
             exit 0;;
