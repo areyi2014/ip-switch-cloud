@@ -447,7 +447,8 @@ detect_mcp_platform() {
 }
 
 # ── 让用户选择安装到哪些客户端 ─────────────────────────────────────────────
-# 选择优先级：--clients/CLIENTS 参数 > 交互式选择 > 检测到的客户端。
+# 选择优先级：--clients/CLIENTS 参数 > 交互式选择（回车 = 全部检测到的客户端）。
+# 非交互式且未传 --clients 时，同样回退为「已检测到的客户端」。
 # 结果存入 SELECT_WB / SELECT_CODEX；只有被选中的客户端才会写入 MCP 配置、
 # 技能、市场清单等。检测到≠安装，避免默认全装。
 select_clients() {
@@ -508,7 +509,7 @@ select_clients() {
     local ans ans_norm valid
     # 反复询问直到答案可被理解: 输入错误绝不能悄悄退化成「仅装源码」
     while true; do
-        read -r -p "安装到哪些客户端？[1 / 2 / 1,2 / a=全部 / 回车=默认(已检测到的) / none=仅装源码 / q=退出]: " ans || {
+        read -r -p "安装到哪些客户端？[1 / 2 / 回车=全部检测到的 / none=仅装源码 / q=退出]: " ans || {
             # stdin 已关闭（Ctrl+D 或非交互调用）: 直接退出，不要静默采用默认选择
             echo ""
             log_error "无法读取输入（EOF）；已中止安装"
@@ -524,10 +525,13 @@ select_clients() {
         SELECT_CODEX=false
         valid=true
         case "$ans_norm" in
+            # 回车 = 上面检测到的全部客户端（检测子集）
             ""|default|d)
                 SELECT_WB="$DETECTED_WB"
                 SELECT_CODEX="$DETECTED_CODEX"
                 ;;
+            # a / all 与 "1,2" 完全等价（两个都装，即使未检测到）。保留为兼容别名，
+            # 但不写进提示：它与「回车=全部检测到的」恰好相反，并排显示会让人误读。
             a|all)
                 SELECT_WB=true
                 SELECT_CODEX=true
@@ -557,7 +561,7 @@ select_clients() {
         if $valid; then
             break
         fi
-        log_warn "没看懂这个选项；请重新选择: 1 / 2 / 1,2 / a=全部 / 回车=默认 / none=仅装源码 / q=退出"
+        log_warn "没看懂这个选项；请重新选择: 1 / 2 / 回车=全部检测到的 / none=仅装源码 / q=退出"
         echo ""
     done
 
@@ -1316,7 +1320,10 @@ while [ $# -gt 0 ]; do
             echo "  -h, --help         显示帮助"
             echo ""
             echo "交互式提示:"
-            echo "  客户端选择  [1 / 2 / 1,2 / a=全部 / 回车=默认(已检测到的) / none=仅装源码 / q=退出]"
+            echo "  客户端选择  [1 / 2 / 回车=全部检测到的 / none=仅装源码 / q=退出]"
+            echo "              1 = 只装 WorkBuddy，2 = 只装 Codex"
+            echo "              回车 = 本机检测到的全部客户端"
+            echo "              （1,2 / a / all 仍可用：表示强制两个都装，即使未检测到）"
             echo "              n / no / q / quit / cancel 均退出整个安装（不写任何文件）"
             echo "  安装目录    回车 = 用建议目录，q = 退出，或输入其它路径"
             exit 0;;

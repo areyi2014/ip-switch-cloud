@@ -33,7 +33,10 @@ Options:
   -Help            Show help
 
 Interactive prompts:
-  Client selection  [1 / 2 / 1,2 / a=all / Enter=default(detected) / none=source only / q=quit]
+  Client selection  [1 / 2 / Enter=all detected / none=source only / q=quit]
+                    1 = WorkBuddy only, 2 = Codex only
+                    Enter = every client detected on this machine
+                    (1,2 / a / all still work: they force both, even the undetected one)
                     n / no / q / quit / cancel abort the whole install (nothing is written)
   Install directory Enter = use the suggested directory, q = quit, or type another path
 
@@ -564,7 +567,8 @@ function Detect-MCPPlatform {
 }
 
 # -- Let the user choose which clients to install into -------------------------------
-# Selection priority: -Clients argument > interactive prompt > detected clients.
+# Selection priority: -Clients argument > interactive prompt (Enter = all detected clients).
+# Non-interactive callers without -Clients fall back to the detected clients as well.
 # Results are stored in $script:SelWB / $script:SelCodex; only the selected clients
 # get MCP configs, skills, marketplace manifests, etc. Detection alone no longer installs.
 function Select-Clients {
@@ -620,7 +624,7 @@ function Select-Clients {
     while ($true) {
         $script:SelWB    = $false
         $script:SelCodex = $false
-        $rawAns = Read-Host "Install into which clients? [1 / 2 / 1,2 / a=all / Enter=default(detected) / none=source only / q=quit]"
+        $rawAns = Read-Host "Install into which clients? [1 / 2 / Enter=all detected / none=source only / q=quit]"
         if ($null -eq $rawAns) {
             # stdin closed: abort instead of silently falling back to the default selection
             Write-Err "No input available (EOF); aborting the install"
@@ -632,10 +636,14 @@ function Select-Clients {
 
         $valid = $true
         switch -Regex ($ans) {
+            # Enter = every client that was detected above (the detected subset).
             '^(|default|d)$' {
                 $script:SelWB    = $script:DetectedWB
                 $script:SelCodex = $script:DetectedCodex
             }
+            # a / all is exactly "1,2": both, even if one of them was not detected. Kept as a
+            # compatibility alias but never advertised in the prompt - it is the opposite of
+            # what Enter does, so listing the two side by side invites misreading.
             '^(a|all)$' {
                 $script:SelWB    = $true
                 $script:SelCodex = $true
@@ -661,7 +669,7 @@ function Select-Clients {
         }
 
         if ($valid) { break }
-        Write-Warn "Not understood; please answer again: 1 / 2 / 1,2 / a=all / Enter=default / none=source only / q=quit"
+        Write-Warn "Not understood; please answer again: 1 / 2 / Enter=all detected / none=source only / q=quit"
         Write-Host ""
     }
 
