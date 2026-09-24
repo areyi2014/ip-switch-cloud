@@ -106,7 +106,7 @@ Windows PowerShell：
 & "$env:TEMP\install-ip-switch.ps1" -Clients workbuddy          # 只装 WorkBuddy
 & "$env:TEMP\install-ip-switch.ps1" -Clients codex,workbuddy    # 两个都装，不再询问
 & "$env:TEMP\install-ip-switch.ps1" -Clients all                # 所有支持的客户端
-& "$env:TEMP\install-ip-switch.ps1" -Clients none               # 只装源码，跳过客户端集成
+& "$env:TEMP\install-ip-switch.ps1" -Clients 0                  # 只装源码，跳过客户端集成
 & "$env:TEMP\install-ip-switch.ps1" -SkipBuild
 & "$env:TEMP\install-ip-switch.ps1" -Help
 ```
@@ -126,7 +126,7 @@ bash install-ip-switch.sh --skip-build
 
 - 如果未检测到任何客户端，安装脚本会提示并只安装源码（跳过 MCP 配置与 skill）。
 - 非交互式终端（如 `curl ... | bash`）下不弹选择菜单，自动回退为"安装到已检测到的客户端"。
-- 交互式提示：客户端选择这一步，`n` / `no` / `q` / `quit` / `cancel` 都是**退出整个安装**（不 clone、不写任何文件）——单独的字母 `n` 不会被当作"不装客户端"，仅装源码请完整输入 `none`。目录确认这一步，`q` 退出、回车用建议目录。无法识别的输入会重新询问，不会静默按默认值继续。
+- 交互式提示：客户端选择这一步，`n` / `no` / `q` / `quit` / `cancel` 都是**退出整个安装**（不 clone、不写任何文件）——单独的字母 `n` 在这一步不会被当作"不装客户端"，仅装源码请输入 `0`（在 `-Clients` 参数里 `n` 等同 `0`）。目录确认这一步，`q` 退出、回车用建议目录。无法识别的输入会重新询问，不会静默按默认值继续。
 
 ---
 

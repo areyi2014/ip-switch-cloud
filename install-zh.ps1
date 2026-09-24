@@ -10,9 +10,9 @@ param(
     [string]$RepoUrl    = "https://gitee.com/areyi2014/ip-switch.git",
     [string]$Branch     = "main",
     [string]$installDir = "$env:USERPROFILE\ip-switch",
-    # 客户端选择："" = 运行时交互选择；"all" = 所有支持的客户端；"none" = 仅安装源码
+    # 客户端选择："" = 运行时交互选择；"all" = 所有支持的客户端；"0"（或 "n"）= 仅安装源码
     # （跳过客户端集成）；也可以用逗号列表，如 "workbuddy,codex"。
-    # 注意："n" 在此不接受（请用 "none"）——交互式提示里 "n" 表示「退出安装」。
+    # 注意：交互式提示里 "n" 表示「退出安装」，只有 -Clients 参数里 "n" 才等同 "0"。
     [string]$Clients    = "",
     [switch]$SkipBuild  = $false,
     [switch]$Help       = $false
@@ -26,13 +26,14 @@ if ($Help) {
   -RepoUrl URL     指定仓库地址（默认 gitee）
   -Branch NAME     指定分支（默认 main）
   -installDir DIR  指定安装目录（默认 ~\ip-switch）
-  -Clients LIST    要安装到的客户端: workbuddy,codex,all,none
+  -Clients LIST    要安装到的客户端: workbuddy,codex,all,0（=n）
                    （默认：交互式选择已检测到的客户端）
   -SkipBuild       跳过编译步骤
   -Help            显示帮助
 
 交互式提示:
-  客户端选择  [1 / 2 / 回车=全部检测到的 / none=仅装源码 / q=退出]
+  客户端选择  [0=仅装源码 / 1 / 2 / 回车=全部检测到的 / q=退出]
+              0 = 只装源码（跳过客户端集成）
               1 = 只装 WorkBuddy，2 = 只装 Codex
               回车 = 本机检测到的全部客户端
               （1,2 / a / all 仍可用：表示强制两个都装，即使未检测到）
@@ -65,7 +66,7 @@ function Write-Err($msg)   { Write-Host "[ERROR] $msg" -ForegroundColor Red }
 # -- 交互式取消处理 -----------------------------------------------------------
 # "n" / "no" / "q" / "quit" / "cancel" / "exit" 一律表示「退出整个安装」。
 # 原因: 人类直觉里 "n" 就是"否/取消"，绝不能被当作"不装客户端、继续装源码"
-# （那是完整单词 "none" 的语义）。两处调用点都在 clone/写文件之前，退出始终安全。
+# （那是 "0" 的语义）。两处调用点都在 clone/写文件之前，退出始终安全。
 function Test-CancelInput($text) {
     return ($text -match '^(n|no|q|quit|cancel|exit)$')
 }
@@ -585,16 +586,14 @@ function Select-Clients {
                     'workbuddy' { $script:SelWB    = $true }
                     'wb'        { $script:SelWB    = $true }
                     'codex'     { $script:SelCodex = $true }
-                    'none'      { }
+                    # "0" 是提示行里广告的短形式；"n" 是它在本参数里的别名。
+                    # （交互式提示里 "n" 表示「退出」——调用点不同、含义不同；
+                    #  -Clients 是显式指定，不存在歧义。）
+                    '0'         { }
+                    'n'         { }
                     ''          { }
-                    # 故意不把 "n" 当作 "none" 的别名: 交互式提示里 "n" 表示「退出」，
-                    # 这里接受它会造成同名不同义的静默歧义。
-                    'n'         {
-                        Write-Err "-Clients n 有歧义；仅装源码请用 -Clients none（或省略 -Clients 走交互选择）"
-                        exit 1
-                    }
                     default {
-                        Write-Err "未知客户端 '$c'（支持: workbuddy, codex, all, none）"
+                        Write-Err "未知客户端 '$c'（支持: workbuddy, codex, all, 0/n）"
                         exit 1
                     }
                 }
@@ -621,7 +620,7 @@ function Select-Clients {
     while ($true) {
         $script:SelWB    = $false
         $script:SelCodex = $false
-        $rawAns = Read-Host "安装到哪些客户端？[1 / 2 / 回车=全部检测到的 / none=仅装源码 / q=退出]"
+        $rawAns = Read-Host "安装到哪些客户端？[0=仅装源码 / 1 / 2 / 回车=全部检测到的 / q=退出]"
         if ($null -eq $rawAns) {
             # stdin 已关闭: 直接退出，不要静默采用默认选择
             Write-Err "无法读取输入（EOF）；已中止安装"
@@ -644,8 +643,9 @@ function Select-Clients {
                 $script:SelWB    = $true
                 $script:SelCodex = $true
             }
-            # 仅装源码: 必须显式输入完整单词；单独的 "n" 在上面已按「退出」处理
-            '^none$' { }
+            # 仅装源码: "0" 是提示行里的短形式；"n" 是它的别名
+            # （此处到不了 —— Test-CancelInput 会先把 "n" 当「退出」拦下）。
+            '^(0|n)$' { }
             default {
                 foreach ($c in ($ans -split ',')) {
                     switch ($c.Trim()) {
@@ -665,7 +665,7 @@ function Select-Clients {
         }
 
         if ($valid) { break }
-        Write-Warn "没看懂这个选项；请重新选择: 1 / 2 / 回车=全部检测到的 / none=仅装源码 / q=退出"
+        Write-Warn "没看懂这个选项；请重新选择: 0=仅装源码 / 1 / 2 / 回车=全部检测到的 / q=退出"
         Write-Host ""
     }
 

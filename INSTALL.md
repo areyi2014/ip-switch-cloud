@@ -106,7 +106,7 @@ Windows PowerShell:
 & "$env:TEMP\install-ip-switch.ps1" -Clients workbuddy          # WorkBuddy only
 & "$env:TEMP\install-ip-switch.ps1" -Clients codex,workbuddy    # both, no prompt
 & "$env:TEMP\install-ip-switch.ps1" -Clients all                # every supported client
-& "$env:TEMP\install-ip-switch.ps1" -Clients none               # source build only
+& "$env:TEMP\install-ip-switch.ps1" -Clients 0                  # source build only
 & "$env:TEMP\install-ip-switch.ps1" -SkipBuild
 & "$env:TEMP\install-ip-switch.ps1" -Help
 ```
@@ -126,7 +126,7 @@ Notes:
 
 - If no client is detected, the installer warns you and installs only the source build (MCP config / skills are skipped).
 - In a non-interactive shell (e.g. `curl ... | bash`), the installer falls back to the detected clients instead of prompting.
-- Interactive prompts: at the client-selection prompt, `n` / `no` / `q` / `quit` / `cancel` abort the whole install (nothing is cloned or written) — the bare letter `n` is never treated as "none", use the full word `none` for a source-only install. At the directory prompt, `q` quits and Enter accepts the suggested directory. An unrecognized answer is re-prompted rather than silently falling back to a default.
+- Interactive prompts: at the client-selection prompt, `n` / `no` / `q` / `quit` / `cancel` abort the whole install (nothing is cloned or written) — the bare letter `n` is never treated as "source only" there, use `0` for a source-only install (at the `-Clients` flag, `n` is accepted as the alias of `0`). At the directory prompt, `q` quits and Enter accepts the suggested directory. An unrecognized answer is re-prompted rather than silently falling back to a default.
 
 ---
 

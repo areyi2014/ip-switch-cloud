@@ -11,9 +11,8 @@ param(
     [string]$Branch     = "main",
     [string]$installDir = "$env:USERPROFILE\ip-switch",
     # Client selection: "" = interactive selection at runtime; "all" = every supported
-    # client; "none" = source build only (skip client integration); or a comma list,
-    # e.g. "workbuddy,codex". Note: "n" is not accepted here (use "none") because at the
-    # interactive prompt "n" means "abort the install".
+    # client; "0" (or "n") = source build only (skip client integration); or a comma
+    # list, e.g. "workbuddy,codex".
     [string]$Clients    = "",
     [switch]$SkipBuild  = $false,
     [switch]$Help       = $false
@@ -27,13 +26,14 @@ Options:
   -RepoUrl URL     Repository URL (default: gitee)
   -Branch NAME     Branch name (default: main)
   -installDir DIR  Install directory (default: ~\ip-switch)
-  -Clients LIST    Clients to install into: workbuddy,codex,all,none
+  -Clients LIST    Clients to install into: workbuddy,codex,all,0 (=n)
                    (default: interactive selection of the detected clients)
   -SkipBuild       Skip the build step
   -Help            Show help
 
 Interactive prompts:
-  Client selection  [1 / 2 / Enter=all detected / none=source only / q=quit]
+  Client selection  [0=source only / 1 / 2 / Enter=all detected / q=quit]
+                    0 = source build only (no client integration)
                     1 = WorkBuddy only, 2 = Codex only
                     Enter = every client detected on this machine
                     (1,2 / a / all still work: they force both, even the undetected one)
@@ -66,7 +66,7 @@ function Write-Err($msg)   { Write-Host "[ERROR] $msg" -ForegroundColor Red }
 # -- Interactive abort handling -------------------------------------------------
 # "n" / "no" / "q" / "quit" / "cancel" / "exit" always mean "abort the whole install".
 # Rationale: "n" reads as "no" to any human, so it must never be silently interpreted
-# as "no clients, install the source anyway" (that is what the full word "none" is for).
+# as "no clients, install the source anyway" (that is what "0" is for at the prompt).
 # Both call sites run before anything is cloned or written, so aborting is always safe.
 function Test-CancelInput($text) {
     return ($text -match '^(n|no|q|quit|cancel|exit)$')
@@ -587,16 +587,14 @@ function Select-Clients {
                     'workbuddy' { $script:SelWB    = $true }
                     'wb'        { $script:SelWB    = $true }
                     'codex'     { $script:SelCodex = $true }
-                    'none'      { }
+                    # "0" is the short form advertised at the prompt; "n" is its alias here.
+                    # (At the interactive prompt "n" means "abort" instead - different call
+                    # site, different meaning; -Clients is explicit, so there is no ambiguity.)
+                    '0'         { }
+                    'n'         { }
                     ''          { }
-                    # "n" is deliberately not an alias for "none": at the interactive prompt it
-                    # means "abort", so accepting it here would be silently ambiguous.
-                    'n'         {
-                        Write-Err "-Clients n is ambiguous; use -Clients none for a source-only install (or omit -Clients to choose interactively)"
-                        exit 1
-                    }
                     default {
-                        Write-Err "Unknown client '$c' (supported: workbuddy, codex, all, none)"
+                        Write-Err "Unknown client '$c' (supported: workbuddy, codex, all, 0/n)"
                         exit 1
                     }
                 }
@@ -624,7 +622,7 @@ function Select-Clients {
     while ($true) {
         $script:SelWB    = $false
         $script:SelCodex = $false
-        $rawAns = Read-Host "Install into which clients? [1 / 2 / Enter=all detected / none=source only / q=quit]"
+        $rawAns = Read-Host "Install into which clients? [0=source only / 1 / 2 / Enter=all detected / q=quit]"
         if ($null -eq $rawAns) {
             # stdin closed: abort instead of silently falling back to the default selection
             Write-Err "No input available (EOF); aborting the install"
@@ -648,8 +646,9 @@ function Select-Clients {
                 $script:SelWB    = $true
                 $script:SelCodex = $true
             }
-            # Source-only build: explicitly opt in with the full word; the bare "n" aborts above
-            '^none$' { }
+            # Source-only build: "0" is the short form shown in the prompt; "n" is its alias
+            # (unreachable from here - Test-CancelInput matches "n" as "abort" first).
+            '^(0|n)$' { }
             default {
                 foreach ($c in ($ans -split ',')) {
                     switch ($c.Trim()) {
@@ -669,7 +668,7 @@ function Select-Clients {
         }
 
         if ($valid) { break }
-        Write-Warn "Not understood; please answer again: 1 / 2 / Enter=all detected / none=source only / q=quit"
+        Write-Warn "Not understood; please answer again: 0=source only / 1 / 2 / Enter=all detected / q=quit"
         Write-Host ""
     }
 

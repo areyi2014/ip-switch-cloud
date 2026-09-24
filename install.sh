@@ -24,9 +24,8 @@ INSTALL_DIR="${INSTALL_DIR:-$HOME/ip-switch}"
 NODE_MIN_VERSION=18
 PROJECT_NAME="ip-switch"
 # Client selection: "" = interactive selection at runtime; "all" = every supported
-# client; "none" = source build only (skip client integration); or a comma list,
-# e.g. "workbuddy,codex". Note: "n" is not accepted here (use "none") because at the
-# interactive prompt "n" means "abort the install".
+# client; "0" (or "n") = source build only (skip client integration); or a comma
+# list, e.g. "workbuddy,codex".
 # Also settable via --clients (overrides the env var).
 CLIENTS="${CLIENTS:-}"
 
@@ -40,7 +39,7 @@ log_step()  { echo -e "\n${CYAN}═══ $1 ═══${NC}"; }
 # -- Interactive abort handling --------------------------------------------------------
 # "n" / "no" / "q" / "quit" / "cancel" / "exit" always mean "abort the whole install".
 # Rationale: "n" reads as "no" to any human, so it must never be silently interpreted
-# as "no clients, install the source anyway" (that is what the full word "none" is for).
+# as "no clients, install the source anyway" (that is what "0" is for at the prompt).
 # Both call sites run before anything is cloned or written, so aborting is always safe.
 is_cancel_input() {
     case "$1" in
@@ -472,14 +471,12 @@ select_clients() {
                     case "$(echo "$c" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')" in
                         workbuddy|wb) SELECT_WB=true ;;
                         codex)        SELECT_CODEX=true ;;
-                        none|"")      ;;
-                        # "n" is deliberately not an alias for "none": at the interactive
-                        # prompt it means "abort", so accepting it here would be ambiguous.
-                        n)
-                            log_error "--clients n is ambiguous; use --clients none for a source-only install (or omit --clients to choose interactively)"
-                            exit 1 ;;
+                        # "0" is the short form advertised at the prompt; "n" is its alias here.
+                        # (At the interactive prompt "n" means "abort" instead - different call
+                        # site, different meaning; --clients is explicit, so no ambiguity.)
+                        0|n|"")       ;;
                         *)
-                            log_error "Unknown client '$c' (supported: workbuddy, codex, all, none)"
+                            log_error "Unknown client '$c' (supported: workbuddy, codex, all, 0/n)"
                             exit 1 ;;
                     esac
                 done
@@ -513,7 +510,7 @@ select_clients() {
     # Re-prompt until the answer is understood: a typo must never silently fall through
     # to the source-only install.
     while true; do
-        read -r -p "Install into which clients? [1 / 2 / Enter=all detected / none=source only / q=quit]: " ans || {
+        read -r -p "Install into which clients? [0=source only / 1 / 2 / Enter=all detected / q=quit]: " ans || {
             # stdin closed (Ctrl+D or a non-tty caller): abort instead of silently
             # falling back to the default selection
             echo ""
@@ -542,8 +539,9 @@ select_clients() {
                 SELECT_WB=true
                 SELECT_CODEX=true
                 ;;
-            # Source-only build: explicitly opt in with the full word; the bare "n" aborts above
-            none)
+            # Source-only build: "0" is the short form shown in the prompt; "n" is its alias
+            # (unreachable from here - is_cancel_input matches "n" as "abort" first).
+            0|n)
                 ;;
             *)
                 local c
@@ -567,7 +565,7 @@ select_clients() {
         if $valid; then
             break
         fi
-        log_warn "Not understood; please answer again: 1 / 2 / Enter=all detected / none=source only / q=quit"
+        log_warn "Not understood; please answer again: 0=source only / 1 / 2 / Enter=all detected / q=quit"
         echo ""
     done
 
@@ -1321,13 +1319,14 @@ while [ $# -gt 0 ]; do
             echo "  --repo-url URL     Repository URL (default: gitee)"
             echo "  --branch NAME      Branch name (default: main)"
             echo "  --install-dir DIR  Install directory (default: ~/ip-switch)"
-            echo "  --clients LIST     Clients to install into: workbuddy,codex,all,none"
+            echo "  --clients LIST     Clients to install into: workbuddy,codex,all,0 (=n)"
             echo "                     (default: interactive selection of the detected clients)"
             echo "  --skip-build       Skip the build step"
             echo "  -h, --help         Show help"
             echo ""
             echo "Interactive prompts:"
-            echo "  Client selection   [1 / 2 / Enter=all detected / none=source only / q=quit]"
+            echo "  Client selection   [0=source only / 1 / 2 / Enter=all detected / q=quit]"
+            echo "                     0 = source build only (no client integration)"
             echo "                     1 = WorkBuddy only, 2 = Codex only"
             echo "                     Enter = every client detected on this machine"
             echo "                     (1,2 / a / all still work: they force both, even the undetected one)"
