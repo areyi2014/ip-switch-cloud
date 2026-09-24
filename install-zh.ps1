@@ -32,7 +32,7 @@ if ($Help) {
   -Help            显示帮助
 
 交互式提示:
-  客户端选择  [0=仅装源码 / 1 / 2 / 回车=全部检测到的 / q=退出]
+  客户端选择  [回车=全部检测到的 / 1 / 2 / 0=仅装源码 / q=退出]
               0 = 只装源码（跳过客户端集成）
               1 = 只装 WorkBuddy，2 = 只装 Codex
               回车 = 本机检测到的全部客户端
@@ -620,7 +620,8 @@ function Select-Clients {
     while ($true) {
         $script:SelWB    = $false
         $script:SelCodex = $false
-        $rawAns = Read-Host "安装到哪些客户端？[0=仅装源码 / 1 / 2 / 回车=全部检测到的 / q=退出]"
+        # 回车（=全部检测到的）放在最前面: 这是绝大多数用户想选的答案，应该无需细看后面即可接受
+        $rawAns = Read-Host "安装到哪些客户端？[回车=全部检测到的 / 1 / 2 / 0=仅装源码 / q=退出]"
         if ($null -eq $rawAns) {
             # stdin 已关闭: 直接退出，不要静默采用默认选择
             Write-Err "无法读取输入（EOF）；已中止安装"
@@ -665,7 +666,7 @@ function Select-Clients {
         }
 
         if ($valid) { break }
-        Write-Warn "没看懂这个选项；请重新选择: 0=仅装源码 / 1 / 2 / 回车=全部检测到的 / q=退出"
+        Write-Warn "没看懂这个选项；请重新选择: 回车=全部检测到的 / 1 / 2 / 0=仅装源码 / q=退出"
         Write-Host ""
     }
 

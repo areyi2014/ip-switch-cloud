@@ -32,7 +32,7 @@ Options:
   -Help            Show help
 
 Interactive prompts:
-  Client selection  [0=source only / 1 / 2 / Enter=all detected / q=quit]
+  Client selection  [Enter=all detected / 1 / 2 / 0=source only / q=quit]
                     0 = source build only (no client integration)
                     1 = WorkBuddy only, 2 = Codex only
                     Enter = every client detected on this machine
@@ -622,7 +622,9 @@ function Select-Clients {
     while ($true) {
         $script:SelWB    = $false
         $script:SelCodex = $false
-        $rawAns = Read-Host "Install into which clients? [0=source only / 1 / 2 / Enter=all detected / q=quit]"
+        # Enter (=all detected) is listed first: it is the intended answer for most users,
+        # who should be able to accept it without reading the rest of the line.
+        $rawAns = Read-Host "Install into which clients? [Enter=all detected / 1 / 2 / 0=source only / q=quit]"
         if ($null -eq $rawAns) {
             # stdin closed: abort instead of silently falling back to the default selection
             Write-Err "No input available (EOF); aborting the install"
@@ -668,7 +670,7 @@ function Select-Clients {
         }
 
         if ($valid) { break }
-        Write-Warn "Not understood; please answer again: 0=source only / 1 / 2 / Enter=all detected / q=quit"
+        Write-Warn "Not understood; please answer again: Enter=all detected / 1 / 2 / 0=source only / q=quit"
         Write-Host ""
     }
 
