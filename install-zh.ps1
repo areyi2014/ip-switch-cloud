@@ -10,8 +10,9 @@ param(
     [string]$RepoUrl    = "https://gitee.com/areyi2014/ip-switch.git",
     [string]$Branch     = "main",
     [string]$installDir = "$env:USERPROFILE\ip-switch",
-    # 客户端选择："" = 运行时交互选择；"all" = 所有支持的客户端；"none" = 跳过客户端集成；
-    # 也可以用逗号列表，如 "workbuddy,codex"
+    # 客户端选择："" = 运行时交互选择；"all" = 所有支持的客户端；"none" = 仅安装源码
+    # （跳过客户端集成）；也可以用逗号列表，如 "workbuddy,codex"。
+    # 注意："n" 在此不接受（请用 "none"）——交互式提示里 "n" 表示「退出安装」。
     [string]$Clients    = "",
     [switch]$SkipBuild  = $false,
     [switch]$Help       = $false
@@ -29,6 +30,11 @@ if ($Help) {
                    （默认：交互式选择已检测到的客户端）
   -SkipBuild       跳过编译步骤
   -Help            显示帮助
+
+交互式提示:
+  客户端选择  [1 / 2 / 1,2 / a=全部 / 回车=默认(已检测到的) / none=仅装源码 / q=退出]
+              n / no / q / quit / cancel 均退出整个安装（不写任何文件）
+  安装目录    回车 = 用建议目录，q = 退出，或输入其它路径
 
 示例:
   .\install.ps1
@@ -52,6 +58,20 @@ function Write-Info($msg)  { Write-Host "[INFO]  $msg" -ForegroundColor Blue }
 function Write-OK($msg)    { Write-Host "[ OK ]  $msg" -ForegroundColor Green }
 function Write-Warn($msg)  { Write-Host "[WARN]  $msg" -ForegroundColor Yellow }
 function Write-Err($msg)   { Write-Host "[ERROR] $msg" -ForegroundColor Red }
+
+# -- 交互式取消处理 -----------------------------------------------------------
+# "n" / "no" / "q" / "quit" / "cancel" / "exit" 一律表示「退出整个安装」。
+# 原因: 人类直觉里 "n" 就是"否/取消"，绝不能被当作"不装客户端、继续装源码"
+# （那是完整单词 "none" 的语义）。两处调用点都在 clone/写文件之前，退出始终安全。
+function Test-CancelInput($text) {
+    return ($text -match '^(n|no|q|quit|cancel|exit)$')
+}
+
+function Stop-Cancelled {
+    Write-Host ""
+    Write-Info "已取消: 未 clone 任何仓库，也未写入任何文件"
+    exit 0
+}
 
 # -- 检查 npm 环境 ------------------------------------------------------------
 # 不依赖 IDE 捆绑的 node（版本目录会随升级变化，难以排查）。
@@ -376,7 +396,13 @@ function Clone-Repo {
     Write-Info "目标分支: $Branch"
     Write-Info "安装目录: $installDir"
     Write-Host ""
-    $userInput = Read-Host "确认安装到此目录? 按 Enter 确认，或输入新目录路径"
+    $rawDir = Read-Host "确认安装到此目录? [回车=确认 / q=退出 / 或输入新目录路径]"
+    if ($null -eq $rawDir) {
+        Write-Err "无法读取输入（EOF）；已中止安装"
+        exit 1
+    }
+    $userInput = $rawDir.Trim()
+    if (Test-CancelInput $userInput) { Stop-Cancelled }
     if ($userInput) {
         $installDir = $userInput
         # 更新全局变量，后续步骤使用新路径
@@ -556,9 +582,17 @@ function Select-Clients {
                     'wb'        { $script:SelWB    = $true }
                     'codex'     { $script:SelCodex = $true }
                     'none'      { }
-                    'n'         { }
                     ''          { }
-                    default { Write-Warn "未知客户端 '$c'（支持: workbuddy, codex, all, none）" }
+                    # 故意不把 "n" 当作 "none" 的别名: 交互式提示里 "n" 表示「退出」，
+                    # 这里接受它会造成同名不同义的静默歧义。
+                    'n'         {
+                        Write-Err "-Clients n 有歧义；仅装源码请用 -Clients none（或省略 -Clients 走交互选择）"
+                        exit 1
+                    }
+                    default {
+                        Write-Err "未知客户端 '$c'（支持: workbuddy, codex, all, none）"
+                        exit 1
+                    }
                 }
             }
         }
@@ -579,32 +613,53 @@ function Select-Clients {
         Write-Host "  （未检测到任何客户端）"
     }
     Write-Host ""
-    $script:SelWB    = $false
-    $script:SelCodex = $false
-    $ans = (Read-Host "安装到哪些客户端？[1 / 2 / 1,2 / a=全部 / 回车=默认(已检测到的) / n=不装]").Trim().ToLower()
-    switch -Regex ($ans) {
-        '^(|default|d)$' {
-            $script:SelWB    = $script:DetectedWB
-            $script:SelCodex = $script:DetectedCodex
+    # 反复询问直到答案可被理解: 输入错误绝不能悄悄退化成「仅装源码」
+    while ($true) {
+        $script:SelWB    = $false
+        $script:SelCodex = $false
+        $rawAns = Read-Host "安装到哪些客户端？[1 / 2 / 1,2 / a=全部 / 回车=默认(已检测到的) / none=仅装源码 / q=退出]"
+        if ($null -eq $rawAns) {
+            # stdin 已关闭: 直接退出，不要静默采用默认选择
+            Write-Err "无法读取输入（EOF）；已中止安装"
+            exit 1
         }
-        '^(a|all)$' {
-            $script:SelWB    = $true
-            $script:SelCodex = $true
-        }
-        '^(n|none)$' { }
-        default {
-            foreach ($c in ($ans -split ',')) {
-                switch ($c.Trim()) {
-                    '1'         { $script:SelWB    = $true }
-                    'workbuddy' { $script:SelWB    = $true }
-                    'wb'        { $script:SelWB    = $true }
-                    '2'         { $script:SelCodex = $true }
-                    'codex'     { $script:SelCodex = $true }
-                    ''          { }
-                    default { Write-Warn "未知的选项 '$c'（已忽略）" }
+        $ans = $rawAns.Trim().ToLower()
+
+        if (Test-CancelInput $ans) { Stop-Cancelled }
+
+        $valid = $true
+        switch -Regex ($ans) {
+            '^(|default|d)$' {
+                $script:SelWB    = $script:DetectedWB
+                $script:SelCodex = $script:DetectedCodex
+            }
+            '^(a|all)$' {
+                $script:SelWB    = $true
+                $script:SelCodex = $true
+            }
+            # 仅装源码: 必须显式输入完整单词；单独的 "n" 在上面已按「退出」处理
+            '^none$' { }
+            default {
+                foreach ($c in ($ans -split ',')) {
+                    switch ($c.Trim()) {
+                        '1'         { $script:SelWB    = $true }
+                        'workbuddy' { $script:SelWB    = $true }
+                        'wb'        { $script:SelWB    = $true }
+                        '2'         { $script:SelCodex = $true }
+                        'codex'     { $script:SelCodex = $true }
+                        ''          { }
+                        default {
+                            Write-Warn "未知的选项 '$c'"
+                            $valid = $false
+                        }
+                    }
                 }
             }
         }
+
+        if ($valid) { break }
+        Write-Warn "没看懂这个选项；请重新选择: 1 / 2 / 1,2 / a=全部 / 回车=默认 / none=仅装源码 / q=退出"
+        Write-Host ""
     }
 
     if ($script:SelWB)    { Write-OK "将安装到: WorkBuddy" }

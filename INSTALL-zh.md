@@ -88,7 +88,7 @@ bash install-ip-switch.sh
    - Windows：按 CPU 架构（x64 / arm64）从国内镜像（NPMMirror / 清华 TUNA，GitHub 兜底）下载官方安装包，静默安装到用户目录 `%LOCALAPPDATA%\Git`，并自动加入 PATH，全程不弹窗
    - macOS / Ubuntu：通过包管理器（apt / brew / xcode-select）自动安装
 3. **检测 MCP 客户端平台** —— 自动识别 `~/.workbuddy`
-4. **克隆仓库** —— 克隆前会显示仓库/分支/目录并让您确认（回车或输入新路径）；先 ping 预热 DNS 缓存，最多自动重试 3 次
+4. **克隆仓库** —— 克隆前会显示仓库/分支/目录并让您确认（回车接受、`q` 退出、或输入新路径）；先 ping 预热 DNS 缓存，最多自动重试 3 次
 5. **安装依赖** —— `npm install`
 6. **编译** —— TypeScript 编译到 `dist/`（自动清除 `ELECTRON_RUN_AS_NODE` 环境变量干扰）
 7. **写入 MCP 配置** —— 直接用 node 序列化为标准 JSON，合并写入 `~/.workbuddy/mcp.json`（保留文件中已有的其他 server，不覆盖）
@@ -126,6 +126,7 @@ bash install-ip-switch.sh --skip-build
 
 - 如果未检测到任何客户端，安装脚本会提示并只安装源码（跳过 MCP 配置与 skill）。
 - 非交互式终端（如 `curl ... | bash`）下不弹选择菜单，自动回退为"安装到已检测到的客户端"。
+- 交互式提示：客户端选择这一步，`n` / `no` / `q` / `quit` / `cancel` 都是**退出整个安装**（不 clone、不写任何文件）——单独的字母 `n` 不会被当作"不装客户端"，仅装源码请完整输入 `none`。目录确认这一步，`q` 退出、回车用建议目录。无法识别的输入会重新询问，不会静默按默认值继续。
 
 ---
 

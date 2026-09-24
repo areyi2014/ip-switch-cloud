@@ -11,7 +11,9 @@ param(
     [string]$Branch     = "main",
     [string]$installDir = "$env:USERPROFILE\ip-switch",
     # Client selection: "" = interactive selection at runtime; "all" = every supported
-    # client; "none" = skip client integration; or a comma list, e.g. "workbuddy,codex"
+    # client; "none" = source build only (skip client integration); or a comma list,
+    # e.g. "workbuddy,codex". Note: "n" is not accepted here (use "none") because at the
+    # interactive prompt "n" means "abort the install".
     [string]$Clients    = "",
     [switch]$SkipBuild  = $false,
     [switch]$Help       = $false
@@ -29,6 +31,11 @@ Options:
                    (default: interactive selection of the detected clients)
   -SkipBuild       Skip the build step
   -Help            Show help
+
+Interactive prompts:
+  Client selection  [1 / 2 / 1,2 / a=all / Enter=default(detected) / none=source only / q=quit]
+                    n / no / q / quit / cancel abort the whole install (nothing is written)
+  Install directory Enter = use the suggested directory, q = quit, or type another path
 
 Examples:
   .\install.ps1
@@ -52,6 +59,21 @@ function Write-Info($msg)  { Write-Host "[INFO]  $msg" -ForegroundColor Blue }
 function Write-OK($msg)    { Write-Host "[ OK ]  $msg" -ForegroundColor Green }
 function Write-Warn($msg)  { Write-Host "[WARN]  $msg" -ForegroundColor Yellow }
 function Write-Err($msg)   { Write-Host "[ERROR] $msg" -ForegroundColor Red }
+
+# -- Interactive abort handling -------------------------------------------------
+# "n" / "no" / "q" / "quit" / "cancel" / "exit" always mean "abort the whole install".
+# Rationale: "n" reads as "no" to any human, so it must never be silently interpreted
+# as "no clients, install the source anyway" (that is what the full word "none" is for).
+# Both call sites run before anything is cloned or written, so aborting is always safe.
+function Test-CancelInput($text) {
+    return ($text -match '^(n|no|q|quit|cancel|exit)$')
+}
+
+function Stop-Cancelled {
+    Write-Host ""
+    Write-Info "Cancelled: nothing was cloned and no files were written"
+    exit 0
+}
 
 # -- Check the npm environment -------------------------------------------------
 # Does not depend on the IDE-bundled node (its version directory changes on upgrades, making issues hard to trace).
@@ -376,7 +398,13 @@ function Clone-Repo {
     Write-Info "Target branch: $Branch"
     Write-Info "Install directory: $installDir"
     Write-Host ""
-    $userInput = Read-Host "Install to this directory? Press Enter to confirm, or type a new path"
+    $rawDir = Read-Host "Install to this directory? [Enter=confirm / q=quit / or type a new path]"
+    if ($null -eq $rawDir) {
+        Write-Err "No input available (EOF); aborting the install"
+        exit 1
+    }
+    $userInput = $rawDir.Trim()
+    if (Test-CancelInput $userInput) { Stop-Cancelled }
     if ($userInput) {
         $installDir = $userInput
         # Update the global variable; later steps use the new path
@@ -556,9 +584,17 @@ function Select-Clients {
                     'wb'        { $script:SelWB    = $true }
                     'codex'     { $script:SelCodex = $true }
                     'none'      { }
-                    'n'         { }
                     ''          { }
-                    default { Write-Warn "Unknown client '$c' (supported: workbuddy, codex, all, none)" }
+                    # "n" is deliberately not an alias for "none": at the interactive prompt it
+                    # means "abort", so accepting it here would be silently ambiguous.
+                    'n'         {
+                        Write-Err "-Clients n is ambiguous; use -Clients none for a source-only install (or omit -Clients to choose interactively)"
+                        exit 1
+                    }
+                    default {
+                        Write-Err "Unknown client '$c' (supported: workbuddy, codex, all, none)"
+                        exit 1
+                    }
                 }
             }
         }
@@ -579,32 +615,54 @@ function Select-Clients {
         Write-Host "  (none detected)"
     }
     Write-Host ""
-    $script:SelWB    = $false
-    $script:SelCodex = $false
-    $ans = (Read-Host "Install into which clients? [1 / 2 / 1,2 / a=all / Enter=default(detected) / n=none]").Trim().ToLower()
-    switch -Regex ($ans) {
-        '^(|default|d)$' {
-            $script:SelWB    = $script:DetectedWB
-            $script:SelCodex = $script:DetectedCodex
+    # Re-prompt until the answer is understood: a typo must never silently fall through
+    # to the source-only install.
+    while ($true) {
+        $script:SelWB    = $false
+        $script:SelCodex = $false
+        $rawAns = Read-Host "Install into which clients? [1 / 2 / 1,2 / a=all / Enter=default(detected) / none=source only / q=quit]"
+        if ($null -eq $rawAns) {
+            # stdin closed: abort instead of silently falling back to the default selection
+            Write-Err "No input available (EOF); aborting the install"
+            exit 1
         }
-        '^(a|all)$' {
-            $script:SelWB    = $true
-            $script:SelCodex = $true
-        }
-        '^(n|none)$' { }
-        default {
-            foreach ($c in ($ans -split ',')) {
-                switch ($c.Trim()) {
-                    '1'         { $script:SelWB    = $true }
-                    'workbuddy' { $script:SelWB    = $true }
-                    'wb'        { $script:SelWB    = $true }
-                    '2'         { $script:SelCodex = $true }
-                    'codex'     { $script:SelCodex = $true }
-                    ''          { }
-                    default { Write-Warn "Unknown selection '$c' (ignored)" }
+        $ans = $rawAns.Trim().ToLower()
+
+        if (Test-CancelInput $ans) { Stop-Cancelled }
+
+        $valid = $true
+        switch -Regex ($ans) {
+            '^(|default|d)$' {
+                $script:SelWB    = $script:DetectedWB
+                $script:SelCodex = $script:DetectedCodex
+            }
+            '^(a|all)$' {
+                $script:SelWB    = $true
+                $script:SelCodex = $true
+            }
+            # Source-only build: explicitly opt in with the full word; the bare "n" aborts above
+            '^none$' { }
+            default {
+                foreach ($c in ($ans -split ',')) {
+                    switch ($c.Trim()) {
+                        '1'         { $script:SelWB    = $true }
+                        'workbuddy' { $script:SelWB    = $true }
+                        'wb'        { $script:SelWB    = $true }
+                        '2'         { $script:SelCodex = $true }
+                        'codex'     { $script:SelCodex = $true }
+                        ''          { }
+                        default {
+                            Write-Warn "Unknown selection '$c'"
+                            $valid = $false
+                        }
+                    }
                 }
             }
         }
+
+        if ($valid) { break }
+        Write-Warn "Not understood; please answer again: 1 / 2 / 1,2 / a=all / Enter=default / none=source only / q=quit"
+        Write-Host ""
     }
 
     if ($script:SelWB)    { Write-OK "Will install into: WorkBuddy" }

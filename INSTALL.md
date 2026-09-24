@@ -88,7 +88,7 @@ bash install-ip-switch.sh
    - Windows: downloads the official installer for your CPU architecture (x64 / arm64) from China mirrors (NPMMirror / Tsinghua TUNA, GitHub as fallback), silently installs to the user directory `%LOCALAPPDATA%\Git`, adds it to PATH — zero popups throughout
    - macOS / Ubuntu: auto-installed via package managers (apt / brew / xcode-select)
 3. **Detect MCP client platforms** — recognizes `~/.workbuddy` automatically
-4. **Clone the repo** — shows repo/branch/directory for confirmation before cloning (Enter or type a new path); pings first to warm up the DNS cache, retries up to 3 times
+4. **Clone the repo** — shows repo/branch/directory for confirmation before cloning (Enter to accept, `q` to quit, or type a new path); pings first to warm up the DNS cache, retries up to 3 times
 5. **Install dependencies** — `npm install`
 6. **Build** — compiles TypeScript to `dist/` (automatically clears `ELECTRON_RUN_AS_NODE` interference)
 7. **Write MCP config** — serialized to standard JSON via node, merged into `~/.workbuddy/mcp.json` (other servers already in the file are preserved, not overwritten)
@@ -126,6 +126,7 @@ Notes:
 
 - If no client is detected, the installer warns you and installs only the source build (MCP config / skills are skipped).
 - In a non-interactive shell (e.g. `curl ... | bash`), the installer falls back to the detected clients instead of prompting.
+- Interactive prompts: at the client-selection prompt, `n` / `no` / `q` / `quit` / `cancel` abort the whole install (nothing is cloned or written) — the bare letter `n` is never treated as "none", use the full word `none` for a source-only install. At the directory prompt, `q` quits and Enter accepts the suggested directory. An unrecognized answer is re-prompted rather than silently falling back to a default.
 
 ---
 

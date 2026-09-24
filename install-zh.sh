@@ -23,8 +23,9 @@ BRANCH="${BRANCH:-main}"
 INSTALL_DIR="${INSTALL_DIR:-$HOME/ip-switch}"
 NODE_MIN_VERSION=18
 PROJECT_NAME="ip-switch"
-# 客户端选择："" = 运行时交互选择；"all" = 所有支持的客户端；"none" = 跳过客户端集成；
-# 也可以用逗号列表，如 "workbuddy,codex"。可通过 --clients 传入（优先于环境变量）。
+# 客户端选择："" = 运行时交互选择；"all" = 所有支持的客户端；"none" = 仅安装源码
+# （跳过客户端集成）；也可以用逗号列表，如 "workbuddy,codex"。可通过 --clients 传入（优先于环境变量）。
+# 注意："n" 在此不接受（请用 "none"）——交互式提示里 "n" 表示「退出安装」。
 CLIENTS="${CLIENTS:-}"
 
 # ── 辅助函数 ─────────────────────────────────────────────────────────────────
@@ -33,6 +34,23 @@ log_ok()    { echo -e "${GREEN}[ OK ]${NC} $1"; }
 log_warn()  { echo -e "${YELLOW}[WARN]${NC} $1"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 log_step()  { echo -e "\n${CYAN}═══ $1 ═══${NC}"; }
+
+# ── 交互式取消处理 ───────────────────────────────────────────────────────────
+# "n" / "no" / "q" / "quit" / "cancel" / "exit" 一律表示「退出整个安装」。
+# 原因: 人类直觉里 "n" 就是"否/取消"，绝不能被当作"不装客户端、继续装源码"
+# （那是完整单词 "none" 的语义）。两处调用点都在 clone/写文件之前，退出始终安全。
+is_cancel_input() {
+    case "$1" in
+        n|no|q|quit|cancel|exit) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+die_cancelled() {
+    echo ""
+    log_info "已取消: 未 clone 任何仓库，也未写入任何文件"
+    exit 0
+}
 
 # ── OS 检测 ──────────────────────────────────────────────────────────────────
 detect_os() {
@@ -290,7 +308,10 @@ clone_repo() {
     log_info "目标分支: ${BRANCH}"
     log_info "安装目录: ${INSTALL_DIR}"
     echo ""
-    read -r -p "确认安装到此目录? 按 Enter 确认，或输入新目录路径: " user_dir
+    read -r -p "确认安装到此目录? [回车=确认 / q=退出 / 或输入新目录路径]: " user_dir
+    if is_cancel_input "$(echo "$user_dir" | tr '[:upper:]' '[:lower:]')"; then
+        die_cancelled
+    fi
     if [ -n "$user_dir" ]; then
         INSTALL_DIR="$user_dir"
         log_info "已更新安装目录: ${INSTALL_DIR}"
@@ -447,8 +468,15 @@ select_clients() {
                     case "$(echo "$c" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')" in
                         workbuddy|wb) SELECT_WB=true ;;
                         codex)        SELECT_CODEX=true ;;
-                        none|n|"")    ;;
-                        *) log_warn "未知客户端 '$c'（支持: workbuddy, codex, all, none）" ;;
+                        none|"")      ;;
+                        # 故意不把 "n" 当作 "none" 的别名: 交互式提示里 "n" 表示「退出」，
+                        # 这里接受它会造成同名不同义的静默歧义。
+                        n)
+                            log_error "--clients n 有歧义；仅装源码请用 --clients none（或省略 --clients 走交互选择）"
+                            exit 1 ;;
+                        *)
+                            log_error "未知客户端 '$c'（支持: workbuddy, codex, all, none）"
+                            exit 1 ;;
                     esac
                 done
                 ;;
@@ -477,34 +505,61 @@ select_clients() {
         echo "  （未检测到任何客户端）"
     fi
     echo ""
-    local ans
-    read -r -p "安装到哪些客户端？[1 / 2 / 1,2 / a=全部 / 回车=默认(已检测到的) / n=不装]: " ans
-    SELECT_WB=false
-    SELECT_CODEX=false
-    case "$(echo "$ans" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')" in
-        ""|default|d)
-            SELECT_WB="$DETECTED_WB"
-            SELECT_CODEX="$DETECTED_CODEX"
-            ;;
-        a|all)
-            SELECT_WB=true
-            SELECT_CODEX=true
-            ;;
-        n|none)
-            ;;
-        *)
-            local c
-            IFS=',' read -ra _client_list <<< "$ans"
-            for c in "${_client_list[@]}"; do
-                case "$c" in
-                    1|workbuddy|wb) SELECT_WB=true ;;
-                    2|codex)        SELECT_CODEX=true ;;
-                    "") ;;
-                    *) log_warn "未知的选项 '$c'（已忽略）" ;;
-                esac
-            done
-            ;;
-    esac
+    local ans ans_norm valid
+    # 反复询问直到答案可被理解: 输入错误绝不能悄悄退化成「仅装源码」
+    while true; do
+        read -r -p "安装到哪些客户端？[1 / 2 / 1,2 / a=全部 / 回车=默认(已检测到的) / none=仅装源码 / q=退出]: " ans || {
+            # stdin 已关闭（Ctrl+D 或非交互调用）: 直接退出，不要静默采用默认选择
+            echo ""
+            log_error "无法读取输入（EOF）；已中止安装"
+            exit 1
+        }
+        ans_norm="$(echo "$ans" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"
+
+        if is_cancel_input "$ans_norm"; then
+            die_cancelled
+        fi
+
+        SELECT_WB=false
+        SELECT_CODEX=false
+        valid=true
+        case "$ans_norm" in
+            ""|default|d)
+                SELECT_WB="$DETECTED_WB"
+                SELECT_CODEX="$DETECTED_CODEX"
+                ;;
+            a|all)
+                SELECT_WB=true
+                SELECT_CODEX=true
+                ;;
+            # 仅装源码: 必须显式输入完整单词；单独的 "n" 在上面已按「退出」处理
+            none)
+                ;;
+            *)
+                local c
+                # 用归一化后的答案切分，使 "1, 2" 与 "1,2" 等价
+                # （PowerShell 版对每个 token 做了同样的 Trim）
+                IFS=',' read -ra _client_list <<< "$ans_norm"
+                for c in "${_client_list[@]}"; do
+                    case "$c" in
+                        1|workbuddy|wb) SELECT_WB=true ;;
+                        2|codex)        SELECT_CODEX=true ;;
+                        "") ;;
+                        *)
+                            log_warn "未知的选项 '$c'"
+                            valid=false
+                            ;;
+                    esac
+                done
+                ;;
+        esac
+
+        if $valid; then
+            break
+        fi
+        log_warn "没看懂这个选项；请重新选择: 1 / 2 / 1,2 / a=全部 / 回车=默认 / none=仅装源码 / q=退出"
+        echo ""
+    done
 
     if $SELECT_WB; then
         log_ok "将安装到: WorkBuddy"
@@ -1259,6 +1314,11 @@ while [ $# -gt 0 ]; do
             echo "                     （默认：交互式选择已检测到的客户端）"
             echo "  --skip-build       跳过编译步骤"
             echo "  -h, --help         显示帮助"
+            echo ""
+            echo "交互式提示:"
+            echo "  客户端选择  [1 / 2 / 1,2 / a=全部 / 回车=默认(已检测到的) / none=仅装源码 / q=退出]"
+            echo "              n / no / q / quit / cancel 均退出整个安装（不写任何文件）"
+            echo "  安装目录    回车 = 用建议目录，q = 退出，或输入其它路径"
             exit 0;;
         *)
             log_error "未知参数: $1"; exit 1;;

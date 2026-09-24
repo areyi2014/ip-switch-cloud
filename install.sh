@@ -24,7 +24,9 @@ INSTALL_DIR="${INSTALL_DIR:-$HOME/ip-switch}"
 NODE_MIN_VERSION=18
 PROJECT_NAME="ip-switch"
 # Client selection: "" = interactive selection at runtime; "all" = every supported
-# client; "none" = skip client integration; or a comma list, e.g. "workbuddy,codex".
+# client; "none" = source build only (skip client integration); or a comma list,
+# e.g. "workbuddy,codex". Note: "n" is not accepted here (use "none") because at the
+# interactive prompt "n" means "abort the install".
 # Also settable via --clients (overrides the env var).
 CLIENTS="${CLIENTS:-}"
 
@@ -34,6 +36,24 @@ log_ok()    { echo -e "${GREEN}[ OK ]${NC} $1"; }
 log_warn()  { echo -e "${YELLOW}[WARN]${NC} $1"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 log_step()  { echo -e "\n${CYAN}═══ $1 ═══${NC}"; }
+
+# -- Interactive abort handling --------------------------------------------------------
+# "n" / "no" / "q" / "quit" / "cancel" / "exit" always mean "abort the whole install".
+# Rationale: "n" reads as "no" to any human, so it must never be silently interpreted
+# as "no clients, install the source anyway" (that is what the full word "none" is for).
+# Both call sites run before anything is cloned or written, so aborting is always safe.
+is_cancel_input() {
+    case "$1" in
+        n|no|q|quit|cancel|exit) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+die_cancelled() {
+    echo ""
+    log_info "Cancelled: nothing was cloned and no files were written"
+    exit 0
+}
 
 # -- OS detection ----------------------------------------------------------------------
 detect_os() {
@@ -291,7 +311,10 @@ clone_repo() {
     log_info "Target branch: ${BRANCH}"
     log_info "Install directory: ${INSTALL_DIR}"
     echo ""
-    read -r -p "Install to this directory? Press Enter to confirm, or type a new path: " user_dir
+    read -r -p "Install to this directory? [Enter=confirm / q=quit / or type a new path]: " user_dir
+    if is_cancel_input "$(echo "$user_dir" | tr '[:upper:]' '[:lower:]')"; then
+        die_cancelled
+    fi
     if [ -n "$user_dir" ]; then
         INSTALL_DIR="$user_dir"
         log_info "Install directory updated: ${INSTALL_DIR}"
@@ -448,8 +471,15 @@ select_clients() {
                     case "$(echo "$c" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')" in
                         workbuddy|wb) SELECT_WB=true ;;
                         codex)        SELECT_CODEX=true ;;
-                        none|n|"")    ;;
-                        *) log_warn "Unknown client '$c' (supported: workbuddy, codex, all, none)" ;;
+                        none|"")      ;;
+                        # "n" is deliberately not an alias for "none": at the interactive
+                        # prompt it means "abort", so accepting it here would be ambiguous.
+                        n)
+                            log_error "--clients n is ambiguous; use --clients none for a source-only install (or omit --clients to choose interactively)"
+                            exit 1 ;;
+                        *)
+                            log_error "Unknown client '$c' (supported: workbuddy, codex, all, none)"
+                            exit 1 ;;
                     esac
                 done
                 ;;
@@ -478,34 +508,63 @@ select_clients() {
         echo "  (none detected)"
     fi
     echo ""
-    local ans
-    read -r -p "Install into which clients? [1 / 2 / 1,2 / a=all / Enter=default(detected) / n=none]: " ans
-    SELECT_WB=false
-    SELECT_CODEX=false
-    case "$(echo "$ans" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')" in
-        ""|default|d)
-            SELECT_WB="$DETECTED_WB"
-            SELECT_CODEX="$DETECTED_CODEX"
-            ;;
-        a|all)
-            SELECT_WB=true
-            SELECT_CODEX=true
-            ;;
-        n|none)
-            ;;
-        *)
-            local c
-            IFS=',' read -ra _client_list <<< "$ans"
-            for c in "${_client_list[@]}"; do
-                case "$c" in
-                    1|workbuddy|wb) SELECT_WB=true ;;
-                    2|codex)        SELECT_CODEX=true ;;
-                    "") ;;
-                    *) log_warn "Unknown selection '$c' (ignored)" ;;
-                esac
-            done
-            ;;
-    esac
+    local ans ans_norm valid
+    # Re-prompt until the answer is understood: a typo must never silently fall through
+    # to the source-only install.
+    while true; do
+        read -r -p "Install into which clients? [1 / 2 / 1,2 / a=all / Enter=default(detected) / none=source only / q=quit]: " ans || {
+            # stdin closed (Ctrl+D or a non-tty caller): abort instead of silently
+            # falling back to the default selection
+            echo ""
+            log_error "No input available (EOF); aborting the install"
+            exit 1
+        }
+        ans_norm="$(echo "$ans" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"
+
+        if is_cancel_input "$ans_norm"; then
+            die_cancelled
+        fi
+
+        SELECT_WB=false
+        SELECT_CODEX=false
+        valid=true
+        case "$ans_norm" in
+            ""|default|d)
+                SELECT_WB="$DETECTED_WB"
+                SELECT_CODEX="$DETECTED_CODEX"
+                ;;
+            a|all)
+                SELECT_WB=true
+                SELECT_CODEX=true
+                ;;
+            # Source-only build: explicitly opt in with the full word; the bare "n" aborts above
+            none)
+                ;;
+            *)
+                local c
+                # Split the normalised answer so "1, 2" is accepted just like "1,2"
+                # (the PowerShell version trims each token the same way)
+                IFS=',' read -ra _client_list <<< "$ans_norm"
+                for c in "${_client_list[@]}"; do
+                    case "$c" in
+                        1|workbuddy|wb) SELECT_WB=true ;;
+                        2|codex)        SELECT_CODEX=true ;;
+                        "") ;;
+                        *)
+                            log_warn "Unknown selection '$c'"
+                            valid=false
+                            ;;
+                    esac
+                done
+                ;;
+        esac
+
+        if $valid; then
+            break
+        fi
+        log_warn "Not understood; please answer again: 1 / 2 / 1,2 / a=all / Enter=default / none=source only / q=quit"
+        echo ""
+    done
 
     if $SELECT_WB; then
         log_ok "Will install into: WorkBuddy"
@@ -1261,6 +1320,11 @@ while [ $# -gt 0 ]; do
             echo "                     (default: interactive selection of the detected clients)"
             echo "  --skip-build       Skip the build step"
             echo "  -h, --help         Show help"
+            echo ""
+            echo "Interactive prompts:"
+            echo "  Client selection   [1 / 2 / 1,2 / a=all / Enter=default(detected) / none=source only / q=quit]"
+            echo "                     n / no / q / quit / cancel abort the whole install (nothing is written)"
+            echo "  Install directory  Enter = use the suggested directory, q = quit, or type another path"
             exit 0;;
         *)
             log_error "Unknown argument: $1"; exit 1;;
