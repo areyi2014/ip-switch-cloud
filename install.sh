@@ -510,7 +510,9 @@ select_clients() {
     # Re-prompt until the answer is understood: a typo must never silently fall through
     # to the source-only install.
     while true; do
-        read -r -p "Install into which clients? [0=source only / 1 / 2 / Enter=all detected / q=quit]: " ans || {
+        # Enter (=all detected) is listed first: it is the intended answer for most users,
+        # who should be able to accept it without reading the rest of the line.
+        read -r -p "Install into which clients? [Enter=all detected / 1 / 2 / 0=source only / q=quit]: " ans || {
             # stdin closed (Ctrl+D or a non-tty caller): abort instead of silently
             # falling back to the default selection
             echo ""
@@ -565,7 +567,7 @@ select_clients() {
         if $valid; then
             break
         fi
-        log_warn "Not understood; please answer again: 0=source only / 1 / 2 / Enter=all detected / q=quit"
+        log_warn "Not understood; please answer again: Enter=all detected / 1 / 2 / 0=source only / q=quit"
         echo ""
     done
 
@@ -1325,7 +1327,7 @@ while [ $# -gt 0 ]; do
             echo "  -h, --help         Show help"
             echo ""
             echo "Interactive prompts:"
-            echo "  Client selection   [0=source only / 1 / 2 / Enter=all detected / q=quit]"
+            echo "  Client selection   [Enter=all detected / 1 / 2 / 0=source only / q=quit]"
             echo "                     0 = source build only (no client integration)"
             echo "                     1 = WorkBuddy only, 2 = Codex only"
             echo "                     Enter = every client detected on this machine"
