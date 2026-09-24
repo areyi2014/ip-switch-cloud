@@ -450,7 +450,8 @@ detect_mcp_platform() {
 }
 
 # -- Let the user choose which clients to install into ---------------------------------
-# Selection priority: --clients/CLIENTS argument > interactive prompt > detected clients.
+# Selection priority: --clients/CLIENTS argument > interactive prompt (Enter = all detected
+# clients). Non-interactive callers without --clients fall back to the detected clients too.
 # Results are stored in SELECT_WB / SELECT_CODEX; only the selected clients get
 # MCP configs, skills, marketplace manifests, etc. Detection alone no longer installs.
 select_clients() {
@@ -512,7 +513,7 @@ select_clients() {
     # Re-prompt until the answer is understood: a typo must never silently fall through
     # to the source-only install.
     while true; do
-        read -r -p "Install into which clients? [1 / 2 / 1,2 / a=all / Enter=default(detected) / none=source only / q=quit]: " ans || {
+        read -r -p "Install into which clients? [1 / 2 / Enter=all detected / none=source only / q=quit]: " ans || {
             # stdin closed (Ctrl+D or a non-tty caller): abort instead of silently
             # falling back to the default selection
             echo ""
@@ -529,10 +530,14 @@ select_clients() {
         SELECT_CODEX=false
         valid=true
         case "$ans_norm" in
+            # Enter = every client that was detected above (the detected subset).
             ""|default|d)
                 SELECT_WB="$DETECTED_WB"
                 SELECT_CODEX="$DETECTED_CODEX"
                 ;;
+            # a / all is exactly "1,2": both, even if one of them was not detected. Kept as a
+            # compatibility alias but never advertised in the prompt - it is the opposite of
+            # what Enter does, so listing the two side by side invites misreading.
             a|all)
                 SELECT_WB=true
                 SELECT_CODEX=true
@@ -562,7 +567,7 @@ select_clients() {
         if $valid; then
             break
         fi
-        log_warn "Not understood; please answer again: 1 / 2 / 1,2 / a=all / Enter=default / none=source only / q=quit"
+        log_warn "Not understood; please answer again: 1 / 2 / Enter=all detected / none=source only / q=quit"
         echo ""
     done
 
@@ -1322,7 +1327,10 @@ while [ $# -gt 0 ]; do
             echo "  -h, --help         Show help"
             echo ""
             echo "Interactive prompts:"
-            echo "  Client selection   [1 / 2 / 1,2 / a=all / Enter=default(detected) / none=source only / q=quit]"
+            echo "  Client selection   [1 / 2 / Enter=all detected / none=source only / q=quit]"
+            echo "                     1 = WorkBuddy only, 2 = Codex only"
+            echo "                     Enter = every client detected on this machine"
+            echo "                     (1,2 / a / all still work: they force both, even the undetected one)"
             echo "                     n / no / q / quit / cancel abort the whole install (nothing is written)"
             echo "  Install directory  Enter = use the suggested directory, q = quit, or type another path"
             exit 0;;
