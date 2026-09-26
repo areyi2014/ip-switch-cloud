@@ -15,6 +15,10 @@ trap 'echo "Test artifacts kept at: $TEST_DIR"' EXIT
 
 git init --bare -b main "$BARE" >/dev/null
 
+# 0) YAML 语法校验（awk 抽取绕过解析器，必须单独校验，防止缩进错误漏网）
+PY=/c/Users/areyi/.workbuddy/binaries/python/versions/3.13.12/python.exe
+"$PY" -c "import yaml,sys; yaml.safe_load(open(r'$YML',encoding='utf-8')); print('YAML syntax OK')" || { echo "ERROR: YAML syntax invalid in $YML"; exit 1; }
+
 # 1) 提取 commands 块（commands: 下的 - | 之后到文件末尾就是脚本本体）
 SCRIPT=$(awk '/^ *- \| *$/{flag=1;next} flag' "$YML")
 [ -n "$SCRIPT" ] || { echo "ERROR: failed to extract script block from $YML"; exit 1; }
