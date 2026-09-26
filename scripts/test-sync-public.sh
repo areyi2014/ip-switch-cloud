@@ -4,7 +4,7 @@
 # 用法：bash scripts/test-sync-public.sh
 set -euo pipefail
 
-YML=".workflow/gitee-go-sync-public.yml"
+YML=".workflow/sync-public.yml"
 [ -f "$YML" ] || { echo "ERROR: $YML not found (run from repo root)"; exit 1; }
 
 TEST_DIR="$PWD/.sync-test"
