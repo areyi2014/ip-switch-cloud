@@ -15,8 +15,8 @@ trap 'echo "Test artifacts kept at: $TEST_DIR"' EXIT
 
 git init --bare -b main "$BARE" >/dev/null
 
-# 1) 提取 script 块（script: | 之后到文件末尾就是脚本本体）
-SCRIPT=$(awk '/script: \|/{flag=1;next} flag' "$YML")
+# 1) 提取 commands 块（commands: 下的 - | 之后到文件末尾就是脚本本体）
+SCRIPT=$(awk '/^ *- \| *$/{flag=1;next} flag' "$YML")
 [ -n "$SCRIPT" ] || { echo "ERROR: failed to extract script block from $YML"; exit 1; }
 
 # 2) 仅替换推送目标为本地裸仓库（注意 YAML 中该行有缩进），其余逻辑一字不动
