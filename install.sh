@@ -18,7 +18,7 @@ CYAN='\033[0;36m'
 NC='\033[0m'
 
 # -- Defaults -------------------------------------------------------------------------
-REPO_URL="${REPO_URL:-https://gitee.com/areyi2014/ip-switch.git}"
+REPO_URL="${REPO_URL:-https://gitee.com/areyi2014/ip-switch-cloud.git}"
 BRANCH="${BRANCH:-main}"
 INSTALL_DIR="${INSTALL_DIR:-$HOME/ip-switch}"
 NODE_MIN_VERSION=18

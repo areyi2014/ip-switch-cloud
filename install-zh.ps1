@@ -7,7 +7,7 @@
 # 前提: git 已安装, Node.js >= 18 已安装
 #===============================================================================
 param(
-    [string]$RepoUrl    = "https://gitee.com/areyi2014/ip-switch.git",
+    [string]$RepoUrl    = "https://gitee.com/areyi2014/ip-switch-cloud.git",
     [string]$Branch     = "main",
     [string]$installDir = "$env:USERPROFILE\ip-switch",
     # 客户端选择："" = 运行时交互选择；"all" = 所有支持的客户端；"0"（或 "n"）= 仅安装源码
@@ -42,7 +42,7 @@ if ($Help) {
 
 示例:
   .\install.ps1
-  .\install.ps1 -RepoUrl "https://gitee.com/areyi2014/ip-switch.git"
+  .\install.ps1 -RepoUrl "https://gitee.com/areyi2014/ip-switch-cloud.git"
   .\install.ps1 -installDir "D:\my-tools\ip-switch"
 "@
     exit 0

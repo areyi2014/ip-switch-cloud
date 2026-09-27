@@ -7,7 +7,7 @@
 # Prerequisites: git installed, Node.js >= 18 installed
 #===============================================================================
 param(
-    [string]$RepoUrl    = "https://gitee.com/areyi2014/ip-switch.git",
+    [string]$RepoUrl    = "https://gitee.com/areyi2014/ip-switch-cloud.git",
     [string]$Branch     = "main",
     [string]$installDir = "$env:USERPROFILE\ip-switch",
     # Client selection: "" = interactive selection at runtime; "all" = every supported
