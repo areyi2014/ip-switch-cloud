@@ -28,6 +28,20 @@ To add a new quick command, create a sibling directory under the repo's `skills/
 
 ---
 
+## Pro License & Purchase (commerce/)
+
+The Pro features are licensed via a self-hosted commerce backend under `commerce/`:
+
+- **Pricing**: ¥39 (WeChat Pay, China) / $5.90 (PayPal, overseas) — one-time, perpetual license, 1 key binds up to 3 machines
+- **Free trial**: 30-day full-featured trial, email required (one code per email; one trial per machine)
+- **License model**: `IPSW-…` keys issued and validated by the built-in API (activate / validate / deactivate), 72h offline grace, self-service machine unbinding
+- **Storage**: MySQL (5 tables with `ip_` prefix, fully commented schema in `commerce/schema.sql`) with JSON-file fallback
+- **Demo mode**: with `wechat.mock: true` / PayPal credentials unset, the whole flow runs locally without real charges
+
+See [commerce/README-zh.md](commerce/README-zh.md) for the full business flow, API list, and deployment guide (Chinese).
+
+---
+
 ## Quick Download & Installation
 
 > Requires **Node.js >= 18** (download the LTS from [nodejs.org](https://nodejs.org/)). If git is not installed, the script installs it automatically.
@@ -411,6 +425,12 @@ ip-switch/
 │   ├── ips-cfg/          # /ips-cfg — open the credential config page
 │   └── ips-list/         # /ips-list — list instances in a region
 ├── scripts/              # open-ui.mjs launcher (+ .vbs / .ps1 / .sh wrappers)
+├── commerce/             # Self-hosted license sales backend (WeChat Pay / PayPal / trials)
+│   ├── server.mjs        # Single-file Node ≥ 22 backend, zero npm deps (except mysql2)
+│   ├── store.mjs         # Storage layer: MySQL (auto schema) / JSON file fallback
+│   ├── schema.sql        # 5 tables, `ip_` prefix, every column commented
+│   ├── public/           # Sales pages (Chinese / English / mock checkout)
+│   └── tools/init-db.mjs # One-command DB init & verification
 ├── install.ps1           # Windows installer (English)
 ├── install-zh.ps1        # Windows installer (Chinese)
 ├── install.sh            # macOS / Ubuntu installer (English)
