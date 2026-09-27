@@ -28,6 +28,20 @@
 
 ---
 
+## Pro 授权与购买（commerce/）
+
+Pro 功能通过 `commerce/` 目录下的自建销售后台授权：
+
+- **定价**：¥39（微信支付，国内）/ $5.90（PayPal，海外）——一次性买断，1 个授权码绑定 3 台设备
+- **免费试用**：30 天全功能试用，邮箱必填（一邮箱一码；同机只能领一次）
+- **授权模型**：`IPSW-…` 授权码由本站 API 签发与校验（激活/校验/解绑），72h 离线宽限，换机自助解绑
+- **存储**：MySQL（5 张表统一 `ip_` 前缀，`commerce/schema.sql` 全字段中文备注），未配库时自动回退 JSON 文件
+- **演示模式**：`wechat.mock: true` / 未配 PayPal 凭据时全流程本地模拟，不发生真实收款
+
+完整业务流程、API 清单与部署指南见 [commerce/README-zh.md](commerce/README-zh.md)。
+
+---
+
 ## 快速下载安装
 
 > 需要 **Node.js >= 18**（[nodejs.org](https://nodejs.org/) 下载 LTS）。若未安装 git，脚本会自动安装。
@@ -411,6 +425,12 @@ ip-switch/
 │   ├── ips-cfg/          # /ips-cfg — 打开凭据配置页
 │   └── ips-list/         # /ips-list — 列出区域实例
 ├── scripts/              # open-ui.mjs 启动脚本（含 .vbs / .ps1 / .sh 包装）
+├── commerce/             # 自建授权销售后台（微信支付 / PayPal / 试用）
+│   ├── server.mjs        # 单文件 Node ≥ 22 后台，零 npm 依赖（mysql2 除外）
+│   ├── store.mjs         # 存储层：MySQL（自动建表）/ JSON 文件回退
+│   ├── schema.sql        # 5 张表，ip_ 前缀，全字段中文备注
+│   ├── public/           # 销售页（中文 / 英文 / 模拟收银台）
+│   └── tools/init-db.mjs # 一键建库与校验
 ├── install.ps1           # Windows 安装脚本（英文）
 ├── install-zh.ps1        # Windows 安装脚本（中文）
 ├── install.sh            # macOS / Ubuntu 安装脚本（英文）
