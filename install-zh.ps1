@@ -32,7 +32,7 @@ if ($Help) {
   -Help            显示帮助
 
 环境变量:
-  IP_SWITCH_TELEMETRY=0        关闭匿名安装统计
+  IP_SWITCH_TELEMETRY=0        关闭安装统计
   IP_SWITCH_TELEMETRY_URL=URL  自定义统计上报端点
 
 交互式提示:
@@ -56,10 +56,11 @@ $ErrorActionPreference = "Stop"
 $NodeMinVersion = 18
 $ProjectName = "ip-switch"
 
-# ── 匿名安装统计（可关闭） ────────────────────────────────────────────────────
+# ── 安装统计（可关闭） ───────────────────────────────────────────────────────
 # 最多上报 4 个事件（start / success / cancel / fail）到一个 Cloudflare Worker，
-# 由 Workers Analytics Engine 存储。不采集任何个人信息：不落库 IP、不上报用户名或
-# 主机名，设备 ID 是本地生成的随机 GUID（存放在 %LOCALAPPDATA%\ip-switch）。
+# 由 Workers Analytics Engine 存储。事件含客户端 IP（端点从 cf-connecting-ip 记录，
+# 用于识别滥用）、操作系统、脚本版本，以及本地生成的随机 GUID 设备 ID；
+# 不上报用户名、主机名、文件路径或任何凭据。
 # 关闭：IP_SWITCH_TELEMETRY=0；改端点：IP_SWITCH_TELEMETRY_URL=...
 # 上报是尽力而为：最长阻塞 3 秒，且绝不改变脚本退出码，端点挂掉不会影响安装。
 $script:ScriptVersion  = "1.0"
@@ -85,7 +86,7 @@ function Write-OK($msg)    { Write-Host "[ OK ]  $msg" -ForegroundColor Green }
 function Write-Warn($msg)  { Write-Host "[WARN]  $msg" -ForegroundColor Yellow }
 function Write-Err($msg)   { Write-Host "[ERROR] $msg" -ForegroundColor Red }
 
-# ── 匿名安装统计 ─────────────────────────────────────────────────────────────
+# ── 安装统计 ─────────────────────────────────────────────────────────────────
 # 设备 ID：本地生成一次、仅用于区分"新机器"与"重装"的随机 GUID，
 # 不由任何硬件信息或用户信息推导而来。
 function Get-DeviceId {
@@ -1452,7 +1453,8 @@ function Show-Success {
     Write-Host "  Remove-Item -Recurse -Force (Join-Path $installDir 'data')  # 删除运行时数据（保留源码时用）"
     Write-Host "  Remove-Item -Recurse -Force $installDir  # 如需同时删除源码（会一并清 data/ 子目录）"
     Write-Host ""
-    Write-Host "隐私说明: 匿名安装统计已开启（不含任何个人信息），可用 IP_SWITCH_TELEMETRY=0 关闭" -ForegroundColor Yellow
+    Write-Host "隐私说明: 安装统计会记录 IP 地址、操作系统、脚本版本与随机设备 ID" -ForegroundColor Yellow
+    Write-Host "         可用 IP_SWITCH_TELEMETRY=0 关闭，详见 INSTALL-zh.md" -ForegroundColor Yellow
     Send-Telemetry 'success'
     $script:TelemetrySent = $true
 }

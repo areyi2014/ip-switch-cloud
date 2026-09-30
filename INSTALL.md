@@ -24,6 +24,7 @@ An AI Agent plugin for effortless rotation of cloud public IPs — batch-rotate 
 - [Configure Cloud Servers (UI)](#configure-cloud-servers-ui)
 - [Usage](#usage)
 - [Update & Uninstall](#update--uninstall)
+- [Data & Privacy](#data--privacy)
 - [FAQ](#faq)
 
 ---
@@ -357,6 +358,63 @@ rm -rf ~/.ip-switch                     # macOS / Ubuntu
 Remove-Item -Recurse -Force ~/.ip-switch       # Windows
 
 # Remove the ip-switch entry from ~/.workbuddy/mcp.json
+```
+
+---
+
+## Data & Privacy
+
+The install script reports a small usage event to the project's own endpoint
+(`https://t.ipswitch.cloud/i`) at three moments: when installation starts, when
+it succeeds, and when it fails or is cancelled. This is what makes it possible
+to tell how many installations succeed and where the rest get stuck.
+
+### What is collected
+
+| Field | Example | Why |
+|---|---|---|
+| Event | `start` / `success` / `fail` / `cancel` | success rate |
+| Script version | `1.0` | detect outdated copies |
+| Operating system | `linux` / `macos` / `windows` | platform support |
+| Shell | `sh` / `ps1` | which installer was used |
+| Language | `en` / `zh` | localization |
+| Client choice | `wb` / `codex` / `0` | which clients get installed |
+| Failure stage | `clone` / `build` / ... | only sent on failure, to locate the blocker |
+| **IP address** | `203.0.113.7` | recorded by the endpoint; used to detect abuse |
+| Device id | a random UUID generated on your machine | tell a fresh machine from a re-install |
+| Country | `CN` | derived by Cloudflare, not sent by the script |
+| UTC date | `2026-09-30` | group events by day |
+
+**Not collected**: no username, no hostname, no file paths, no credentials, no
+cloud API keys, and nothing from your saved profiles.
+
+### Where it goes, and for how long
+
+Cloudflare Workers Analytics Engine, retained for **90 days** and then deleted
+automatically. The IP address is stored in plaintext for that period.
+
+### Turning it off
+
+Set `IP_SWITCH_TELEMETRY=0` before running the installer. Nothing is sent, and
+the installation behaves exactly the same.
+
+```bash
+# Linux / macOS
+IP_SWITCH_TELEMETRY=0 bash install-ip-switch.sh
+```
+
+```powershell
+# Windows PowerShell
+$env:IP_SWITCH_TELEMETRY=0; & "$env:TEMP\install-ip-switch.ps1"
+```
+
+### Custom endpoint
+
+Set `IP_SWITCH_TELEMETRY_URL` to point the report at your own collector (useful
+when testing against a local mock):
+
+```bash
+IP_SWITCH_TELEMETRY_URL=http://127.0.0.1:8899/i bash install-ip-switch.sh
 ```
 
 ---

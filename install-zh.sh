@@ -28,10 +28,11 @@ PROJECT_NAME="ip-switch"
 # 注意：交互式提示里 "n" 表示「退出安装」，只有 --clients 参数里 "n" 才等同 "0"。
 CLIENTS="${CLIENTS:-}"
 
-# ── 匿名安装统计（可关闭） ────────────────────────────────────────────────────
+# ── 安装统计（可关闭） ───────────────────────────────────────────────────────
 # 最多上报 4 个事件（start / success / cancel / fail）到一个 Cloudflare Worker，
-# 由 Workers Analytics Engine 存储。不采集任何个人信息：不落库 IP、不上报用户名或
-# 主机名，设备 ID 是本地生成的随机 UUID（存放在用户缓存目录）。
+# 由 Workers Analytics Engine 存储。事件含客户端 IP（端点从 cf-connecting-ip 记录，
+# 用于识别滥用）、操作系统、脚本版本，以及本地生成的随机 UUID 设备 ID；
+# 不上报用户名、主机名、文件路径或任何凭据。
 # 关闭：IP_SWITCH_TELEMETRY=0；改端点：IP_SWITCH_TELEMETRY_URL=...
 # 上报是尽力而为：最长阻塞 2 秒，且绝不改变脚本退出码，端点挂掉不会影响安装。
 SCRIPT_VERSION="1.0"
@@ -50,7 +51,7 @@ log_warn()  { echo -e "${YELLOW}[WARN]${NC} $1"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 log_step()  { echo -e "\n${CYAN}═══ $1 ═══${NC}"; }
 
-# ── 匿名安装统计 ─────────────────────────────────────────────────────────────
+# ── 安装统计 ─────────────────────────────────────────────────────────────────
 # 设备 ID：本地生成一次、仅用于区分"新机器"与"重装"的随机 UUID，
 # 不由任何硬件信息或用户信息推导而来。
 device_id() {
@@ -1315,7 +1316,8 @@ EOF
         echo "  重启 Codex 后插件页可见 IP Switch"
     fi
     echo ""
-    echo "${YELLOW}隐私说明:${NC} 匿名安装统计已开启（不含任何个人信息），可用 IP_SWITCH_TELEMETRY=0 关闭"
+    echo "${YELLOW}隐私说明:${NC} 安装统计会记录 IP 地址、操作系统、脚本版本与随机设备 ID"
+    echo "         可用 IP_SWITCH_TELEMETRY=0 关闭，详见 INSTALL-zh.md"
     telemetry success
     TELEMETRY_SENT="1"
 }
@@ -1387,7 +1389,7 @@ while [ $# -gt 0 ]; do
             echo "  -h, --help         显示帮助"
             echo ""
             echo "环境变量:"
-            echo "  IP_SWITCH_TELEMETRY=0        关闭匿名安装统计"
+            echo "  IP_SWITCH_TELEMETRY=0        关闭安装统计"
             echo "  IP_SWITCH_TELEMETRY_URL=URL  自定义统计上报端点"
             echo ""
             echo "交互式提示:"

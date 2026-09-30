@@ -32,7 +32,7 @@ Options:
   -Help            Show help
 
 Environment:
-  IP_SWITCH_TELEMETRY=0        Disable anonymous install statistics
+  IP_SWITCH_TELEMETRY=0        Disable install statistics
   IP_SWITCH_TELEMETRY_URL=URL  Override the statistics endpoint
 
 Interactive prompts:
@@ -56,11 +56,12 @@ $ErrorActionPreference = "Stop"
 $NodeMinVersion = 18
 $ProjectName = "ip-switch"
 
-# -- Anonymous install statistics (opt-out) ----------------------------------
+# -- Install statistics (opt-out) --------------------------------------------
 # Reports at most 4 events (start / success / cancel / fail) to a Cloudflare Worker,
-# which stores them in Workers Analytics Engine. Nothing personal is collected: no IP
-# is stored, no username or hostname is sent, and the device id is a locally generated
-# random GUID kept under %LOCALAPPDATA%\ip-switch.
+# which stores them in Workers Analytics Engine. The event includes the client IP (the
+# endpoint records it from cf-connecting-ip, for abuse detection), the OS, the script
+# version and a locally generated random GUID device id. No username, hostname, file
+# path or credential is ever sent.
 # Disable with IP_SWITCH_TELEMETRY=0; override the endpoint with IP_SWITCH_TELEMETRY_URL.
 # Reporting is best effort: it never blocks for longer than 3s and never changes the
 # exit code, so a dead endpoint can never break an install.
@@ -88,7 +89,7 @@ function Write-OK($msg)    { Write-Host "[ OK ]  $msg" -ForegroundColor Green }
 function Write-Warn($msg)  { Write-Host "[WARN]  $msg" -ForegroundColor Yellow }
 function Write-Err($msg)   { Write-Host "[ERROR] $msg" -ForegroundColor Red }
 
-# -- Anonymous install statistics --------------------------------------------
+# -- Install statistics ------------------------------------------------------
 # Device id: a random GUID generated once and kept locally, used only to tell a new
 # machine apart from a reinstall. It is not derived from any hardware or user data.
 function Get-DeviceId {
@@ -1460,7 +1461,8 @@ function Show-Success {
     Write-Host "  Remove-Item -Recurse -Force (Join-Path $installDir 'data')  # remove runtime data (keep the source)"
     Write-Host "  Remove-Item -Recurse -Force $installDir  # also remove the source if desired (wipes the data/ subdirectory too)"
     Write-Host ""
-    Write-Host "Privacy: anonymous install stats (no personal data); disable with IP_SWITCH_TELEMETRY=0" -ForegroundColor Yellow
+    Write-Host "Privacy: install stats log your IP, OS, script version and a random device id" -ForegroundColor Yellow
+    Write-Host "         opt out with IP_SWITCH_TELEMETRY=0; details in INSTALL.md" -ForegroundColor Yellow
     Send-Telemetry 'success'
     $script:TelemetrySent = $true
 }
