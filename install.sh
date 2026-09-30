@@ -29,12 +29,72 @@ PROJECT_NAME="ip-switch"
 # Also settable via --clients (overrides the env var).
 CLIENTS="${CLIENTS:-}"
 
+# -- Anonymous install statistics (opt-out) --------------------------------------------
+# Reports at most 4 events (start / success / cancel / fail) to a Cloudflare Worker,
+# which stores them in Workers Analytics Engine. Nothing personal is collected: no IP
+# is stored, no username or hostname is sent, and the device id is a locally generated
+# random UUID kept in the user cache directory.
+# Disable with IP_SWITCH_TELEMETRY=0; override the endpoint with IP_SWITCH_TELEMETRY_URL.
+# Reporting is best effort: it never blocks for longer than 2s and never changes the
+# exit code, so a dead endpoint can never break an install.
+SCRIPT_VERSION="1.0"
+SCRIPT_LANG="en"
+TELEMETRY_ON="${IP_SWITCH_TELEMETRY:-1}"
+TELEMETRY_URL="${IP_SWITCH_TELEMETRY_URL:-https://t.ipswitch.cloud/i}"
+STAGE="precheck"
+TELEMETRY_ARMED=""
+TELEMETRY_SENT=""
+T0="$SECONDS"
+
 # -- Helper functions ------------------------------------------------------------------
 log_info()  { echo -e "${BLUE}[INFO]${NC}  $1"; }
 log_ok()    { echo -e "${GREEN}[ OK ]${NC} $1"; }
 log_warn()  { echo -e "${YELLOW}[WARN]${NC} $1"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 log_step()  { echo -e "\n${CYAN}═══ $1 ═══${NC}"; }
+
+# -- Anonymous install statistics ------------------------------------------------------
+# Device id: a random UUID generated once and kept locally, used only to tell a new
+# machine apart from a reinstall. It is not derived from any hardware or user data.
+device_id() {
+    local f="${XDG_CACHE_HOME:-$HOME/.cache}/ip-switch/device-id"
+    if [ ! -s "$f" ]; then
+        mkdir -p "$(dirname "$f")" 2>/dev/null || true
+        if command -v uuidgen >/dev/null 2>&1; then
+            uuidgen >"$f" 2>/dev/null || true
+        else
+            head -c 16 /dev/urandom 2>/dev/null | od -An -tx1 | tr -d ' \n' >"$f" 2>/dev/null || true
+        fi
+    fi
+    cat "$f" 2>/dev/null || true
+}
+
+# $1 = event (start|success|cancel|fail), $2 = stage (only used by "fail")
+# Foreground with a 2s cap: a dead endpoint can never stall the install, and the exit
+# code of the install itself is never affected.
+telemetry() {
+    if [ "$TELEMETRY_ON" = "0" ]; then return 0; fi
+    local cl=""
+    if [ "${SELECT_WB:-false}" = "true" ]; then cl="wb"; fi
+    if [ "${SELECT_CODEX:-false}" = "true" ]; then cl="${cl:+$cl,}codex"; fi
+    curl -s -m 2 -o /dev/null -X POST "$TELEMETRY_URL" \
+        -H 'content-type: application/json' \
+        -d "{\"e\":\"$1\",\"v\":\"$SCRIPT_VERSION\",\"os\":\"${OS:-unknown}\",\"ps\":\"sh\",\"l\":\"$SCRIPT_LANG\",\"clients\":\"$cl\",\"stage\":\"${2:-}\",\"d\":\"$(device_id)\",\"dur\":$((SECONDS - T0)),\"day\":\"$(date -u +%F)\"}" \
+        >/dev/null 2>&1 || true
+    return 0
+}
+
+# Safety net for the many "exit 1" sites: no need to instrument every failure path,
+# STAGE already says where it broke. Only runs once main() has armed the telemetry,
+# so --help or a bad argument (both exit before main) is never reported.
+on_exit() {
+    local rc=$?
+    if [ -n "$TELEMETRY_ARMED" ] && [ -z "$TELEMETRY_SENT" ]; then
+        if [ "$rc" -eq 0 ]; then telemetry cancel; else telemetry fail "$STAGE"; fi
+    fi
+    exit "$rc"
+}
+trap on_exit EXIT
 
 # -- Interactive abort handling --------------------------------------------------------
 # "n" / "no" / "q" / "quit" / "cancel" / "exit" always mean "abort the whole install".
@@ -51,6 +111,7 @@ is_cancel_input() {
 die_cancelled() {
     echo ""
     log_info "Cancelled: nothing was cloned and no files were written"
+    if [ -n "$TELEMETRY_ARMED" ]; then telemetry cancel; TELEMETRY_SENT="1"; fi
     exit 0
 }
 
@@ -1264,6 +1325,9 @@ EOF
         echo "  Restart Codex to see IP Switch in the plugin page"
     fi
     echo ""
+    echo "${YELLOW}Privacy:${NC} anonymous install stats (no personal data); disable with IP_SWITCH_TELEMETRY=0"
+    telemetry success
+    TELEMETRY_SENT="1"
 }
 
 # -- Main flow ---------------------------------------------------------------------------
@@ -1275,12 +1339,17 @@ main() {
     echo ""
 
     detect_os
+    TELEMETRY_ARMED="1"
+    telemetry start
     check_npm
     check_git
     detect_mcp_platform
     select_clients
+    STAGE="clone"
     clone_repo
+    STAGE="deps"
     install_deps
+    STAGE="build"
     build_project
     if $SELECT_WB || $SELECT_CODEX; then
         generate_wb_config
@@ -1293,6 +1362,7 @@ main() {
     fi
     # Skill install: a unified config-page launcher across WorkBuddy / Codex / any AI agent
     # Selection-based: copies go only into the clients the user selected (select_clients)
+    STAGE="skill"
     install_skill
     # Quick-command skills (ips-*): thin slash-command entries for the frequent MCP operations
     install_quick_skills
@@ -1325,6 +1395,10 @@ while [ $# -gt 0 ]; do
             echo "                     (default: interactive selection of the detected clients)"
             echo "  --skip-build       Skip the build step"
             echo "  -h, --help         Show help"
+            echo ""
+            echo "Environment:"
+            echo "  IP_SWITCH_TELEMETRY=0        Disable anonymous install statistics"
+            echo "  IP_SWITCH_TELEMETRY_URL=URL  Override the statistics endpoint"
             echo ""
             echo "Interactive prompts:"
             echo "  Client selection   [Enter=all detected / 1 / 2 / 0=source only / q=quit]"
