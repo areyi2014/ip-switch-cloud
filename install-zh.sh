@@ -28,12 +28,69 @@ PROJECT_NAME="ip-switch"
 # 注意：交互式提示里 "n" 表示「退出安装」，只有 --clients 参数里 "n" 才等同 "0"。
 CLIENTS="${CLIENTS:-}"
 
+# ── 匿名安装统计（可关闭） ────────────────────────────────────────────────────
+# 最多上报 4 个事件（start / success / cancel / fail）到一个 Cloudflare Worker，
+# 由 Workers Analytics Engine 存储。不采集任何个人信息：不落库 IP、不上报用户名或
+# 主机名，设备 ID 是本地生成的随机 UUID（存放在用户缓存目录）。
+# 关闭：IP_SWITCH_TELEMETRY=0；改端点：IP_SWITCH_TELEMETRY_URL=...
+# 上报是尽力而为：最长阻塞 2 秒，且绝不改变脚本退出码，端点挂掉不会影响安装。
+SCRIPT_VERSION="1.0"
+SCRIPT_LANG="zh"
+TELEMETRY_ON="${IP_SWITCH_TELEMETRY:-1}"
+TELEMETRY_URL="${IP_SWITCH_TELEMETRY_URL:-https://t.ipswitch.cloud/i}"
+STAGE="precheck"
+TELEMETRY_ARMED=""
+TELEMETRY_SENT=""
+T0="$SECONDS"
+
 # ── 辅助函数 ─────────────────────────────────────────────────────────────────
 log_info()  { echo -e "${BLUE}[INFO]${NC}  $1"; }
 log_ok()    { echo -e "${GREEN}[ OK ]${NC} $1"; }
 log_warn()  { echo -e "${YELLOW}[WARN]${NC} $1"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 log_step()  { echo -e "\n${CYAN}═══ $1 ═══${NC}"; }
+
+# ── 匿名安装统计 ─────────────────────────────────────────────────────────────
+# 设备 ID：本地生成一次、仅用于区分"新机器"与"重装"的随机 UUID，
+# 不由任何硬件信息或用户信息推导而来。
+device_id() {
+    local f="${XDG_CACHE_HOME:-$HOME/.cache}/ip-switch/device-id"
+    if [ ! -s "$f" ]; then
+        mkdir -p "$(dirname "$f")" 2>/dev/null || true
+        if command -v uuidgen >/dev/null 2>&1; then
+            uuidgen >"$f" 2>/dev/null || true
+        else
+            head -c 16 /dev/urandom 2>/dev/null | od -An -tx1 | tr -d ' \n' >"$f" 2>/dev/null || true
+        fi
+    fi
+    cat "$f" 2>/dev/null || true
+}
+
+# $1 = 事件（start|success|cancel|fail），$2 = 阶段（仅 fail 使用）
+# 前台执行但限时 2 秒：端点挂掉最多多等 2 秒，且绝不影响安装本身的退出码。
+telemetry() {
+    if [ "$TELEMETRY_ON" = "0" ]; then return 0; fi
+    local cl=""
+    if [ "${SELECT_WB:-false}" = "true" ]; then cl="wb"; fi
+    if [ "${SELECT_CODEX:-false}" = "true" ]; then cl="${cl:+$cl,}codex"; fi
+    curl -s -m 2 -o /dev/null -X POST "$TELEMETRY_URL" \
+        -H 'content-type: application/json' \
+        -d "{\"e\":\"$1\",\"v\":\"$SCRIPT_VERSION\",\"os\":\"${OS:-unknown}\",\"ps\":\"sh\",\"l\":\"$SCRIPT_LANG\",\"clients\":\"$cl\",\"stage\":\"${2:-}\",\"d\":\"$(device_id)\",\"dur\":$((SECONDS - T0)),\"day\":\"$(date -u +%F)\"}" \
+        >/dev/null 2>&1 || true
+    return 0
+}
+
+# 所有 "exit 1" 的兜底：无需逐个插桩，STAGE 已能指出断在哪一步。
+# 只有在 main() 里 arm 过之后才生效，因此 --help 或非法参数（都在 main 之前退出）
+# 不会被误报成一次安装。
+on_exit() {
+    local rc=$?
+    if [ -n "$TELEMETRY_ARMED" ] && [ -z "$TELEMETRY_SENT" ]; then
+        if [ "$rc" -eq 0 ]; then telemetry cancel; else telemetry fail "$STAGE"; fi
+    fi
+    exit "$rc"
+}
+trap on_exit EXIT
 
 # ── 交互式取消处理 ───────────────────────────────────────────────────────────
 # "n" / "no" / "q" / "quit" / "cancel" / "exit" 一律表示「退出整个安装」。
@@ -49,6 +106,7 @@ is_cancel_input() {
 die_cancelled() {
     echo ""
     log_info "已取消: 未 clone 任何仓库，也未写入任何文件"
+    if [ -n "$TELEMETRY_ARMED" ]; then telemetry cancel; TELEMETRY_SENT="1"; fi
     exit 0
 }
 
@@ -1257,6 +1315,9 @@ EOF
         echo "  重启 Codex 后插件页可见 IP Switch"
     fi
     echo ""
+    echo "${YELLOW}隐私说明:${NC} 匿名安装统计已开启（不含任何个人信息），可用 IP_SWITCH_TELEMETRY=0 关闭"
+    telemetry success
+    TELEMETRY_SENT="1"
 }
 
 # ── 主流程 ───────────────────────────────────────────────────────────────────
@@ -1268,12 +1329,17 @@ main() {
     echo ""
 
     detect_os
+    TELEMETRY_ARMED="1"
+    telemetry start
     check_npm
     check_git
     detect_mcp_platform
     select_clients
+    STAGE="clone"
     clone_repo
+    STAGE="deps"
     install_deps
+    STAGE="build"
     build_project
     if $SELECT_WB || $SELECT_CODEX; then
         generate_wb_config
@@ -1286,6 +1352,7 @@ main() {
     fi
     # skill 安装：跨 WorkBuddy / Codex / 任意 AI Agent 的统一配置页唤起入口
     # 按选择安装：只复制到用户选中的客户端（select_clients）
+    STAGE="skill"
     install_skill
     # 快捷指令技能（ips-*）：高频 MCP 操作的薄斜杠命令入口
     install_quick_skills
@@ -1318,6 +1385,10 @@ while [ $# -gt 0 ]; do
             echo "                     （默认：交互式选择已检测到的客户端）"
             echo "  --skip-build       跳过编译步骤"
             echo "  -h, --help         显示帮助"
+            echo ""
+            echo "环境变量:"
+            echo "  IP_SWITCH_TELEMETRY=0        关闭匿名安装统计"
+            echo "  IP_SWITCH_TELEMETRY_URL=URL  自定义统计上报端点"
             echo ""
             echo "交互式提示:"
             echo "  客户端选择  [回车=全部检测到的 / 1 / 2 / 0=仅装源码 / q=退出]"

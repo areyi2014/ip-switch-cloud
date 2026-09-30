@@ -31,6 +31,10 @@ Options:
   -SkipBuild       Skip the build step
   -Help            Show help
 
+Environment:
+  IP_SWITCH_TELEMETRY=0        Disable anonymous install statistics
+  IP_SWITCH_TELEMETRY_URL=URL  Override the statistics endpoint
+
 Interactive prompts:
   Client selection  [Enter=all detected / 1 / 2 / 0=source only / q=quit]
                     0 = source build only (no client integration)
@@ -52,6 +56,27 @@ $ErrorActionPreference = "Stop"
 $NodeMinVersion = 18
 $ProjectName = "ip-switch"
 
+# -- Anonymous install statistics (opt-out) ----------------------------------
+# Reports at most 4 events (start / success / cancel / fail) to a Cloudflare Worker,
+# which stores them in Workers Analytics Engine. Nothing personal is collected: no IP
+# is stored, no username or hostname is sent, and the device id is a locally generated
+# random GUID kept under %LOCALAPPDATA%\ip-switch.
+# Disable with IP_SWITCH_TELEMETRY=0; override the endpoint with IP_SWITCH_TELEMETRY_URL.
+# Reporting is best effort: it never blocks for longer than 3s and never changes the
+# exit code, so a dead endpoint can never break an install.
+$script:ScriptVersion  = "1.0"
+$script:ScriptLang     = "en"
+$script:TelemetryOn    = -not ($env:IP_SWITCH_TELEMETRY -eq '0')
+$script:TelemetryUrl   = if ($env:IP_SWITCH_TELEMETRY_URL) { $env:IP_SWITCH_TELEMETRY_URL } else { 'https://t.ipswitch.cloud/i' }
+$script:Stage          = 'precheck'
+$script:TelemetryArmed = $false
+$script:TelemetrySent  = $false
+$script:T0             = Get-Date
+# Initialised here because the "start" event fires before the client selection runs,
+# and Send-Telemetry reads them unconditionally.
+$script:SelWB    = $false
+$script:SelCodex = $false
+
 # -- Helper functions --------------------------------------------------------
 function Write-Step($msg) {
     Write-Host ""
@@ -62,6 +87,48 @@ function Write-Info($msg)  { Write-Host "[INFO]  $msg" -ForegroundColor Blue }
 function Write-OK($msg)    { Write-Host "[ OK ]  $msg" -ForegroundColor Green }
 function Write-Warn($msg)  { Write-Host "[WARN]  $msg" -ForegroundColor Yellow }
 function Write-Err($msg)   { Write-Host "[ERROR] $msg" -ForegroundColor Red }
+
+# -- Anonymous install statistics --------------------------------------------
+# Device id: a random GUID generated once and kept locally, used only to tell a new
+# machine apart from a reinstall. It is not derived from any hardware or user data.
+function Get-DeviceId {
+    $dir = Join-Path $env:LOCALAPPDATA 'ip-switch'
+    $f   = Join-Path $dir 'device-id'
+    if (-not (Test-Path $f)) {
+        try {
+            New-Item -ItemType Directory -Force -Path $dir | Out-Null
+            (New-Guid).Guid | Set-Content -Path $f -NoNewline -Encoding ASCII
+        } catch { }
+    }
+    try { return (Get-Content -Raw $f).Trim() } catch { return '' }
+}
+
+# $Event = start|success|cancel|fail; $Stage is only used by "fail".
+# The TLS line matters on Windows PowerShell 5.1, which may still default to TLS 1.0
+# and Cloudflare only accepts TLS 1.2+. Everything is swallowed on purpose.
+function Send-Telemetry($Event, $Stage = '') {
+    if (-not $script:TelemetryOn) { return }
+    try {
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        $cl = @()
+        if ($script:SelWB)    { $cl += 'wb' }
+        if ($script:SelCodex) { $cl += 'codex' }
+        $body = @{
+            e       = $Event
+            v       = $script:ScriptVersion
+            os      = 'windows'
+            ps      = 'ps1'
+            l       = $script:ScriptLang
+            clients = ($cl -join ',')
+            stage   = $Stage
+            d       = (Get-DeviceId)
+            dur     = [int]((Get-Date) - $script:T0).TotalSeconds
+            day     = (Get-Date).ToUniversalTime().ToString('yyyy-MM-dd')
+        } | ConvertTo-Json -Compress
+        Invoke-RestMethod -Uri $script:TelemetryUrl -Method Post -ContentType 'application/json' `
+            -Body $body -TimeoutSec 3 -ErrorAction Stop | Out-Null
+    } catch { }
+}
 
 # -- Interactive abort handling -------------------------------------------------
 # "n" / "no" / "q" / "quit" / "cancel" / "exit" always mean "abort the whole install".
@@ -75,6 +142,7 @@ function Test-CancelInput($text) {
 function Stop-Cancelled {
     Write-Host ""
     Write-Info "Cancelled: nothing was cloned and no files were written"
+    if ($script:TelemetryArmed) { Send-Telemetry 'cancel'; $script:TelemetrySent = $true }
     exit 0
 }
 
@@ -1392,6 +1460,9 @@ function Show-Success {
     Write-Host "  Remove-Item -Recurse -Force (Join-Path $installDir 'data')  # remove runtime data (keep the source)"
     Write-Host "  Remove-Item -Recurse -Force $installDir  # also remove the source if desired (wipes the data/ subdirectory too)"
     Write-Host ""
+    Write-Host "Privacy: anonymous install stats (no personal data); disable with IP_SWITCH_TELEMETRY=0" -ForegroundColor Yellow
+    Send-Telemetry 'success'
+    $script:TelemetrySent = $true
 }
 
 # -- Main flow ------------------------------------------------------------------
@@ -1402,12 +1473,19 @@ function Main {
     Write-Host "+============================================================+" -ForegroundColor Green
     Write-Host ""
 
+    $script:TelemetryArmed = $true
+    Send-Telemetry 'start'
+
+    $script:Stage = 'precheck'
     Check-Npm
     Check-Git
     Detect-MCPPlatform
     Select-Clients
+    $script:Stage = 'clone'
     Clone-Repo
+    $script:Stage = 'deps'
     Install-Deps
+    $script:Stage = 'build'
     if (-not $SkipBuild) {
         Build-Project
     }
@@ -1422,6 +1500,7 @@ function Main {
     }
     # Skill install: a unified config-page launcher across WorkBuddy / Codex / any AI agent
     # Selection-based: copies go only into the clients the user selected (Select-Clients)
+    $script:Stage = 'skill'
     Install-Skill
     # Quick-command skills (ips-*): thin slash-command entries for the frequent MCP operations
     Install-QuickSkills
@@ -1430,5 +1509,7 @@ function Main {
     Write-OK "Deployment complete!"
 }
 
-Main
+# Safety net for every failure path inside Main: Stage already says where it broke.
+# Stop-Cancelled and Show-Success report themselves, so they set TelemetrySent first.
+try { Main } catch { Send-Telemetry 'fail' $script:Stage; throw }
 

@@ -31,6 +31,10 @@ if ($Help) {
   -SkipBuild       跳过编译步骤
   -Help            显示帮助
 
+环境变量:
+  IP_SWITCH_TELEMETRY=0        关闭匿名安装统计
+  IP_SWITCH_TELEMETRY_URL=URL  自定义统计上报端点
+
 交互式提示:
   客户端选择  [回车=全部检测到的 / 1 / 2 / 0=仅装源码 / q=退出]
               0 = 只装源码（跳过客户端集成）
@@ -52,6 +56,24 @@ $ErrorActionPreference = "Stop"
 $NodeMinVersion = 18
 $ProjectName = "ip-switch"
 
+# ── 匿名安装统计（可关闭） ────────────────────────────────────────────────────
+# 最多上报 4 个事件（start / success / cancel / fail）到一个 Cloudflare Worker，
+# 由 Workers Analytics Engine 存储。不采集任何个人信息：不落库 IP、不上报用户名或
+# 主机名，设备 ID 是本地生成的随机 GUID（存放在 %LOCALAPPDATA%\ip-switch）。
+# 关闭：IP_SWITCH_TELEMETRY=0；改端点：IP_SWITCH_TELEMETRY_URL=...
+# 上报是尽力而为：最长阻塞 3 秒，且绝不改变脚本退出码，端点挂掉不会影响安装。
+$script:ScriptVersion  = "1.0"
+$script:ScriptLang     = "zh"
+$script:TelemetryOn    = -not ($env:IP_SWITCH_TELEMETRY -eq '0')
+$script:TelemetryUrl   = if ($env:IP_SWITCH_TELEMETRY_URL) { $env:IP_SWITCH_TELEMETRY_URL } else { 'https://t.ipswitch.cloud/i' }
+$script:Stage          = 'precheck'
+$script:TelemetryArmed = $false
+$script:TelemetrySent  = $false
+$script:T0             = Get-Date
+# 提前初始化：start 事件在客户端选择之前就会触发，而 Send-Telemetry 会无条件读取它们。
+$script:SelWB    = $false
+$script:SelCodex = $false
+
 # -- 辅助函数 ---------------------------------------------------------------
 function Write-Step($msg) {
     Write-Host ""
@@ -62,6 +84,48 @@ function Write-Info($msg)  { Write-Host "[INFO]  $msg" -ForegroundColor Blue }
 function Write-OK($msg)    { Write-Host "[ OK ]  $msg" -ForegroundColor Green }
 function Write-Warn($msg)  { Write-Host "[WARN]  $msg" -ForegroundColor Yellow }
 function Write-Err($msg)   { Write-Host "[ERROR] $msg" -ForegroundColor Red }
+
+# ── 匿名安装统计 ─────────────────────────────────────────────────────────────
+# 设备 ID：本地生成一次、仅用于区分"新机器"与"重装"的随机 GUID，
+# 不由任何硬件信息或用户信息推导而来。
+function Get-DeviceId {
+    $dir = Join-Path $env:LOCALAPPDATA 'ip-switch'
+    $f   = Join-Path $dir 'device-id'
+    if (-not (Test-Path $f)) {
+        try {
+            New-Item -ItemType Directory -Force -Path $dir | Out-Null
+            (New-Guid).Guid | Set-Content -Path $f -NoNewline -Encoding ASCII
+        } catch { }
+    }
+    try { return (Get-Content -Raw $f).Trim() } catch { return '' }
+}
+
+# $Event = start|success|cancel|fail；$Stage 仅 fail 使用。
+# TLS 那行是必需的：Windows PowerShell 5.1 可能仍默认 TLS 1.0，而 Cloudflare 只收
+# TLS 1.2+。所有异常一律吞掉，绝不影响安装。
+function Send-Telemetry($Event, $Stage = '') {
+    if (-not $script:TelemetryOn) { return }
+    try {
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        $cl = @()
+        if ($script:SelWB)    { $cl += 'wb' }
+        if ($script:SelCodex) { $cl += 'codex' }
+        $body = @{
+            e       = $Event
+            v       = $script:ScriptVersion
+            os      = 'windows'
+            ps      = 'ps1'
+            l       = $script:ScriptLang
+            clients = ($cl -join ',')
+            stage   = $Stage
+            d       = (Get-DeviceId)
+            dur     = [int]((Get-Date) - $script:T0).TotalSeconds
+            day     = (Get-Date).ToUniversalTime().ToString('yyyy-MM-dd')
+        } | ConvertTo-Json -Compress
+        Invoke-RestMethod -Uri $script:TelemetryUrl -Method Post -ContentType 'application/json' `
+            -Body $body -TimeoutSec 3 -ErrorAction Stop | Out-Null
+    } catch { }
+}
 
 # -- 交互式取消处理 -----------------------------------------------------------
 # "n" / "no" / "q" / "quit" / "cancel" / "exit" 一律表示「退出整个安装」。
@@ -74,6 +138,7 @@ function Test-CancelInput($text) {
 function Stop-Cancelled {
     Write-Host ""
     Write-Info "已取消: 未 clone 任何仓库，也未写入任何文件"
+    if ($script:TelemetryArmed) { Send-Telemetry 'cancel'; $script:TelemetrySent = $true }
     exit 0
 }
 
@@ -1387,6 +1452,9 @@ function Show-Success {
     Write-Host "  Remove-Item -Recurse -Force (Join-Path $installDir 'data')  # 删除运行时数据（保留源码时用）"
     Write-Host "  Remove-Item -Recurse -Force $installDir  # 如需同时删除源码（会一并清 data/ 子目录）"
     Write-Host ""
+    Write-Host "隐私说明: 匿名安装统计已开启（不含任何个人信息），可用 IP_SWITCH_TELEMETRY=0 关闭" -ForegroundColor Yellow
+    Send-Telemetry 'success'
+    $script:TelemetrySent = $true
 }
 
 # -- 主流程 ------------------------------------------------------------------
@@ -1397,12 +1465,19 @@ function Main {
     Write-Host "+============================================================+" -ForegroundColor Green
     Write-Host ""
 
+    $script:TelemetryArmed = $true
+    Send-Telemetry 'start'
+
+    $script:Stage = 'precheck'
     Check-Npm
     Check-Git
     Detect-MCPPlatform
     Select-Clients
+    $script:Stage = 'clone'
     Clone-Repo
+    $script:Stage = 'deps'
     Install-Deps
+    $script:Stage = 'build'
     if (-not $SkipBuild) {
         Build-Project
     }
@@ -1417,6 +1492,7 @@ function Main {
     }
     # skill 安装：跨 WorkBuddy / Codex / 任意 AI Agent 的统一配置页唤起入口
     # 按选择安装：只复制到用户选中的客户端（Select-Clients）
+    $script:Stage = 'skill'
     Install-Skill
     # 快捷指令技能（ips-*）：高频 MCP 操作的薄斜杠命令入口
     Install-QuickSkills
@@ -1425,5 +1501,7 @@ function Main {
     Write-OK "部署完成!"
 }
 
-Main
+# Main 内所有失败路径的兜底：Stage 已能指出断在哪一步。
+# Stop-Cancelled 与 Show-Success 自己上报，因此它们会先把 TelemetrySent 置真。
+try { Main } catch { Send-Telemetry 'fail' $script:Stage; throw }
 
