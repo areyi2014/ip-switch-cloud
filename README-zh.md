@@ -52,7 +52,7 @@ Pro 功能通过 `commerce/` 目录下的自建销售后台授权：
 
 ```powershell
 # 下载安装脚本
-Invoke-WebRequest -Uri "https://gitee.com/areyi2014/ip-switch/raw/main/install.ps1" -OutFile "$env:TEMP\install-ip-switch.ps1"
+Invoke-WebRequest -Uri "https://gitee.com/areyi2014/ip-switch-cloud/raw/main/install.ps1" -OutFile "$env:TEMP\install-ip-switch.ps1"
 
 # 运行（必须在 PowerShell 中执行；cmd 中不支持 & 语法）
 & "$env:TEMP\install-ip-switch.ps1"
@@ -70,7 +70,7 @@ Invoke-WebRequest -Uri "https://gitee.com/areyi2014/ip-switch/raw/main/install.p
 
 ```bash
 # 下载安装脚本
-curl -fsSL https://gitee.com/areyi2014/ip-switch/raw/main/install.sh -o install-ip-switch.sh
+curl -fsSL https://gitee.com/areyi2014/ip-switch-cloud/raw/main/install.sh -o install-ip-switch.sh
 
 # 运行
 bash install-ip-switch.sh
@@ -125,7 +125,7 @@ bash install-ip-switch.sh
 
 ```bash
 # 下载安装脚本
-curl -fsSL https://gitee.com/areyi2014/ip-switch/raw/main/install.sh -o install-ip-switch.sh
+curl -fsSL https://gitee.com/areyi2014/ip-switch-cloud/raw/main/install.sh -o install-ip-switch.sh
 
 # 运行（需要网络连接）
 bash install-ip-switch.sh
@@ -140,7 +140,7 @@ bash install-ip-switch.sh
 bash install-ip-switch.sh --install-dir /opt/ip-switch
 
 # 使用 GitHub 镜像
-bash install-ip-switch.sh --repo-url https://gitee.com/areyi2014/ip-switch.git
+bash install-ip-switch.sh --repo-url https://gitee.com/areyi2014/ip-switch-cloud.git
 
 # 指定分支
 bash install-ip-switch.sh --branch develop
@@ -166,7 +166,7 @@ bash install-ip-switch.sh --skip-build
 Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
 
 # 下载安装脚本
-Invoke-WebRequest -Uri "https://gitee.com/areyi2014/ip-switch/raw/main/install.ps1" -OutFile "$env:TEMP\install-ip-switch.ps1"
+Invoke-WebRequest -Uri "https://gitee.com/areyi2014/ip-switch-cloud/raw/main/install.ps1" -OutFile "$env:TEMP\install-ip-switch.ps1"
 
 # 运行
 & "$env:TEMP\install-ip-switch.ps1"
@@ -178,7 +178,7 @@ Invoke-WebRequest -Uri "https://gitee.com/areyi2014/ip-switch/raw/main/install.p
 
 ```powershell
 & "$env:TEMP\install-ip-switch.ps1" -InstallDir "D:\tools\ip-switch"
-& "$env:TEMP\install-ip-switch.ps1" -RepoUrl "https://gitee.com/areyi2014/ip-switch.git"
+& "$env:TEMP\install-ip-switch.ps1" -RepoUrl "https://gitee.com/areyi2014/ip-switch-cloud.git"
 ```
 
 > **注意**: 如遇 `无法加载文件，因为在此系统上禁止运行脚本` 错误，请先执行 `Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned`。
@@ -207,8 +207,8 @@ npm -v    # 应输出 9.x.x 或更高
 > **执行环境：Bash Shell / PowerShell（两者均可）**
 
 ```bash
-git clone --depth 1 https://gitee.com/areyi2014/ip-switch.git
-cd ip-switch
+git clone --depth 1 https://gitee.com/areyi2014/ip-switch-cloud.git
+cd ip-switch-cloud
 ```
 
 ### 3. 安装依赖
@@ -589,7 +589,7 @@ $env:ELECTRON_RUN_AS_NODE = ""; npm run build
 - 确认网络正常，能访问 gitee.com
 - 脚本已内置 DNS 预热与最多 3 次自动重试
 - 如为私有仓库，先配置 SSH Key: `ssh-keygen -t ed25519 && cat ~/.ssh/id_ed25519.pub`
-- 手动克隆: `git clone https://gitee.com/areyi2014/ip-switch.git`
+- 手动克隆: `git clone https://gitee.com/areyi2014/ip-switch-cloud.git`
 
 ### 3. MCP 配置后工具未出现
 
