@@ -74,6 +74,7 @@ $script:T0             = Get-Date
 # 提前初始化：start 事件在客户端选择之前就会触发，而 Send-Telemetry 会无条件读取它们。
 $script:SelWB    = $false
 $script:SelCodex = $false
+$script:OsVersion = $null   # $null = 尚未解析；由 Get-OsVersion 惰性填充
 
 # -- 辅助函数 ---------------------------------------------------------------
 function Write-Step($msg) {
@@ -101,6 +102,27 @@ function Get-DeviceId {
     try { return (Get-Content -Raw $f).Trim() } catch { return '' }
 }
 
+# 用于统计的 Windows 版本信息，如 "11 23H2"。只解析一次并缓存，
+# 因此关闭统计时运行脚本完全不会读取注册表。
+function Get-OsVersion {
+    if ($null -ne $script:OsVersion) { return $script:OsVersion }
+    $v = ''
+    try {
+        $p = Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion' -ErrorAction Stop
+        $build = 0
+        [void][int]::TryParse([string]$p.CurrentBuildNumber, [ref]$build)
+        # 内部版本号 22000 及以上为 Windows 11；更早但能取到版本号的为 10。
+        $name = if ($build -ge 22000) { '11' } elseif ($build -gt 0) { '10' } else { '' }
+        $rel  = if ($p.DisplayVersion) { $p.DisplayVersion } elseif ($p.ReleaseId) { $p.ReleaseId } else { '' }
+        $v = ("$name $rel").Trim()
+    } catch { }
+    # 保持简短且 JSON 安全，规则与 shell 脚本一致。
+    $v = ($v -replace '[^A-Za-z0-9._ -]', '')
+    if ($v.Length -gt 24) { $v = $v.Substring(0, 24) }
+    $script:OsVersion = $v
+    return $v
+}
+
 # $Event = start|success|cancel|fail；$Stage 仅 fail 使用。
 # TLS 那行是必需的：Windows PowerShell 5.1 可能仍默认 TLS 1.0，而 Cloudflare 只收
 # TLS 1.2+。所有异常一律吞掉，绝不影响安装。
@@ -115,6 +137,7 @@ function Send-Telemetry($Event, $Stage = '') {
             e       = $Event
             v       = $script:ScriptVersion
             os      = 'windows'
+            osver   = (Get-OsVersion)
             ps      = 'ps1'
             l       = $script:ScriptLang
             clients = ($cl -join ',')

@@ -77,6 +77,7 @@ $script:T0             = Get-Date
 # and Send-Telemetry reads them unconditionally.
 $script:SelWB    = $false
 $script:SelCodex = $false
+$script:OsVersion = $null   # $null = not resolved yet; filled in lazily by Get-OsVersion
 
 # -- Helper functions --------------------------------------------------------
 function Write-Step($msg) {
@@ -104,6 +105,27 @@ function Get-DeviceId {
     try { return (Get-Content -Raw $f).Trim() } catch { return '' }
 }
 
+# Windows version detail for telemetry, e.g. "11 23H2". Resolved once and cached, so a
+# run with telemetry disabled never touches the registry at all.
+function Get-OsVersion {
+    if ($null -ne $script:OsVersion) { return $script:OsVersion }
+    $v = ''
+    try {
+        $p = Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion' -ErrorAction Stop
+        $build = 0
+        [void][int]::TryParse([string]$p.CurrentBuildNumber, [ref]$build)
+        # Build 22000 and up is Windows 11; anything older that reports a build is 10.
+        $name = if ($build -ge 22000) { '11' } elseif ($build -gt 0) { '10' } else { '' }
+        $rel  = if ($p.DisplayVersion) { $p.DisplayVersion } elseif ($p.ReleaseId) { $p.ReleaseId } else { '' }
+        $v = ("$name $rel").Trim()
+    } catch { }
+    # Keep it short and JSON-safe, same rule as the shell scripts.
+    $v = ($v -replace '[^A-Za-z0-9._ -]', '')
+    if ($v.Length -gt 24) { $v = $v.Substring(0, 24) }
+    $script:OsVersion = $v
+    return $v
+}
+
 # $Event = start|success|cancel|fail; $Stage is only used by "fail".
 # The TLS line matters on Windows PowerShell 5.1, which may still default to TLS 1.0
 # and Cloudflare only accepts TLS 1.2+. Everything is swallowed on purpose.
@@ -118,6 +140,7 @@ function Send-Telemetry($Event, $Stage = '') {
             e       = $Event
             v       = $script:ScriptVersion
             os      = 'windows'
+            osver   = (Get-OsVersion)
             ps      = 'ps1'
             l       = $script:ScriptLang
             clients = ($cl -join ',')

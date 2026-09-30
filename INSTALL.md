@@ -375,7 +375,7 @@ to tell how many installations succeed and where the rest get stuck.
 |---|---|---|
 | Event | `start` / `success` / `fail` / `cancel` | success rate |
 | Script version | `1.0` | detect outdated copies |
-| Operating system | `linux` / `macos` / `windows` | platform support |
+| Operating system | `ubuntu` / `debian` / `macos` / `windows` and its version (`24.04`, `11 23H2`) | platform support, version-specific bugs |
 | Shell | `sh` / `ps1` | which installer was used |
 | Language | `en` / `zh` | localization |
 | Client choice | `wb` / `codex` / `0` | which clients get installed |
