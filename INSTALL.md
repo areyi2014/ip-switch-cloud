@@ -48,7 +48,7 @@ Run in PowerShell (if you hit execution policy restrictions, run `Set-ExecutionP
 
 ```powershell
 # Download the install script
-Invoke-WebRequest -Uri "https://gitee.com/areyi2014/ip-switch/raw/main/install.ps1" -OutFile "$env:TEMP\install-ip-switch.ps1"
+Invoke-WebRequest -Uri "https://gitee.com/areyi2014/ip-switch-cloud/raw/main/install.ps1" -OutFile "$env:TEMP\install-ip-switch.ps1"
 
 # Run it (must be executed in PowerShell; cmd does not support the & syntax)
 & "$env:TEMP\install-ip-switch.ps1"
@@ -68,14 +68,14 @@ Run in a terminal:
 
 ```bash
 # One command
-bash <(curl -fsSL https://gitee.com/areyi2014/ip-switch/raw/main/install.sh)
+bash <(curl -fsSL https://gitee.com/areyi2014/ip-switch-cloud/raw/main/install.sh)
 ```
 
 Or step by step:
 
 ```bash
 # Download the install script
-curl -fsSL https://gitee.com/areyi2014/ip-switch/raw/main/install.sh -o install-ip-switch.sh
+curl -fsSL https://gitee.com/areyi2014/ip-switch-cloud/raw/main/install.sh -o install-ip-switch.sh
 
 # Run it
 bash install-ip-switch.sh
@@ -101,7 +101,7 @@ Windows PowerShell:
 
 ```powershell
 & "$env:TEMP\install-ip-switch.ps1" -InstallDir "D:\tools\ip-switch"
-& "$env:TEMP\install-ip-switch.ps1" -RepoUrl "https://gitee.com/areyi2014/ip-switch.git"
+& "$env:TEMP\install-ip-switch.ps1" -RepoUrl "https://gitee.com/areyi2014/ip-switch-cloud.git"
 & "$env:TEMP\install-ip-switch.ps1" -Branch develop
 & "$env:TEMP\install-ip-switch.ps1" -Clients workbuddy          # WorkBuddy only
 & "$env:TEMP\install-ip-switch.ps1" -Clients codex,workbuddy    # both, no prompt
@@ -115,7 +115,7 @@ macOS / Ubuntu:
 
 ```bash
 bash install-ip-switch.sh --install-dir /opt/ip-switch
-bash install-ip-switch.sh --repo-url https://gitee.com/areyi2014/ip-switch.git
+bash install-ip-switch.sh --repo-url https://gitee.com/areyi2014/ip-switch-cloud.git
 bash install-ip-switch.sh --branch develop
 bash install-ip-switch.sh --clients workbuddy,codex   # both, no prompt
 bash install-ip-switch.sh --clients all               # every supported client
@@ -146,8 +146,8 @@ If not installed, download the LTS version (22.x recommended) from [nodejs.org](
 ### 2. Clone the repository
 
 ```bash
-git clone --depth 1 https://gitee.com/areyi2014/ip-switch.git
-cd ip-switch
+git clone --depth 1 https://gitee.com/areyi2014/ip-switch-cloud.git
+cd ip-switch-cloud
 ```
 
 ### 3. Install dependencies
@@ -385,7 +385,7 @@ $env:ELECTRON_RUN_AS_NODE = ""; npm run build
 - Confirm the network works and gitee.com is reachable
 - The script has built-in DNS warm-up (pings the repo domain first) and up to 3 automatic retries
 - For a private repo, set up an SSH key first: `ssh-keygen -t ed25519 && cat ~/.ssh/id_ed25519.pub`
-- Clone manually: `git clone https://gitee.com/areyi2014/ip-switch.git`
+- Clone manually: `git clone https://gitee.com/areyi2014/ip-switch-cloud.git`
 
 ### 3. Tools don't appear after MCP configuration
 

@@ -48,7 +48,7 @@
 
 ```powershell
 # 下载安装脚本
-Invoke-WebRequest -Uri "https://gitee.com/areyi2014/ip-switch/raw/main/install.ps1" -OutFile "$env:TEMP\install-ip-switch.ps1"
+Invoke-WebRequest -Uri "https://gitee.com/areyi2014/ip-switch-cloud/raw/main/install.ps1" -OutFile "$env:TEMP\install-ip-switch.ps1"
 
 # 运行（必须在 PowerShell 中执行；cmd 中不支持 & 语法）
 & "$env:TEMP\install-ip-switch.ps1"
@@ -68,14 +68,14 @@ Invoke-WebRequest -Uri "https://gitee.com/areyi2014/ip-switch/raw/main/install.p
 
 ```bash
 # 一条命令
-bash <(curl -fsSL https://gitee.com/areyi2014/ip-switch/raw/main/install.sh)
+bash <(curl -fsSL https://gitee.com/areyi2014/ip-switch-cloud/raw/main/install.sh)
 ```
 
 或分步执行：
 
 ```bash
 # 下载安装脚本
-curl -fsSL https://gitee.com/areyi2014/ip-switch/raw/main/install.sh -o install-ip-switch.sh
+curl -fsSL https://gitee.com/areyi2014/ip-switch-cloud/raw/main/install.sh -o install-ip-switch.sh
 
 # 运行
 bash install-ip-switch.sh
@@ -101,7 +101,7 @@ Windows PowerShell：
 
 ```powershell
 & "$env:TEMP\install-ip-switch.ps1" -InstallDir "D:\tools\ip-switch"
-& "$env:TEMP\install-ip-switch.ps1" -RepoUrl "https://gitee.com/areyi2014/ip-switch.git"
+& "$env:TEMP\install-ip-switch.ps1" -RepoUrl "https://gitee.com/areyi2014/ip-switch-cloud.git"
 & "$env:TEMP\install-ip-switch.ps1" -Branch develop
 & "$env:TEMP\install-ip-switch.ps1" -Clients workbuddy          # 只装 WorkBuddy
 & "$env:TEMP\install-ip-switch.ps1" -Clients codex,workbuddy    # 两个都装，不再询问
@@ -115,7 +115,7 @@ macOS / Ubuntu：
 
 ```bash
 bash install-ip-switch.sh --install-dir /opt/ip-switch
-bash install-ip-switch.sh --repo-url https://gitee.com/areyi2014/ip-switch.git
+bash install-ip-switch.sh --repo-url https://gitee.com/areyi2014/ip-switch-cloud.git
 bash install-ip-switch.sh --branch develop
 bash install-ip-switch.sh --clients workbuddy,codex   # 两个都装，不再询问
 bash install-ip-switch.sh --clients all               # 所有支持的客户端
@@ -146,8 +146,8 @@ npm -v    # 应输出 9.x.x 或更高
 ### 2. 克隆仓库
 
 ```bash
-git clone --depth 1 https://gitee.com/areyi2014/ip-switch.git
-cd ip-switch
+git clone --depth 1 https://gitee.com/areyi2014/ip-switch-cloud.git
+cd ip-switch-cloud
 ```
 
 ### 3. 安装依赖
@@ -385,7 +385,7 @@ $env:ELECTRON_RUN_AS_NODE = ""; npm run build
 - 确认网络正常，能访问 gitee.com
 - 脚本已内置 DNS 预热（先 ping 仓库域名）与最多 3 次自动重试
 - 如为私有仓库，先配置 SSH Key: `ssh-keygen -t ed25519 && cat ~/.ssh/id_ed25519.pub`
-- 手动克隆: `git clone https://gitee.com/areyi2014/ip-switch.git`
+- 手动克隆: `git clone https://gitee.com/areyi2014/ip-switch-cloud.git`
 
 ### 3. MCP 配置后工具未出现
 

@@ -52,7 +52,7 @@ See [commerce/README-zh.md](commerce/README-zh.md) for the full business flow, A
 
 ```powershell
 # Download the install script
-Invoke-WebRequest -Uri "https://gitee.com/areyi2014/ip-switch/raw/main/install.ps1" -OutFile "$env:TEMP\install-ip-switch.ps1"
+Invoke-WebRequest -Uri "https://gitee.com/areyi2014/ip-switch-cloud/raw/main/install.ps1" -OutFile "$env:TEMP\install-ip-switch.ps1"
 
 # Run it (must be executed in PowerShell; cmd does not support the & syntax)
 & "$env:TEMP\install-ip-switch.ps1"
@@ -70,7 +70,7 @@ Invoke-WebRequest -Uri "https://gitee.com/areyi2014/ip-switch/raw/main/install.p
 
 ```bash
 # Download the install script
-curl -fsSL https://gitee.com/areyi2014/ip-switch/raw/main/install.sh -o install-ip-switch.sh
+curl -fsSL https://gitee.com/areyi2014/ip-switch-cloud/raw/main/install.sh -o install-ip-switch.sh
 
 # Run it
 bash install-ip-switch.sh
@@ -125,7 +125,7 @@ An MCP service for rotating cloud public IPs — lets AI Agents batch-rotate pub
 
 ```bash
 # Download the install script
-curl -fsSL https://gitee.com/areyi2014/ip-switch/raw/main/install.sh -o install-ip-switch.sh
+curl -fsSL https://gitee.com/areyi2014/ip-switch-cloud/raw/main/install.sh -o install-ip-switch.sh
 
 # Run it (requires network connection)
 bash install-ip-switch.sh
@@ -140,7 +140,7 @@ bash install-ip-switch.sh
 bash install-ip-switch.sh --install-dir /opt/ip-switch
 
 # Use a mirror repo URL
-bash install-ip-switch.sh --repo-url https://gitee.com/areyi2014/ip-switch.git
+bash install-ip-switch.sh --repo-url https://gitee.com/areyi2014/ip-switch-cloud.git
 
 # Specify a branch
 bash install-ip-switch.sh --branch develop
@@ -166,7 +166,7 @@ The script performs, in order:
 Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
 
 # Download the install script
-Invoke-WebRequest -Uri "https://gitee.com/areyi2014/ip-switch/raw/main/install.ps1" -OutFile "$env:TEMP\install-ip-switch.ps1"
+Invoke-WebRequest -Uri "https://gitee.com/areyi2014/ip-switch-cloud/raw/main/install.ps1" -OutFile "$env:TEMP\install-ip-switch.ps1"
 
 # Run it
 & "$env:TEMP\install-ip-switch.ps1"
@@ -178,7 +178,7 @@ Invoke-WebRequest -Uri "https://gitee.com/areyi2014/ip-switch/raw/main/install.p
 
 ```powershell
 & "$env:TEMP\install-ip-switch.ps1" -InstallDir "D:\tools\ip-switch"
-& "$env:TEMP\install-ip-switch.ps1" -RepoUrl "https://gitee.com/areyi2014/ip-switch.git"
+& "$env:TEMP\install-ip-switch.ps1" -RepoUrl "https://gitee.com/areyi2014/ip-switch-cloud.git"
 ```
 
 > **Note**: If you get the error `file cannot be loaded because running scripts is disabled on this system`, run `Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned` first.
@@ -207,8 +207,8 @@ If not installed, download the LTS version (22.x recommended) from [nodejs.org](
 > **Environment: Bash Shell / PowerShell (either works)**
 
 ```bash
-git clone --depth 1 https://gitee.com/areyi2014/ip-switch.git
-cd ip-switch
+git clone --depth 1 https://gitee.com/areyi2014/ip-switch-cloud.git
+cd ip-switch-cloud
 ```
 
 ### 3. Install dependencies
@@ -589,7 +589,7 @@ $env:ELECTRON_RUN_AS_NODE = ""; npm run build
 - Confirm the network works and gitee.com is reachable
 - The script has built-in DNS warm-up and up to 3 automatic retries
 - For a private repo, set up an SSH key first: `ssh-keygen -t ed25519 && cat ~/.ssh/id_ed25519.pub`
-- Clone manually: `git clone https://gitee.com/areyi2014/ip-switch.git`
+- Clone manually: `git clone https://gitee.com/areyi2014/ip-switch-cloud.git`
 
 ### 3. Tools don't appear after MCP configuration
 
