@@ -43,6 +43,7 @@ SCRIPT_LANG="en"
 TELEMETRY_ON="${IP_SWITCH_TELEMETRY:-1}"
 TELEMETRY_URL="${IP_SWITCH_TELEMETRY_URL:-https://t.ipswitch.cloud/i}"
 STAGE="precheck"
+OS_VERSION=""
 TELEMETRY_ARMED=""
 TELEMETRY_SENT=""
 T0="$SECONDS"
@@ -80,7 +81,7 @@ telemetry() {
     if [ "${SELECT_CODEX:-false}" = "true" ]; then cl="${cl:+$cl,}codex"; fi
     curl -s -m 2 -o /dev/null -X POST "$TELEMETRY_URL" \
         -H 'content-type: application/json' \
-        -d "{\"e\":\"$1\",\"v\":\"$SCRIPT_VERSION\",\"os\":\"${OS:-unknown}\",\"ps\":\"sh\",\"l\":\"$SCRIPT_LANG\",\"clients\":\"$cl\",\"stage\":\"${2:-}\",\"d\":\"$(device_id)\",\"dur\":$((SECONDS - T0)),\"day\":\"$(date -u +%F)\"}" \
+        -d "{\"e\":\"$1\",\"v\":\"$SCRIPT_VERSION\",\"os\":\"${OS:-unknown}\",\"osver\":\"${OS_VERSION:-}\",\"ps\":\"sh\",\"l\":\"$SCRIPT_LANG\",\"clients\":\"$cl\",\"stage\":\"${2:-}\",\"d\":\"$(device_id)\",\"dur\":$((SECONDS - T0)),\"day\":\"$(date -u +%F)\"}" \
         >/dev/null 2>&1 || true
     return 0
 }
@@ -119,7 +120,7 @@ die_cancelled() {
 # -- OS detection ----------------------------------------------------------------------
 detect_os() {
     case "$(uname -s)" in
-        Darwin)  OS="macos";;
+        Darwin)  OS="macos"; OS_VERSION="$(sw_vers -productVersion 2>/dev/null || true)";;
         Linux)   OS="linux";;
         *)
             log_error "Unsupported OS: $(uname -s)"
@@ -131,10 +132,15 @@ detect_os() {
     if [ "$OS" = "linux" ]; then
         if [ -f /etc/os-release ]; then
             . /etc/os-release
-            OS="${ID}"  # ubuntu, debian, etc.
+            OS="${ID}"                    # ubuntu, debian, etc.
+            OS_VERSION="${VERSION_ID:-}"  # 24.04, 12, ...
         fi
     fi
-    log_ok "Detected OS: ${OS}"
+
+    # Reported as its own telemetry field. Both sources are trusted, but a stray quote
+    # or backslash would corrupt the whole JSON payload, so keep it short and plain.
+    OS_VERSION="$(printf '%s' "${OS_VERSION:-}" | tr -cd 'A-Za-z0-9._ -' | cut -c1-24)"
+    log_ok "Detected OS: ${OS}${OS_VERSION:+ $OS_VERSION}"
 }
 
 # -- Check the npm environment -------------------------------------------------------

@@ -574,7 +574,7 @@ Remove-Item -Recurse -Force ~/.ip-switch       # Windows
 |---|---|---|
 | 事件类型 | `start` / `success` / `fail` / `cancel` | 计算安装成功率 |
 | 脚本版本 | `1.0` | 识别过期的脚本副本 |
-| 操作系统 | `linux` / `macos` / `windows` | 平台支持情况 |
+| 操作系统 | `ubuntu` / `debian` / `macos` / `windows` 及版本号（`24.04`、`11 23H2`） | 平台支持情况、定位特定版本的问题 |
 | Shell | `sh` / `ps1` | 使用了哪个安装器 |
 | 语言 | `en` / `zh` | 中英文版本分布 |
 | 客户端选择 | `wb` / `codex` / `0` | 实际安装了哪些客户端 |
