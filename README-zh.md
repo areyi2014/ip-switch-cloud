@@ -101,6 +101,7 @@ bash install-ip-switch.sh
 - [配置云服务器（UI）](#配置云服务器ui)
 - [使用方式](#使用方式)
 - [更新与卸载](#更新与卸载)
+- [数据与隐私](#数据与隐私)
 - [常见问题](#常见问题)
 
 ---
@@ -559,6 +560,56 @@ rm -rf ~/.ip-switch                # macOS / Ubuntu
 Remove-Item -Recurse -Force ~/.ip-switch       # Windows
 
 # 从 WorkBuddy 的 mcp.json 中移除 ip-switch 条目
+```
+
+---
+
+## 数据与隐私
+
+安装脚本会在三个时点向项目自有的统计端点（`https://t.ipswitch.cloud/i`）上报一条使用事件：安装开始时、安装成功时、以及安装失败或取消时。这是用来判断有多少安装成功、其余卡在哪一步。
+
+### 采集哪些内容
+
+| 字段 | 示例 | 用途 |
+|---|---|---|
+| 事件类型 | `start` / `success` / `fail` / `cancel` | 计算安装成功率 |
+| 脚本版本 | `1.0` | 识别过期的脚本副本 |
+| 操作系统 | `linux` / `macos` / `windows` | 平台支持情况 |
+| Shell | `sh` / `ps1` | 使用了哪个安装器 |
+| 语言 | `en` / `zh` | 中英文版本分布 |
+| 客户端选择 | `wb` / `codex` / `0` | 实际安装了哪些客户端 |
+| 失败阶段 | `clone` / `build` / ... | 仅在失败时上报，用于定位卡点 |
+| **IP 地址** | `203.0.113.7` | 由端点记录，用于识别滥用 |
+| 设备 ID | 本机生成的随机 UUID | 区分新机器与重装 |
+| 国家 | `CN` | 由 Cloudflare 推断，脚本本身不上报 |
+| UTC 日期 | `2026-09-30` | 按天聚合 |
+
+**不采集**：用户名、主机名、文件路径、凭据、云平台 API 密钥，以及你保存的任何配置内容。
+
+### 存储位置与保留期
+
+Cloudflare Workers Analytics Engine，保留 **90 天**后自动删除。IP 地址在上述期间内以明文形式存储。
+
+### 如何关闭
+
+运行安装脚本前设置 `IP_SWITCH_TELEMETRY=0` 即可。不会发送任何数据，安装行为完全一致。
+
+```bash
+# Linux / macOS
+IP_SWITCH_TELEMETRY=0 bash install-ip-switch.sh
+```
+
+```powershell
+# Windows PowerShell
+$env:IP_SWITCH_TELEMETRY=0; & "$env:TEMP\install-ip-switch.ps1"
+```
+
+### 自定义端点
+
+设置 `IP_SWITCH_TELEMETRY_URL` 可把上报指向你自己的收集器（本地联调时很有用）：
+
+```bash
+IP_SWITCH_TELEMETRY_URL=http://127.0.0.1:8899/i bash install-ip-switch.sh
 ```
 
 ---

@@ -29,11 +29,12 @@ PROJECT_NAME="ip-switch"
 # Also settable via --clients (overrides the env var).
 CLIENTS="${CLIENTS:-}"
 
-# -- Anonymous install statistics (opt-out) --------------------------------------------
+# -- Install statistics (opt-out) ------------------------------------------------------
 # Reports at most 4 events (start / success / cancel / fail) to a Cloudflare Worker,
-# which stores them in Workers Analytics Engine. Nothing personal is collected: no IP
-# is stored, no username or hostname is sent, and the device id is a locally generated
-# random UUID kept in the user cache directory.
+# which stores them in Workers Analytics Engine. The event includes the client IP (the
+# endpoint records it from cf-connecting-ip, for abuse detection), the OS, the script
+# version and a locally generated random UUID device id. No username, hostname, file
+# path or credential is ever sent.
 # Disable with IP_SWITCH_TELEMETRY=0; override the endpoint with IP_SWITCH_TELEMETRY_URL.
 # Reporting is best effort: it never blocks for longer than 2s and never changes the
 # exit code, so a dead endpoint can never break an install.
@@ -53,7 +54,7 @@ log_warn()  { echo -e "${YELLOW}[WARN]${NC} $1"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 log_step()  { echo -e "\n${CYAN}═══ $1 ═══${NC}"; }
 
-# -- Anonymous install statistics ------------------------------------------------------
+# -- Install statistics ----------------------------------------------------------------
 # Device id: a random UUID generated once and kept locally, used only to tell a new
 # machine apart from a reinstall. It is not derived from any hardware or user data.
 device_id() {
@@ -1325,7 +1326,8 @@ EOF
         echo "  Restart Codex to see IP Switch in the plugin page"
     fi
     echo ""
-    echo "${YELLOW}Privacy:${NC} anonymous install stats (no personal data); disable with IP_SWITCH_TELEMETRY=0"
+    echo "${YELLOW}Privacy:${NC} install stats log your IP, OS, script version and a random device id"
+    echo "         opt out with IP_SWITCH_TELEMETRY=0; details in INSTALL.md"
     telemetry success
     TELEMETRY_SENT="1"
 }
@@ -1397,7 +1399,7 @@ while [ $# -gt 0 ]; do
             echo "  -h, --help         Show help"
             echo ""
             echo "Environment:"
-            echo "  IP_SWITCH_TELEMETRY=0        Disable anonymous install statistics"
+            echo "  IP_SWITCH_TELEMETRY=0        Disable install statistics"
             echo "  IP_SWITCH_TELEMETRY_URL=URL  Override the statistics endpoint"
             echo ""
             echo "Interactive prompts:"
