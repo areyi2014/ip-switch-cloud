@@ -537,18 +537,6 @@ set "NPMVER="
 for /f "usebackq delims=" %%A in (`"%NODE_EXE%" "%NPM_CLI%" --version 2^>nul`) do set "NPMVER=%%A"
 call :ok "Installed Node.js %VER% ^(npm %NPMVER%^) -^> %FINAL%"
 goto :eof
-
-rem -- Run an npm command -------------------------------------------------------
-rem    npm is a JS script run by node. The downloaded node is not on the system
-rem    PATH, and on Windows "npm run" executes node_modules/.bin/*.cmd ^(e.g.
-rem    tsc.cmd^) which locate node via PATH -- so the node dir is prepended to
-rem    the process-local PATH first. No system change; restored right after.
-rem    %1 = subcommand, the rest = extra args.
-rem
-rem    The result is returned in NPM_RC, NOT through "exit /b". In a "call"
-rem    chain an "exit /b" out of a nested routine ended the whole script: the
-rem    caller's next line never ran, so a failing tsc looked like a passing build
-rem    and the installer went on to announce "Deployment complete".
 rem -- Run an npm command -------------------------------------------------------
 rem    npm is a JS script run by node. The downloaded node is not on the system
 rem    PATH, and on Windows "npm run" executes node_modules/.bin/*.cmd ^(e.g.
@@ -556,31 +544,10 @@ rem    tsc.cmd^) which locate node via PATH -- so the node dir is prepended to
 rem    the process-local PATH first. No system change; restored right after.
 rem    %1 = subcommand, %2..%4 = extra args. The result comes back in NPM_RC.
 rem
-rem    Two earlier shapes both broke the run:
-rem      - "exit /b" ended the whole script, so the caller's next line never ran
-rem        and a failing tsc looked like a passing build;
-rem      - the argument loop used its own labels, and a "goto :eof" out of a
-rem        nested "call" lost the call frame, which surfaced as
-rem        "the system cannot find the batch label specified" on the next call.
-rem    Only three extra args are ever needed here, so they are read positionally
-rem    and the routine has no loop and no helper of its own.
-rem -- Run an npm command -------------------------------------------------------
-rem    npm is a JS script run by node. The downloaded node is not on the system
-rem    PATH, and on Windows "npm run" executes node_modules/.bin/*.cmd ^(e.g.
-rem    tsc.cmd^) which locate node via PATH -- so the node dir is prepended to
-rem    the process-local PATH first. No system change; restored right after.
-rem    %1 = subcommand, %2..%4 = extra args. The result comes back in NPM_RC.
-rem
-rem    The exit code is turned into NPM_RC twice, by two independent mechanisms,
-rem    and the caller checks both. That redundancy is deliberate: this routine is
-rem    the one that decides whether a failed build stops the install, and every
-rem    single-method version tried here mis-reported a broken build as good.
-rem      - "exit /b" ended the whole script, so the caller's next line never ran;
-rem      - "if errorlevel 1" alone cannot tell 1 from 2, so the exact value is
-rem        also written to a temp file by cmd itself and read back;
-rem      - a helper subroutine for either step lost the call frame and produced
-rem        "the system cannot find the batch label specified" on the next call,
-rem        so both mechanisms are inlined here with no subroutine and no goto.
+rem    npm is launched as "node npm-cli.js" and never as "npm.cmd": a .cmd shim
+rem    ends the calling script, so every line after it was skipped and a failing
+rem    tsc was reported as a successful build. The status is only needed as
+rem    zero vs non-zero, and "if errorlevel 1" already means ">= 1".
 :invoke_npm
 set "NPM_SUBCMD=%~1"
 rem The leading space matters: the command is assembled as
@@ -611,27 +578,6 @@ rem non-zero, and "if errorlevel 1" already means ">= 1".
 set "NPM_RC=0"
 if not errorlevel 1 goto :eof
 set "NPM_RC=1"
-goto :eof
-
-:npm_via_cli
-for %%D in ("%NODE_EXE%") do set "NODEDIR=%%~dpD"
-set "SAVED_PATH=%PATH%"
-set "PATH=%NODEDIR%;%PATH%"
-"%NODE_EXE%" "%NPM_CLI%" %NPM_SUBCMD%%NPM_EXTRA%
-rem The exit code is read right here, not through a helper: inside "if (...)"
-rem every %ERRORLEVEL% is expanded before the block runs, and a called routine
-rem starts with its own ERRORLEVEL. Either way a failing tsc read as success.
-> "%TEMP%\ip-switch-rc.txt" echo %ERRORLEVEL%
-for /f "usebackq tokens=*" %%R in (`type "%TEMP%\ip-switch-rc.txt"`) do set "NPM_RC=%%R"
-del /f /q "%TEMP%\ip-switch-rc.txt" >nul 2>&1
-set "PATH=%SAVED_PATH%"
-goto :eof
-
-:npm_via_cmd
-"%NPM_CMD%" %NPM_SUBCMD%%NPM_EXTRA%
-> "%TEMP%\ip-switch-rc.txt" echo %ERRORLEVEL%
-for /f "usebackq tokens=*" %%R in (`type "%TEMP%\ip-switch-rc.txt"`) do set "NPM_RC=%%R"
-del /f /q "%TEMP%\ip-switch-rc.txt" >nul 2>&1
 goto :eof
 
 rem ===========================================================================
@@ -1637,9 +1583,6 @@ if "%SEL_WB%"=="0" call :info "  Any terminal: node %CXSCRIPTS%\open-ui.mjs aws/
 goto :eof
 
 rem -- Write a text file with no trailing newline and no BOM ----------------------
-rem    %1 = target, %2 = content. echo|set /p writes without a newline, which is
-rem    what the readers of these marker files expect.
-rem -- Write a text file with no trailing newline and no BOM ----------------------
 rem    %1 = target, %2 = content. node is used because "set /p" treats its
 rem    argument as a prompt, and a Windows path inside it breaks the parse.
 :write_text_file
@@ -1790,18 +1733,6 @@ if not exist "%PROC_HIT%" if not "%~2"=="" (
 if exist "%PROC_HIT%" for /f "usebackq tokens=*" %%P in (`type "%PROC_HIT%"`) do set "FOUND_EXE=%%P"
 if exist "%PROC_HIT%" del /f /q "%PROC_HIT%" >nul 2>&1
 del /f /q "%PROC_LIST%" >nul 2>&1
-goto :eof
-if exist "%FOUND_EXE%" (
-    start "" /min "%FOUND_EXE%" > "%LOGOUT%" 2> "%LOGERR%"
-    call :ok "%APP_NAME% restarted"
-    goto :eof
-)
-if not "%LAUNCH_EXE%"=="" (
-    start "" /min "%LAUNCH_EXE%" %LAUNCH_ARGS% > "%LOGOUT%" 2> "%LOGERR%"
-    call :ok "%APP_NAME% restarted"
-    goto :eof
-)
-call :warn "%APP_NAME% was closed but auto-restart failed; please open it manually"
 goto :eof
 
 rem ===========================================================================
