@@ -535,7 +535,7 @@ rd /s /q "%TMPDIR%" >nul 2>&1
 
 set "NPMVER="
 for /f "usebackq delims=" %%A in (`"%NODE_EXE%" "%NPM_CLI%" --version 2^>nul`) do set "NPMVER=%%A"
-call :ok "Installed Node.js %VER% ^(npm %NPMVER%^) -^> %FINAL%"
+call :ok "Installed Node.js %VER% ^(npm %NPMVER%^) into %FINAL%"
 goto :eof
 rem -- Run an npm command -------------------------------------------------------
 rem    npm is a JS script run by node. The downloaded node is not on the system
@@ -1546,7 +1546,7 @@ set "DATA_DIR=%INSTALL_DIR%\data"
 if not exist "%DATA_DIR%" mkdir "%DATA_DIR%"
 set "MARKER_PATH=%DATA_DIR%\install-dir.txt"
 call :write_text_file "%MARKER_PATH%" "%INSTALL_DIR%"
-call :ok "install-dir marker written: %MARKER_PATH% -^> %INSTALL_DIR%"
+call :ok "install-dir marker written: %MARKER_PATH% (points to %INSTALL_DIR%)"
 
 if "%SEL_WB%%SEL_CODEX%"=="00" (
     call :warn "No client selected; skipping the skill install"
