@@ -48,21 +48,17 @@ Pro 功能通过 `commerce/` 目录下的自建销售后台授权：
 
 **Windows**：
 
-> **执行环境：PowerShell**
+> **执行环境：命令提示符（cmd.exe）**
 
-```powershell
-# 下载安装脚本
-Invoke-WebRequest -Uri "https://gitee.com/areyi2014/ip-switch-cloud/raw/main/install.ps1" -OutFile "$env:TEMP\install-ip-switch.ps1"
+```bat
+REM 下载安装脚本
+curl -fsSL "https://gitee.com/areyi2014/ip-switch-cloud/raw/main/install.cmd" -o "%TEMP%\install-ip-switch.cmd"
 
-# 运行（必须在 PowerShell 中执行；cmd 中不支持 & 语法）
-& "$env:TEMP\install-ip-switch.ps1"
+REM 运行
+"%TEMP%\install-ip-switch.cmd"
 ```
 
-> **提示**: 如在 cmd 或其他环境，可用以下命令（不依赖 `&`，也自动绕过执行策略限制）：
->
-> ```
-> powershell -ExecutionPolicy Bypass -File "%TEMP%\install-ip-switch.ps1"
-> ```
+> **提示**：`install.cmd` 是原生 cmd.exe 脚本，不需要 PowerShell，因此完全不受执行策略限制（不会出现「禁止运行脚本」）。
 
 **macOS / Ubuntu**：
 
@@ -160,29 +156,26 @@ bash install-ip-switch.sh --skip-build
 
 ### Windows
 
-> **执行环境：PowerShell**
+> **执行环境：命令提示符（cmd.exe）**
 
-```powershell
-# 如果遇到执行策略限制，先运行：
-Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
+```bat
+REM 下载安装脚本
+curl -fsSL "https://gitee.com/areyi2014/ip-switch-cloud/raw/main/install.cmd" -o "%TEMP%\install-ip-switch.cmd"
 
-# 下载安装脚本
-Invoke-WebRequest -Uri "https://gitee.com/areyi2014/ip-switch-cloud/raw/main/install.ps1" -OutFile "$env:TEMP\install-ip-switch.ps1"
-
-# 运行
-& "$env:TEMP\install-ip-switch.ps1"
+REM 运行
+"%TEMP%\install-ip-switch.cmd"
 ```
 
 **自定义参数：**
 
-> **执行环境：PowerShell**
+> **执行环境：命令提示符（cmd.exe）**
 
-```powershell
-& "$env:TEMP\install-ip-switch.ps1" -InstallDir "D:\tools\ip-switch"
-& "$env:TEMP\install-ip-switch.ps1" -RepoUrl "https://gitee.com/areyi2014/ip-switch-cloud.git"
+```bat
+"%TEMP%\install-ip-switch.cmd" -installDir "D:\tools\ip-switch"
+"%TEMP%\install-ip-switch.cmd" -RepoUrl "https://gitee.com/areyi2014/ip-switch-cloud.git"
 ```
 
-> **注意**: 如遇 `无法加载文件，因为在此系统上禁止运行脚本` 错误，请先执行 `Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned`。
+> **注意**：`install.cmd` 是 cmd.exe 脚本，没有执行策略这一步，不会出现「无法加载文件，因为在此系统上禁止运行脚本」。
 
 > **提示**: 未安装 git 时，脚本会自动按 CPU 架构静默下载安装 git（国内镜像加速）到用户目录，无需手动处理。
 
@@ -432,7 +425,7 @@ ip-switch/
 │   ├── schema.sql        # 5 张表，ip_ 前缀，全字段中文备注
 │   ├── public/           # 销售页（中文 / 英文 / 模拟收银台）
 │   └── tools/init-db.mjs # 一键建库与校验
-├── install.ps1           # Windows 安装脚本（英文）
+├── install.cmd           # Windows 安装脚本（英文）
 ├── install-zh.ps1        # Windows 安装脚本（中文）
 ├── install.sh            # macOS / Ubuntu 安装脚本（英文）
 ├── install-zh.sh         # macOS / Ubuntu 安装脚本（中文）
@@ -599,9 +592,10 @@ Cloudflare Workers Analytics Engine，保留 **90 天**后自动删除。IP 地�
 IP_SWITCH_TELEMETRY=0 bash install-ip-switch.sh
 ```
 
-```powershell
-# Windows PowerShell
-$env:IP_SWITCH_TELEMETRY=0; & "$env:TEMP\install-ip-switch.ps1"
+```bat
+REM Windows（cmd.exe）
+set "IP_SWITCH_TELEMETRY=0"
+"%TEMP%\install-ip-switch.cmd"
 ```
 
 ### 自定义端点
@@ -671,15 +665,9 @@ source ~/.bashrc
 
 此问题已在最新代码中修复（使用 `beginCreateOrUpdateAndWait` 替代），确保使用最新的 `main` 分支即可。
 
-### 6. Windows PowerShell 脚本无法运行
+### 6. Windows 提示「禁止运行脚本」
 
-> **执行环境：PowerShell**
-
-```powershell
-Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
-```
-
-或使用 `powershell -ExecutionPolicy Bypass -File install.ps1` 绕过限制。
+该报错来自 PowerShell 的执行策略。`install.cmd` 在 cmd.exe 中运行，不受该策略约束——遇到此问题改用 `install.cmd` 即可。
 
 ### 7. 创建 Codex 桌面快捷方式（无黑窗闪屏）
 

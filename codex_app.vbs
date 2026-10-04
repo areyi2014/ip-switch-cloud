@@ -168,8 +168,8 @@ End If
 ' — they read ONLY the user-level config.toml. So [marketplaces.local] +
 ' [plugins."ip-switch@local"] + [mcp_servers.ip-switch] in the USER-LEVEL config are what actually
 ' make ip-switch appear in those global lists. Deleting those user-level blocks hides ip-switch from
-' the global lists — which is exactly what you observed. Restore them by re-running install.ps1
-' (Append-CodexUserConfig, which writes only the user-level config).
+' the global lists — which is exactly what you observed. Restore them by re-running install.cmd
+' (which writes only the user-level config).
 ipSwitchWorkspace = WshShell.ExpandEnvironmentStrings("%USERPROFILE%") & "\ip-switch"
 
 If codexPath <> "" And fso.FileExists(codexPath) Then

@@ -17,7 +17,7 @@ ip-switch 是一个 **MCP（Model Context Protocol）服务**，安装后被注�
 
 ## 2. 前置条件（必读）
 
-**必须先跑过 `bash install.sh` 或 `install.ps1`**。install 做了三件事：
+**必须先跑过 `bash install.sh`（macOS / Ubuntu）或 `install.cmd`（Windows）**。install 做了三件事：
 
 1. 编译并注册 MCP 服务 → 本 Agent 工具列表里出现 `ip-switch` 的 13 个工具（重点）
 2. 把本 skill 装到用户级目录 → AI 能读到这份手册、能调用开 UI 的脚本
@@ -233,7 +233,7 @@ install 已把 skill 同时镜像到 `~/.workbuddy/skills/ips-main/` 与 `~/.cod
 
 按顺序排查，**每一项都让用户配合做**：
 
-1. **install 是否跑过**：没跑过 → 重跑 `bash install.sh` / `install.ps1`（幂等，可重复执行，会自动重启客户端）。
+1. **install 是否跑过**：没跑过 → 重跑 `bash install.sh` / `install.cmd`（幂等，可重复执行，会自动重启客户端）。
 2. **WorkBuddy**：`~/.workbuddy/mcp.json` 里应有 `mcpServers.ip-switch`（command=node 绝对路径，args=[<install-dir>\dist\index.js]）。连接器管理页对 ip-switch 点「信任」，然后重启 WorkBuddy。
 3. **Codex**：重启 Codex 使 `~/.codex/config.toml` 的 `[mcp_servers.ip-switch]` / 插件市场生效；插件页应能看到 "IP Switch" 并已启用。
 4. **手动兜底**：把下面片段并入对应客户端的 mcp.json（`<install-dir>` 换成实际路径）：

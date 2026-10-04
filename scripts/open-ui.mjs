@@ -351,7 +351,7 @@ async function main() {
     log.err(`  - 用户级副本标记文件: ${path.join(SCRIPT_DIR, INSTALL_PATH_MARKER)}`);
     log.err(`  - 脚本同级的父目录: ${path.dirname(SCRIPT_DIR)}`);
     log.err('  - 默认路径: ~/ip-switch、~/tools/ip-switch、C:\\ip-switch、/opt/ip-switch');
-    log.err('请确认 ip-switch 已安装（跑 bash install.sh 或 install.ps1）');
+    log.err('请确认 ip-switch 已安装（跑 bash install.sh 或 install.cmd）');
     process.exit(1);
   }
   const dataDir = runtimeDir(installDir);

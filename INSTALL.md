@@ -45,23 +45,20 @@ An AI Agent plugin for effortless rotation of cloud public IPs — batch-rotate 
 
 ### Windows
 
-Run in PowerShell (if you hit execution policy restrictions, run `Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned` first):
+Run in the Command Prompt (cmd.exe):
 
-```powershell
-# Download the install script
-Invoke-WebRequest -Uri "https://gitee.com/areyi2014/ip-switch-cloud/raw/main/install.ps1" -OutFile "$env:TEMP\install-ip-switch.ps1"
+```bat
+REM Download the install script
+curl -fsSL "https://gitee.com/areyi2014/ip-switch-cloud/raw/main/install.cmd" -o "%TEMP%\install-ip-switch.cmd"
 
-# Run it (must be executed in PowerShell; cmd does not support the & syntax)
-& "$env:TEMP\install-ip-switch.ps1"
+REM Run it
+"%TEMP%\install-ip-switch.cmd"
 ```
 
 > **Notes**:
-> - Do NOT use the `irm ... | iex` shorthand — `irm`/`iex` are PowerShell aliases; in cmd and other environments they error with "irm not found", and piping a multi-line script straight into execution is error-prone.
-> - `& "$env:TEMP\..."` is PowerShell syntax; it must run in a PowerShell window, not cmd.
-> - If you are in cmd or another environment, use the following command instead (no reliance on `&`, and it bypasses execution policy restrictions):
-> ```
-> powershell -ExecutionPolicy Bypass -File "%TEMP%\install-ip-switch.ps1"
-> ```
+> - Do NOT pipe the download straight into execution (`curl ... | cmd`): save it to a file first, so you can read what you are about to run.
+> - `install.cmd` is a cmd.exe script, so there is no `Set-ExecutionPolicy` step and the "running scripts is disabled on this system" error cannot occur.
+> - `curl.exe` ships with Windows 10 1803 and later, and `install.cmd` uses it internally anyway.
 
 ### macOS / Ubuntu
 
@@ -98,19 +95,24 @@ bash install-ip-switch.sh
 
 The installer detects installed AI-agent clients (WorkBuddy, Codex) and lets you pick which ones to install into interactively — nothing is installed into a client you do not select. You can also pre-select via a parameter:
 
-Windows PowerShell:
+Windows (cmd.exe):
 
-```powershell
-& "$env:TEMP\install-ip-switch.ps1" -InstallDir "D:\tools\ip-switch"
-& "$env:TEMP\install-ip-switch.ps1" -RepoUrl "https://gitee.com/areyi2014/ip-switch-cloud.git"
-& "$env:TEMP\install-ip-switch.ps1" -Branch develop
-& "$env:TEMP\install-ip-switch.ps1" -Clients workbuddy          # WorkBuddy only
-& "$env:TEMP\install-ip-switch.ps1" -Clients codex,workbuddy    # both, no prompt
-& "$env:TEMP\install-ip-switch.ps1" -Clients all                # every supported client
-& "$env:TEMP\install-ip-switch.ps1" -Clients 0                  # source build only
-& "$env:TEMP\install-ip-switch.ps1" -SkipBuild
-& "$env:TEMP\install-ip-switch.ps1" -Help
+```bat
+"%TEMP%\install-ip-switch.cmd" -installDir "D:\tools\ip-switch"
+"%TEMP%\install-ip-switch.cmd" -RepoUrl "https://gitee.com/areyi2014/ip-switch-cloud.git"
+"%TEMP%\install-ip-switch.cmd" -Branch develop
+"%TEMP%\install-ip-switch.cmd" -Clients workbuddy
+"%TEMP%\install-ip-switch.cmd" -Clients codex,workbuddy
+"%TEMP%\install-ip-switch.cmd" -Clients all
+"%TEMP%\install-ip-switch.cmd" -Clients 0
+"%TEMP%\install-ip-switch.cmd" -SkipBuild
+"%TEMP%\install-ip-switch.cmd" -Help
 ```
+
+- `-Clients workbuddy` - WorkBuddy only
+- `-Clients codex,workbuddy` - both, no prompt
+- `-Clients all` - every supported client
+- `-Clients 0` - source build only
 
 macOS / Ubuntu:
 
@@ -403,9 +405,10 @@ the installation behaves exactly the same.
 IP_SWITCH_TELEMETRY=0 bash install-ip-switch.sh
 ```
 
-```powershell
-# Windows PowerShell
-$env:IP_SWITCH_TELEMETRY=0; & "$env:TEMP\install-ip-switch.ps1"
+```bat
+REM Windows (cmd.exe)
+set "IP_SWITCH_TELEMETRY=0"
+"%TEMP%\install-ip-switch.cmd"
 ```
 
 ### Custom endpoint
@@ -472,13 +475,9 @@ source ~/.bashrc
 
 This has been fixed in the latest code (replaced with `beginCreateOrUpdateAndWait`). Just make sure you're on the latest `main` branch.
 
-### 6. Windows PowerShell script won't run
+### 6. Windows: "running scripts is disabled on this system"
 
-```powershell
-Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
-```
-
-Or bypass the restriction with `powershell -ExecutionPolicy Bypass -File install.ps1`.
+This error comes from the PowerShell execution policy. `install.cmd` runs in cmd.exe and is not subject to it - switch to `install.cmd` if you hit this.
 
 ### 7. Automatic git installation fails
 

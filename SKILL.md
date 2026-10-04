@@ -62,4 +62,4 @@ node <skill-root>/scripts/open-ui.mjs --status
 node <skill-root>/scripts/open-ui.mjs --stop
 ```
 
-`--status` reports whether the UI server is running, its actual port, and the install dir; `--stop` shuts the background UI server down. If the script cannot find the install dir, re-run `install.ps1` or `install.sh` first.
+`--status` reports whether the UI server is running, its actual port, and the install dir; `--stop` shuts the background UI server down. If the script cannot find the install dir, re-run `install.cmd` or `install.sh` first.
