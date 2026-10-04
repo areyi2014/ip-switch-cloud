@@ -761,17 +761,30 @@ rem ===========================================================================
 :clone_repo
 call :step "Cloning the project repository"
 
-if exist "%INSTALL_DIR%\.git" (
-    call :warn "Target directory exists; running git pull to update..."
-    pushd "%INSTALL_DIR%"
-    git fetch origin %BRANCH%
-    git checkout %BRANCH%
-    git pull origin %BRANCH%
-    popd
-    call :ok "Project updated: %INSTALL_DIR%"
-    goto :eof
-)
+rem Labels, not an "if (...)" block: a "goto" inside a block leaves the
+rem caller's context. And the git exit code is checked, because a failed pull
+rem used to be reported as "Project updated" while the checkout still sat on
+rem the old revision.
+if not exist "%INSTALL_DIR%\.git" goto :clone_fresh
+call :warn "Target directory exists; running git pull to update..."
+pushd "%INSTALL_DIR%"
+git fetch origin %BRANCH%
+git checkout %BRANCH%
+git pull origin %BRANCH%
+set "GIT_RC=%ERRORLEVEL%"
+popd
+if not "%GIT_RC%"=="0" goto :pull_failed
+call :ok "Project updated: %INSTALL_DIR%"
+goto :eof
 
+:pull_failed
+call :err "git pull failed in %INSTALL_DIR% ^(git exit code: %GIT_RC%^)"
+call :info "The existing checkout could not be updated. Remove it and run the installer again:"
+echo [INFO]    rd /s /q "%INSTALL_DIR%"
+set "RC=1"
+goto :finish
+
+:clone_fresh
 call :info "Repository URL: %REPO_URL%"
 call :info "Target branch: %BRANCH%"
 call :info "Install directory: %INSTALL_DIR%"
@@ -943,7 +956,10 @@ if not "%NPM_RC%"=="0" goto :build_failed
 if exist "%INSTALL_DIR%\dist\index.js" goto :build_ok
 call :err "Build produced no dist\index.js although npm reported success"
 call :info "Nothing was installed; the previous build is still in place."
-call :info "Build manually to see the error: cd /d %INSTALL_DIR% ^& npm run build"
+rem "echo" rather than "call :info": cmd re-escapes nothing that came out of
+rem "%~1", so a "^&" inside the argument reached the parser as a real command
+rem separator and ran "npm run build" a second time.
+echo [INFO]  Build manually to see the error: cd /d %INSTALL_DIR% ^& npm run build
 popd
 set "RC=1"
 goto :finish
@@ -954,10 +970,10 @@ popd
 goto :eof
 
 :build_failed
-call :err "Build failed ^(npm exit code: %NPM_RC%^) — see the tsc errors above"
+call :err "Build failed ^(npm exit code: %NPM_RC%^) - see the tsc errors above"
 call :info "Nothing was installed; the previous build is still in place."
-call :info "Build manually to see the error: cd /d %INSTALL_DIR% ^& set ELECTRON_RUN_AS_NODE= ^& npm run build"
-call :info "If the errors are TS7016/TS1005, a package was extracted incompletely: rmdir /s /q node_modules ^& npm install"
+echo [INFO]  Build manually to see the error: cd /d %INSTALL_DIR% ^& set ELECTRON_RUN_AS_NODE= ^& npm run build
+echo [INFO]  If the errors are TS7016/TS1005, a package was extracted incompletely: rmdir /s /q node_modules ^& npm install
 popd
 set "RC=1"
 goto :finish
@@ -1864,7 +1880,7 @@ goto :build_run
 :build_skip_check
 if exist "%INSTALL_DIR%\dist\index.js" goto :build_run
 call :err "Build output missing: %INSTALL_DIR%\dist\index.js"
-call :info "-SkipBuild was given but there is no build to install; drop -SkipBuild, or run: cd %INSTALL_DIR% ^& npm install ^& npm run build"
+echo [INFO]  -SkipBuild was given but there is no build to install; drop -SkipBuild, or run: cd %INSTALL_DIR% ^& npm install ^& npm run build
 set "RC=1"
 goto :finish
 
